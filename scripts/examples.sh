@@ -60,6 +60,7 @@ run_case 2 build/parse_ep first.pas second.pas
 run_case 2 build/parse_ep /nonexistent/npegged/input.pas
 printf 'not a pascal program' > build/invalid.pas
 run_case 1 build/parse_ep --text build/invalid.pas > build/invalid-output.txt 2> build/invalid-diagnostic.txt
+run_case 2 build/parse_ep --text build/invalid.pas > build/invalid-output.txt 2> /dev/full
 run_case 2 build/parse_ep --trace examples/extended_pascal/example.pas > build/trace-error.txt 2> /dev/full
 run_case 2 build/parse_ep --text examples/extended_pascal/example.pas > /dev/full
 for demo in examples/DConf2017/*.d; do

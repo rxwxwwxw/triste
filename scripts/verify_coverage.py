@@ -43,10 +43,12 @@ for report in args.lines.rglob('*.lst'):
     else: no_code.discard(name)
 cfg_files = list(args.branches.rglob('*.profile'))
 if not cfg_files: errors.append('Missing GDC control-flow dump; cannot distinguish invariant checks')
-cfg = read_cfg(cfg_files)
+cfg_by_dir = {p.parent: read_cfg([p]) for p in cfg_files}
+global_cfg = read_cfg(cfg_files)
 branches = {}
 branch_times = {}
 for report in args.branches.rglob('*.gcov.json.gz'):
+    cfg = cfg_by_dir.get(report.parent, global_cfg)
     with gzip.open(report, 'rt') as stream:
         data = json.load(stream)
     for source in data.get('files', []):

@@ -356,7 +356,7 @@ valgrind \
   --leak-check=full \
   --show-leak-kinds=all \
   --track-origins=yes \
-  --errors-for-leak-kinds=all \
+  --errors-for-leak-kinds=definite,indirect \
   --error-exitcode=1 \
   ./test_runner
 

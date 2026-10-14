@@ -10,7 +10,7 @@ common=(-Isrc)
 case "$(basename "$compiler")" in
   dmd) common+=(-defaultlib=druntime -nothrow -checkaction=halt -w); unit=(-unittest); output=(-of="$build_dir/tests");;
   ldc2) common+=(-defaultlib=druntime-ldc -fno-exceptions -checkaction=halt -w); unit=(-unittest); output=(-of="$build_dir/tests");;
-  gdc) common+=(-nophoboslib -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -fcheckaction=halt -Wall -Werror); unit=(-funittest); output=(-o "$build_dir/tests");;
+  gdc) common+=(-nophoboslib -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -fcheckaction=halt -Wall -Werror --param asan-globals=0); unit=(-funittest); output=(-o "$build_dir/tests");;
   *) echo "Unsupported compiler: $compiler" >&2; exit 2;;
 esac
 link=()

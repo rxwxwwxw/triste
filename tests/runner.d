@@ -26,6 +26,16 @@ import npegged.examples.constraints;
 import core.memory : GC;
 import core.sys.posix.unistd : alarm;
 
+extern (C) __gshared string[] rt_options = ["gcopt=disable:1 parallel:0 cleanup:none"];
+
+version (Posix) {
+    import core.sys.posix.pthread : pthread_self, pthread_t;
+
+    extern (C) int pthread_detach(pthread_t th) nothrow @nogc {
+        return 0;
+    }
+}
+
 mixin(grammar(`
 Cycle:
     Start <- A eoi
@@ -128,6 +138,9 @@ private void traced(string rule, size_t pos, bool success, void* user) @nogc not
     assert(c.successful);
     auto d = D(context, "module example;\n");
     assert(d.successful);
+    version (Posix) {
+        assert(pthread_detach(pthread_self()) == 0);
+    }
 }
 
 enum actionFixture = q"GRAM

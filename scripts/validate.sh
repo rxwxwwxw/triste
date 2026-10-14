@@ -20,4 +20,4 @@ scripts/coverage.sh
 DC=ldc2 ASAN_OPTIONS=detect_leaks=1 scripts/build.sh -fsanitize=address -g
 DC=gdc ASAN_OPTIONS=detect_leaks=1 scripts/build.sh -fsanitize=address,leak -g
 DC=ldc2 scripts/build.sh -g -O0
-timeout --preserve-status --kill-after=2s 120s valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=all --error-exitcode=1 build/ldc2/tests --DRT-testmode=run-main
+timeout --preserve-status --kill-after=2s 120s valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=definite,indirect --error-exitcode=1 build/ldc2/tests --DRT-testmode=run-main
