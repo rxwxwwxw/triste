@@ -1,0 +1,13 @@
+{
+  "name": "markdown",
+  "description": "The Markdown language grammar. The PEG file comes from this Github project. You can find the official description of Markdown syntax here.",
+  "license": "Boost",
+  "targetType": "library",
+  "dependencies": {
+    "pegged":  {
+      "version": "*",
+      "path": "../.."
+    }
+  },
+  "dflags": [ "-preview=dip1000" ]
+}

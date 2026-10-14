@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# npegged staged-snapshot validation
+set -euo pipefail
+root=$(git rev-parse --show-toplevel)
+previous=$(git rev-parse --git-path hooks/pre-commit.previous)
+if [[ -x "$previous" ]]; then "$previous" "$@"; fi
+snapshot=$(mktemp -d "${TMPDIR:-/tmp}/npegged-index.XXXXXXXX")
+trap 'rm -rf "$snapshot"' EXIT
+git checkout-index --all --prefix="$snapshot/"
+cd "$snapshot"
+bash scripts/validate.sh

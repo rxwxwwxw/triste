@@ -1,0 +1,13 @@
+{
+  "name": "json",
+  "description": "Example JSON PEG grammar. The standard JSON grammar, taken from json.org. Only 12 rules!",
+  "license": "Boost",
+  "targetType": "library",
+  "dependencies": {
+    "pegged":  {
+      "version": "*",
+      "path": "../.."
+    }
+  },
+  "dflags": [ "-preview=dip1000" ]
+}

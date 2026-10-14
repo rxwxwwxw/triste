@@ -1,0 +1,13 @@
+{
+  "name": "constrants",
+  "description": "Parse template constraints",
+  "license": "Boost",
+  "targetType": "library",
+  "dependencies": {
+    "pegged":  {
+      "version": "*",
+      "path": "../.."
+    }
+  },
+  "dflags": [ "-preview=dip1000" ]
+}

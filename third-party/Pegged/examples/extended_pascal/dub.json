@@ -1,0 +1,36 @@
+{
+    "name": "parse_ep",
+    "authors": [
+        "Bastiaan Veelo"
+    ],
+    "dependencies": {
+        "pegged":  {
+            "version": "*",
+            "path": "../.."
+        }
+    },
+    "dflags": [ "-preview=dip1000" ],
+    "preGenerateCommands": [
+        "rdmd -I$PEGGED_PACKAGE_DIR source/make.d"
+    ],
+    "excludedSourceFiles": [
+        "source/make.d",
+        "source/epgrammar.d"
+    ],
+    "description": "Example parser for Extended Pascal.",
+    "copyright": "Copyright © 2017, Bastiaan Veelo",
+    "license": "Boost License 1.0",
+    "targetType": "executable",
+    "configurations": [
+        {
+            "name": "default"
+        },
+        {
+            "name": "tracer",
+            "versions": ["tracer"],
+            "subConfigurations": {
+                "pegged": "tracer"
+            }
+        }
+    ]
+}

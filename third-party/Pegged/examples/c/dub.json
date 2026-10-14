@@ -1,0 +1,13 @@
+{
+  "name": "c",
+  "description": " A simple C grammar, most probably full of bugs.",
+  "license": "Boost",
+  "targetType": "library",
+  "dependencies": {
+    "pegged":  {
+      "version": "*",
+      "path": "../.."
+    }
+  },
+  "dflags": [ "-preview=dip1000" ]
+}

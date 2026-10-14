@@ -1,0 +1,12 @@
+npegged is derivative work of Pegged by Philippe Sigaud and contributors,
+including the Extended Pascal example contributed by its original authors.
+The original sources and their attribution remain in third-party/Pegged.
+Pegged's README specifies the Boost Software License 1.0, reproduced in LICENSE.
+
+The conversion changes storage, ownership, code generation, error handling,
+testing, and tooling. Existing grammar text and example expectations retain
+their upstream provenance. New code is distributed under the same license.
+
+Unicode case-fold and alphabetic-property mappings are generated from the
+vendored Unicode 17.0.0 Character Database. Its copyright and Unicode License
+V3 are preserved in third-party/unicode. No Phobos code or tables are linked.

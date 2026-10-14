@@ -1,0 +1,135 @@
+# triste / npegged
+
+The first part of triste converts Philippe Sigaud's Pegged into a Linux,
+druntime-only D library. Original sources remain in `third-party/Pegged`.
+The conversion is derivative work under Boost 1.0; see `LICENSE` and `NOTICE`.
+
+## Using a grammar
+
+```d
+import npegged.grammar;
+
+mixin(grammar(`
+Arithmetic:
+    Sum    < Number (:'+' Number)* :eoi
+    Number <~ [0-9]+
+`));
+
+int main() @nogc nothrow {
+    ParseContext context;
+    auto result = Arithmetic(context, "12 + 34");
+    assert(result.status == Status.ok);
+    assert(result.matches == ["12", "34"]);
+    return 0;
+}
+```
+
+`ParseResult` owns its input and tree storage. It is move-only. Nodes, matches,
+and child slices are borrowed views valid until that result is destroyed.
+A context can be reused; separate parses retain independent results and memo
+state. Contexts expose memory, step, and recursion-depth limits, plus a tracing
+callback and user-data pointer. Runtime parser functions and callbacks are
+`@nogc nothrow`. Allocation and operating-system resources use RAII structs.
+
+Grammar syntax follows the supplied Pegged examples: ordered and longest
+choice, repetition, lookahead, spacing arrows, captures and tree transforms,
+parameterized rules and grammars, composition, actions, and runtime left
+recursion. Parsing accepts prefixes unless the grammar includes `eoi`.
+`Status` distinguishes mismatch, invalid input, memory failure, resource limits,
+and I/O failure. `result.failMsg` returns an owning diagnostic text buffer.
+
+Compile-time parsing remains available:
+
+```d
+enum result = Arithmetic("12 + 34");
+static assert(result.successful);
+```
+
+As upstream, left-recursive input parsing requires runtime execution.
+
+The grammar frontend supports both compile-time mixins and cold runtime
+code generation (`generate` and `asModule`). These cold operations selectively
+use druntime GC. Compiler execution uses compiler-managed arrays; parser
+execution uses scoped arenas, including the alternate backend when exercised
+at runtime. There are no Phobos dependencies in maintained D code or emitted
+parsers. Strict `-betterC` compilation is not a target of this first conversion.
+
+Unicode folding and alphabetic-property tables are generated from the vendored
+Unicode 17 database, independently of the process locale. As in Pegged, `.`
+consumes one byte, character ranges decode UTF-8, and case-insensitive literals
+consume the literal's byte length. Offsets and columns are byte-based.
+
+## Building and checking
+
+Required tools: DMD, LDC (`ldc2`), GDC, separately linkable druntime libraries,
+`dfmt`, Python 3, GNU `timeout`, `gcov` matching GDC 16, `rg`, and Valgrind with matching libc
+debug symbols. No DUB dependency is needed for the library.
+
+```sh
+scripts/build.sh                       # unit tests and integration runner
+DC=ldc2 scripts/build.sh
+DC=gdc scripts/build.sh
+scripts/examples.sh                    # Pascal and DConf programs; regeneration check
+scripts/hotpaths.sh                     # GC diagnostics on all three compilers
+scripts/coverage.sh                     # line and source-branch coverage gate
+scripts/validate.sh                     # complete required validation
+scripts/install-hooks.sh               # install into a writable Git checkout
+```
+
+Each integration executable invocation has an explicit timeout. Builds enable
+fatal invariant checks, disable exception unwinding with compiler-specific
+flags, and link druntime explicitly. `build/<compiler>/tests` accepts
+`--DRT-testmode=run-main`; the runner script always passes it so integration
+checks execute after unit tests.
+
+The pre-commit hook validates an isolated copy of the Git index, chains an
+existing hook, and leaves unstaged changes out of validation. An existing
+`core.hooksPath` configuration is reported rather than overwritten. Installing
+the active hook requires writable Git metadata; the installer cannot install
+into this workspace's read-only `.git` mount.
+
+`.dfmt` records the requested baseline. `.editorconfig` supplies those settings
+to dfmt, which reads EditorConfig. Format maintained D files with:
+
+```sh
+find src tests examples scripts -name '*.d' -exec dfmt -i {} +
+```
+
+Coverage requires greater than 90% per executable module. Raw DMD and gcov
+reports remain in `build/coverage`. Source-branch measurement merges template
+instantiations, excludes unittest bodies and compiler-generated invariant
+checks identified by GCC's CFG, and retains ordinary error branches. The branch collector uses GDC 16 JSON block identifiers. Missing,
+stale, or insufficient reports fail the gate. Compiler-only modules with no
+executable code have no runtime coverage denominator.
+
+## Examples and generation
+
+Converted grammar modules and their assertions live in `examples/`.
+Supporting testers, introspection, text output, and HTML output live under
+`src/npegged`. `scripts/examples.sh` rebuilds the Pascal parser, parses the
+supplied `.pas` file, and writes `build/example.txt` and `build/example.html`.
+The Pascal application supports `--trace`, writing rule events to stderr. HTML output supports
+selective expansion through `Expand.ifMatch` and `Expand.ifNotMatch`.
+It also runs the DConf demonstrations, including a bounded version of the
+intentionally naive left-recursion example.
+
+`scripts/generate_parser.d` reproduces the checked-in bootstrap parser from
+`src/npegged/definition.d`. Regenerate and format it with:
+
+```sh
+build/generate-parser
+dfmt -i src/npegged/parser.d
+```
+
+`python3 scripts/generate_unicode.py --check` verifies the Unicode data tables.
+The original Python example's empty-prefix acceptance is retained and tested;
+it is an incomplete Python grammar. The unfinished constraints prototype now
+has a self-contained boolean-constraint grammar. Pattern matching remains an
+experimental demonstration, with explicit status results replacing throwing
+range helpers. The XML example validates nested tags without global state. Arithmetic evaluation returns a
+status and value, including errors for undefined variables and division by zero.
+
+Memory tools must run successfully for complete validation. On restricted
+hosts, LeakSanitizer may be unable to inspect threads, and Valgrind may require
+libc debug symbols that are not installed. Those failures are reported as
+failed checks, never counted as clean memory runs.

@@ -1,0 +1,34 @@
+name: Linux validation
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dlang-community/setup-dlang@v2
+        with:
+          compiler: dmd
+      - uses: dlang-community/setup-dlang@v2
+        with:
+          compiler: ldc
+      - uses: dlang-community/setup-dlang@v2
+        with:
+          compiler: gdc-16
+      - name: Install validation utilities
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y valgrind libc6-dbg ripgrep
+          mkdir -p build/toolchain
+          ln -s "$(command -v gdc-16)" build/toolchain/gdc
+          ln -s "$(command -v gcov-16)" build/toolchain/gcov
+          echo "$PWD/build/toolchain" >> "$GITHUB_PATH"
+          git clone --depth 1 --branch v0.15.2 https://github.com/dlang-community/dfmt.git build/dfmt
+          (cd build/dfmt && dub build --build=release --compiler=dmd)
+          echo "$PWD/build/dfmt/bin" >> "$GITHUB_PATH"
+      - name: Install hook in CI checkout
+        run: scripts/install-hooks.sh
+      - name: Validate compilers, examples, coverage, and memory
+        run: scripts/validate.sh

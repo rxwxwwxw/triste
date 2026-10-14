@@ -1,0 +1,13 @@
+{
+  "name": "csv",
+  "description": "Example CSV PEG grammar.",
+  "license": "Boost",
+  "targetType": "library",
+  "dependencies": {
+    "pegged":  {
+      "version": "*",
+      "path": "../.."
+    }
+  },
+  "dflags": [ "-preview=dip1000" ]
+}
