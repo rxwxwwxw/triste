@@ -8,7 +8,7 @@ DC ?= dmd
 # Benchmark flags (e.g., BENCH_FLAGS="--iterations=500" or BENCH_FLAGS="--json")
 BENCH_FLAGS ?=
 
-.PHONY: all build test test-all examples examples-all benchmark bench coverage hotpaths format check-format check-phobos asan valgrind validate install-hooks clean help
+.PHONY: all build test test-all examples examples-all benchmark bench benchmark-memory bench-memory coverage hotpaths format check-format check-phobos asan valgrind validate install-hooks clean help
 
 # Default target: build and run tests using $(DC)
 all: build
@@ -43,6 +43,12 @@ benchmark:
 	DC=$(DC) scripts/benchmark.sh $(BENCH_FLAGS)
 
 bench: benchmark
+
+# Run benchmarks with peak memory measurement (subprocess RSS and arena high-water mark)
+benchmark-memory:
+	DC=$(DC) scripts/benchmark.sh --memory $(BENCH_FLAGS)
+
+bench-memory: benchmark-memory
 
 # Measure and verify code coverage (>90% threshold required)
 coverage:
@@ -118,6 +124,7 @@ help:
 	@echo "  examples         Run examples with \$$(DC)"
 	@echo "  examples-all     Run examples across dmd, ldc2, and gdc"
 	@echo "  bench / benchmark Run benchmark suite against vendored Pegged"
+	@echo "  bench-memory     Run benchmark suite with peak memory profiling"
 	@echo "  coverage         Measure code coverage and verify >90% threshold"
 	@echo "  hotpaths         Verify @nogc compliance on hot paths (-vgc)"
 	@echo "  format           Format all .d files using dfmt"

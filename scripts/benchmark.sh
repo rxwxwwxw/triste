@@ -8,14 +8,18 @@ mkdir -p "$build_dir"
 
 mapfile -d '' library < <(find src -name '*.d' -print0 | sort -z)
 mapfile -d '' pegged_sources < <(find third-party/Pegged/pegged -maxdepth 2 -name '*.d' ! -name 'tester*' ! -name 'tohtml*' -print0 | sort -z)
+mapfile -d '' handwritten_sources < <(find benchmark/handwritten -name '*.d' -print0 | sort -z)
 
 common=(
+  -I.
   -Isrc
   -Iexamples
+  -Ibenchmark
   -Ithird-party/Pegged
   -Ithird-party/Pegged/examples/arithmetic/src
   -Ithird-party/Pegged/examples/json/src
   -Ithird-party/Pegged/examples/csv/src
+  -Ithird-party/Pegged/examples/numbers/src
 )
 
 flags=()
@@ -43,9 +47,11 @@ echo "Building benchmark runner with $compiler..."
 "$compiler" "${common[@]}" "${flags[@]}" \
   "${library[@]}" \
   "${pegged_sources[@]}" \
+  "${handwritten_sources[@]}" \
   examples/arithmetic.d third-party/Pegged/examples/arithmetic/src/pegged/examples/arithmetic.d \
   examples/json.d third-party/Pegged/examples/json/src/pegged/examples/json.d \
   examples/csv.d third-party/Pegged/examples/csv/src/pegged/examples/csv.d \
+  examples/numbers.d third-party/Pegged/examples/numbers/src/pegged/examples/numbers.d \
   benchmark/runner.d \
   "${output[@]}"
 
