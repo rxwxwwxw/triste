@@ -20,6 +20,9 @@
 docs.json
 __dummy.html
 docs/
+!/docs/
+/docs/*
+!/docs/*.md
 
 # Code coverage
 *.lst

@@ -218,81 +218,95 @@ struct State(bool CT) {
     ParseTree rule(alias body, string name, bool memoize = true)(size_t pos) nothrow {
         if (!tick())
             return node(pos, pos, false);
-        enum baseHash = keyHash(body.mangleof);
-        size_t hash = baseHash ^ (pos * cast(size_t)0x9E3779B1);
-        if (!buckets.length || entryCount > buckets.length * 3 / 4) {
-            auto replacement = allocate!(Entry*)(buckets.length ? buckets.length * 2 : 64);
-            if (!replacement.length)
+        static if (!memoize) {
+            if (depth >= context.depthLimit) {
+                status = Status.resourceLimit;
                 return node(pos, pos, false);
-            entryCount = 0;
-            for (auto existing = entries; existing !is null; existing = existing.next) {
-                if (!existing.valid)
-                    continue;
-                auto slot = existing.hash & (replacement.length - 1);
-                existing.bucketNext = replacement[slot];
-                replacement[slot] = existing;
-                ++entryCount;
             }
-            buckets = replacement;
-        }
-        auto slot = hash & (buckets.length - 1);
-        for (auto entry = buckets[slot]; entry !is null; entry = entry.bucketNext) {
-            if (entry.valid && entry.identity == &body && entry.position == pos && (entry.active || memoize)) {
-                static if (CT) {
-                    if (__ctfe)
-                        assert(!entry.active, "Left-recursive input parsing is supported only at runtime");
-                }
-                if (entry.active)
-                    entry.recursive = true;
-                else if (!entry.seed.successful)
-                    recordFailure(entry.seed);
-                return entry.seed;
-            }
-        }
-        if (depth >= context.depthLimit) {
-            status = Status.resourceLimit;
-            return node(pos, pos, false);
-        }
-        auto storage = allocate!Entry(1);
-        if (!storage.length)
-            return node(pos, pos, false);
-        auto entry = &storage[0];
-        entry.identity = &body;
-        entry.hash = hash;
-        entry.valid = true;
-        entry.bucketNext = buckets[slot];
-        buckets[slot] = entry;
-        ++entryCount;
-        entry.position = pos;
-        entry.seed = node(pos, pos, false);
-        entry.active = true;
-        entry.next = entries;
-        entries = entry;
-        ++depth;
-        scope (exit)
-            --depth;
-        do {
+            ++depth;
+            scope (exit)
+                --depth;
             auto candidate = body(this, pos);
             candidate.name = name;
-            if (!candidate.successful || (entry.seed.successful && candidate.end <= entry.seed.end)) {
-                if (!entry.seed.successful)
-                    entry.seed = candidate;
-                break;
+            return candidate;
+        } else {
+            enum baseHash = keyHash(body.mangleof);
+            size_t hash = baseHash ^ (pos * cast(size_t)0x9E3779B1);
+            if (!buckets.length || entryCount > buckets.length * 3 / 4) {
+                auto replacement = allocate!(Entry*)(buckets.length ? buckets.length * 2 : 64);
+                if (!replacement.length)
+                    return node(pos, pos, false);
+                entryCount = 0;
+                for (auto existing = entries; existing !is null; existing = existing.next) {
+                    if (!existing.valid)
+                        continue;
+                    auto slot = existing.hash & (replacement.length - 1);
+                    existing.bucketNext = replacement[slot];
+                    replacement[slot] = existing;
+                    ++entryCount;
+                }
+                buckets = replacement;
             }
-            entry.seed = candidate;
-            if (!entry.recursive)
-                break;
-            // Keep active seeds; completed dependent entries must be recomputed.
-            for (auto dependent = entries; dependent !is null; dependent = dependent.next) {
-                if (!dependent.active && dependent.position >= pos)
-                    dependent.valid = false;
+            auto slot = hash & (buckets.length - 1);
+            for (auto entry = buckets[slot]; entry !is null; entry = entry.bucketNext) {
+                if (entry.valid && entry.identity == &body && entry.position == pos && (entry.active || memoize)) {
+                    static if (CT) {
+                        if (__ctfe)
+                            assert(!entry.active, "Left-recursive input parsing is supported only at runtime");
+                    }
+                    if (entry.active)
+                        entry.recursive = true;
+                    else if (!entry.seed.successful)
+                        recordFailure(entry.seed);
+                    return entry.seed;
+                }
             }
+            if (depth >= context.depthLimit) {
+                status = Status.resourceLimit;
+                return node(pos, pos, false);
+            }
+            auto storage = allocate!Entry(1);
+            if (!storage.length)
+                return node(pos, pos, false);
+            auto entry = &storage[0];
+            entry.identity = &body;
+            entry.hash = hash;
+            entry.valid = true;
+            entry.bucketNext = buckets[slot];
+            buckets[slot] = entry;
+            ++entryCount;
+            entry.position = pos;
+            entry.seed = node(pos, pos, false);
+            entry.active = true;
+            entry.next = entries;
+            entries = entry;
+            ++depth;
+            scope (exit)
+                --depth;
+            do {
+                auto candidate = body(this, pos);
+                candidate.name = name;
+                if (!candidate.successful || (entry.seed.successful && candidate.end <= entry.seed
+                        .end)) {
+                    if (!entry.seed.successful)
+                        entry.seed = candidate;
+                    break;
+                }
+                entry.seed = candidate;
+                if (!entry.recursive)
+                    break;
+                // Keep active seeds; completed dependent entries must be recomputed.
+                for (auto dependent = entries; dependent !is null; dependent = dependent.next) {
+                    if (!dependent.active && dependent.position >= pos)
+                        dependent.valid = false;
+                }
+            }
+            while (tick());
+            entry.active = false;
+            if (context.trace !is null)
+                context.trace(name, pos, entry.seed.successful, context.userData);
+            return entry.seed;
         }
-        while (tick());
-        entry.active = false;
-        if (context.trace !is null)
-            context.trace(name, pos, entry.seed.successful, context.userData);
-        return entry.seed;
     }
 }
 
@@ -397,19 +411,32 @@ template literal(string text) {
     ParseTree literal(bool CT)(ref State!CT s, size_t pos) nothrow {
         if (!s.tick())
             return s.node(pos, pos, false);
-        size_t i;
-        while (i < text.length && pos + i < s.input.length && s.input[pos + i] == text[i])
-            ++i;
-        if (i != text.length) {
+        static if (text.length == 0) {
+            return s.node(pos, pos);
+        } else static if (text.length == 1) {
+            if (pos < s.input.length && s.input[pos] == text[0]) {
+                auto result = s.node(pos, pos + 1);
+                result.matches = s.single(s.input[pos .. pos + 1]);
+                return result;
+            }
+            auto result = s.failure(pos, text);
+            result.failEnd = pos;
+            s.recordFailure(result);
+            return result;
+        } else {
+            if (pos + text.length <= s.input.length && s.input[pos .. pos + text.length] == text) {
+                auto result = s.node(pos, pos + text.length);
+                result.matches = s.single(s.input[pos .. pos + text.length]);
+                return result;
+            }
+            size_t i;
+            while (i < text.length && pos + i < s.input.length && s.input[pos + i] == text[i])
+                ++i;
             auto result = s.failure(pos, text);
             result.failEnd = pos + i;
             s.recordFailure(result);
             return result;
         }
-        auto result = s.node(pos, pos + i);
-        if (i)
-            result.matches = s.single(s.input[pos .. pos + i]);
-        return result;
     }
 }
 
@@ -479,13 +506,24 @@ bool decode(scope string input, ref size_t pos, out dchar value) @nogc nothrow p
 
 template charRange(dchar low, dchar high) {
     ParseTree charRange(bool CT)(ref State!CT s, size_t pos) nothrow {
-        size_t end = pos;
-        dchar value;
-        if (!s.tick() || !decode(s.input, end, value) || value < low || value > high)
-            return s.failure(pos, "character range");
-        auto result = s.node(pos, end);
-        result.matches = s.single(s.input[pos .. end]);
-        return result;
+        static if (high < 128) {
+            if (!s.tick() || pos >= s.input.length)
+                return s.failure(pos, "character range");
+            const char c = s.input[pos];
+            if (c < low || c > high)
+                return s.failure(pos, "character range");
+            auto result = s.node(pos, pos + 1);
+            result.matches = s.single(s.input[pos .. pos + 1]);
+            return result;
+        } else {
+            size_t end = pos;
+            dchar value;
+            if (!s.tick() || !decode(s.input, end, value) || value < low || value > high)
+                return s.failure(pos, "character range");
+            auto result = s.node(pos, end);
+            result.matches = s.single(s.input[pos .. end]);
+            return result;
+        }
     }
 }
 
