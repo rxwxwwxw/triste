@@ -37,6 +37,7 @@ import HWNum = benchmark.handwritten.numbers;
 // Meta-grammar
 import NPParser = npegged.parser;
 import PParser = pegged.parser;
+import HWPeg = benchmark.handwritten.peg;
 
 extern (C) pid_t wait4(pid_t pid, int* status, int options, rusage* rusage);
 
@@ -495,17 +496,17 @@ int main(string[] args) {
         return res.arena.used;
     });
 
-    // 5. PEG Meta-Grammar Parser (Self-hosting grammars - no handwritten equivalent)
+    // 5. PEG Meta-Grammar Parser (Self-hosting grammars)
     enum samplePegSmall = "Calc:\n  Expr <- Term ('+' Term)*\n  Term <- [0-9]+\n";
     benchmarks ~= BenchmarkCase("PEGGrammar.Small", samplePegSmall, 300, (string s) {
         auto tree = PParser.Pegged(s);
         assert(tree.successful);
     }, (string s, ref ParseContext ctx) { auto res = NPParser.Pegged(ctx, s); assert(res.successful); },
-            null, (string s) {
-        ParseContext ctx;
-        auto res = NPParser.Pegged(ctx, s);
-        return res.arena.used;
-    });
+            (string s) {
+        const ok = HWPeg.PegParser.parse(s);
+        if (!ok)
+            assert(0);
+    }, (string s) { ParseContext ctx; auto res = NPParser.Pegged(ctx, s); return res.arena.used; });
 
     enum samplePegMedium = "JSON:\n" ~ "  JSONObject < :'{' (Pair (:',' Pair)*)? :'}'\n"
         ~ "  Pair       < String :':' Value\n" ~ "  Array      < :'[' (Value (:',' Value)*)? :']'\n"
@@ -516,11 +517,11 @@ int main(string[] args) {
         auto tree = PParser.Pegged(s);
         assert(tree.successful);
     }, (string s, ref ParseContext ctx) { auto res = NPParser.Pegged(ctx, s); assert(res.successful); },
-            null, (string s) {
-        ParseContext ctx;
-        auto res = NPParser.Pegged(ctx, s);
-        return res.arena.used;
-    });
+            (string s) {
+        const ok = HWPeg.PegParser.parse(s);
+        if (!ok)
+            assert(0);
+    }, (string s) { ParseContext ctx; auto res = NPParser.Pegged(ctx, s); return res.arena.used; });
 
     BenchResult[] results;
     foreach (ref bc; benchmarks) {
