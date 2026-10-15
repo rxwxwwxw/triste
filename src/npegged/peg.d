@@ -535,6 +535,135 @@ template charRange(dchar low, dchar high) {
     assert(!bad.successful);
 }
 
+struct CharSetMask {
+    ulong[4] bits;
+
+    void addChar(dchar c) @nogc nothrow pure @safe {
+        if (c < 256) {
+            bits[(cast(uint)c) >> 6] |= (1UL << ((cast(uint)c) & 63));
+        }
+    }
+
+    void addRange(dchar low, dchar high) @nogc nothrow pure @safe {
+        if (low <= high && high < 256) {
+            for (uint c = cast(uint)low; c <= cast(uint)high; ++c) {
+                bits[c >> 6] |= (1UL << (c & 63));
+            }
+        }
+    }
+
+    static CharSetMask fromRanges(const(char[2])[] ranges...) @nogc nothrow pure @safe {
+        CharSetMask mask;
+        foreach (range; ranges) {
+            mask.addRange(range[0], range[1]);
+        }
+        return mask;
+    }
+
+    static CharSetMask fromChars(const(char)[] chars...) @nogc nothrow pure @safe {
+        CharSetMask mask;
+        foreach (c; chars) {
+            mask.addChar(c);
+        }
+        return mask;
+    }
+
+    bool contains(char c) const @nogc nothrow pure @safe {
+        return (bits[(cast(ubyte)c) >> 6] & (1UL << ((cast(ubyte)c) & 63))) != 0;
+    }
+
+    bool empty() const @nogc nothrow pure @safe {
+        return (bits[0] | bits[1] | bits[2] | bits[3]) == 0;
+    }
+
+    bool intersects(CharSetMask other) const @nogc nothrow pure @safe {
+        return ((bits[0] & other.bits[0]) | (bits[1] & other.bits[1]) | (bits[2] & other.bits[2]) | (
+                bits[3] & other.bits[3])) != 0;
+    }
+
+    CharSetMask opBinary(string op : "|")(CharSetMask other) const @nogc nothrow pure @safe {
+        CharSetMask res;
+        res.bits[0] = bits[0] | other.bits[0];
+        res.bits[1] = bits[1] | other.bits[1];
+        res.bits[2] = bits[2] | other.bits[2];
+        res.bits[3] = bits[3] | other.bits[3];
+        return res;
+    }
+
+    CharSetMask opBinary(string op : "&")(CharSetMask other) const @nogc nothrow pure @safe {
+        CharSetMask res;
+        res.bits[0] = bits[0] & other.bits[0];
+        res.bits[1] = bits[1] & other.bits[1];
+        res.bits[2] = bits[2] & other.bits[2];
+        res.bits[3] = bits[3] & other.bits[3];
+        return res;
+    }
+
+    CharSetMask opUnary(string op : "~")() const @nogc nothrow pure @safe {
+        CharSetMask res;
+        res.bits[0] = ~bits[0];
+        res.bits[1] = ~bits[1];
+        res.bits[2] = ~bits[2];
+        res.bits[3] = ~bits[3];
+        return res;
+    }
+}
+
+@nogc nothrow unittest {
+    CharSetMask mask;
+    assert(mask.empty());
+    mask.addChar('a');
+    mask.addRange('0', '9');
+    assert(mask.contains('a'));
+    assert(mask.contains('0'));
+    assert(mask.contains('9'));
+    assert(!mask.contains('b'));
+    assert(!mask.empty());
+
+    CharSetMask other = CharSetMask.fromRanges(['b', 'd']);
+    assert(!mask.intersects(other));
+    auto combined = mask | other;
+    assert(combined.contains('c'));
+    assert(mask.intersects(combined));
+    auto intersected = mask & combined;
+    assert(intersected.contains('a'));
+    assert(!intersected.contains('b'));
+    auto inverted = ~mask;
+    assert(!inverted.contains('a'));
+    assert(inverted.contains('b'));
+}
+
+template charClass(ulong b0, ulong b1, ulong b2, ulong b3) {
+    ParseTree charClass(bool CT)(ref State!CT s, size_t pos) nothrow {
+        if (!s.tick() || pos >= s.input.length)
+            return s.failure(pos, "character class");
+        const ubyte c = cast(ubyte)s.input[pos];
+        enum ulong[4] bits = [b0, b1, b2, b3];
+        if ((bits[c >> 6] & (1UL << (c & 63))) == 0)
+            return s.failure(pos, "character class");
+        auto result = s.node(pos, pos + 1);
+        result.matches = s.single(s.input[pos .. pos + 1]);
+        return result;
+    }
+}
+
+template charClass(CharSetMask mask) {
+    alias charClass = charClass!(mask.bits[0], mask.bits[1], mask.bits[2], mask.bits[3]);
+}
+
+@nogc nothrow unittest {
+    ParseContext context;
+    enum mask = CharSetMask.fromRanges(['0', '9'], ['a', 'f']);
+    auto valid = parse!(charClass!mask)(context, "a");
+    assert(valid.successful && valid.end == 1 && valid.matches == ["a"]);
+    auto digit = parse!(charClass!mask)(context, "5");
+    assert(digit.successful && digit.end == 1);
+    auto bad = parse!(charClass!mask)(context, "z");
+    assert(!bad.successful && bad.status == Status.mismatch);
+    auto empty = parse!(charClass!mask)(context, "");
+    assert(!empty.successful);
+}
+
 template and(rules...) {
     ParseTree and(bool CT)(ref State!CT s, size_t pos) nothrow {
         auto result = s.node(pos, pos);
@@ -605,6 +734,71 @@ template or(rules...) {
     ParseContext context;
     auto result = parse!(or!(literal!"x", literal!"a"))(context, "a");
     assert(result.successful);
+}
+
+template branch(alias Rule, ulong b0, ulong b1, ulong b2, ulong b3) {
+    alias rule = Rule;
+    enum CharSetMask mask = CharSetMask([b0, b1, b2, b3]);
+}
+
+template branch(alias Rule, CharSetMask mask) {
+    alias branch = branch!(Rule, mask.bits[0], mask.bits[1], mask.bits[2], mask.bits[3]);
+}
+
+template predictiveChoice(branches...) {
+    private ubyte[256] computeTable() {
+        ubyte[256] table;
+        foreach (i, b; branches) {
+            foreach (c; 0 .. 256) {
+                if (b.mask.contains(cast(char)c)) {
+                    table[c] = cast(ubyte)(i + 1);
+                }
+            }
+        }
+        return table;
+    }
+
+    enum ubyte[256] branchTable = computeTable();
+
+    ParseTree predictiveChoice(bool CT)(ref State!CT s, size_t pos) nothrow {
+        if (!s.tick())
+            return s.node(pos, pos, false);
+        if (pos >= s.input.length) {
+            auto result = s.failure(pos, "choice");
+            result.failEnd = pos;
+            s.recordFailure(result);
+            return result;
+        }
+        const ubyte b = cast(ubyte)s.input[pos];
+        const ubyte target = branchTable[b];
+        switch (target) {
+            static foreach (i; 0 .. branches.length) {
+        case i + 1:
+                return branches[i].rule(s, pos);
+            }
+        default: {
+                auto result = s.failure(pos, "choice");
+                result.failEnd = pos;
+                s.recordFailure(result);
+                return result;
+            }
+        }
+    }
+}
+
+@nogc nothrow unittest {
+    ParseContext context;
+    enum maskA = CharSetMask.fromChars('a');
+    enum maskB = CharSetMask.fromChars('b');
+    alias pred = predictiveChoice!(branch!(literal!"a", maskA), branch!(literal!"b", maskB));
+    auto resA = parse!pred(context, "a");
+    assert(resA.successful && resA.end == 1);
+    auto resB = parse!pred(context, "b");
+    assert(resB.successful && resB.end == 1);
+    auto resC = parse!pred(context, "c");
+    assert(!resC.successful);
+    auto resEmpty = parse!pred(context, "");
+    assert(!resEmpty.successful);
 }
 
 template longest_match(rules...) {
@@ -929,7 +1123,7 @@ template wrapAround(alias before, alias target, alias after) {
 alias digit = charRange!('0', '9');
 alias alpha = charRange!('a', 'z');
 alias Alpha = charRange!('A', 'Z');
-alias hexDigit = or!(digit, charRange!('a', 'f'), charRange!('A', 'F'));
+alias hexDigit = charClass!(CharSetMask.fromRanges(['0', '9'], ['a', 'f'], ['A', 'F']));
 alias endOfLine = or!(literal!"\r\n", literal!"\n", literal!"\r");
 alias eol = endOfLine;
 alias space = or!(literal!" ", literal!"\t", literal!"\v");
@@ -938,7 +1132,17 @@ alias tab = literal!"\t";
 alias spaces = fuse!(oneOrMore!space);
 alias spacing = discard!(zeroOrMore!blank);
 alias digits = fuse!(oneOrMore!digit);
-alias ident = and!(oneOrMore!(or!(alpha, Alpha, literal!"_")), zeroOrMore!(or!(digit, alpha, Alpha, literal!"_")));
+private enum identStartMask = () {
+    auto m = CharSetMask.fromRanges(['a', 'z'], ['A', 'Z']);
+    m.addChar('_');
+    return m;
+}();
+private enum identCharMask = () {
+    auto m = CharSetMask.fromRanges(['a', 'z'], ['A', 'Z'], ['0', '9']);
+    m.addChar('_');
+    return m;
+}();
+alias ident = and!(oneOrMore!(charClass!identStartMask), zeroOrMore!(charClass!identCharMask));
 alias identifier = named!(fuse!ident, "identifier");
 alias qualifiedIdentifier = fuse!(and!(identifier, zeroOrMore!(and!(literal!".", identifier))));
 alias slash = literal!"/";

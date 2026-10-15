@@ -90,8 +90,10 @@ struct Pegged {
     }
 
     private static ParseTree _LongestExpression(bool CT)(ref State!CT s, size_t p) nothrow {
-        return defined!(and!(discard!(option!(or!(OR, LONGEST_OR))), Sequence,
-                zeroOrMore!(and!(discard!(LONGEST_OR), Sequence))), "Pegged.LongestExpression")(s, p);
+        return defined!(and!(discard!(option!(predictiveChoice!(branch!(OR, 0x800000000000UL,
+                0x0UL, 0x0UL, 0x0UL), branch!(LONGEST_OR, 0x0UL, 0x1000000000000000UL, 0x0UL, 0x0UL)))),
+                Sequence, zeroOrMore!(and!(discard!(LONGEST_OR), Sequence))), "Pegged.LongestExpression")(
+                s, p);
     }
 
     static ParseTree LongestExpression(ref State!false s, size_t p) @nogc nothrow {
@@ -133,8 +135,13 @@ struct Pegged {
     }
 
     private static ParseTree _Prefix(bool CT)(ref State!CT s, size_t p) nothrow {
-        return defined!(and!(zeroOrMore!(or!(POS, NEG, FUSE, DISCARD, KEEP, DROP, PROPAGATE)),
-                Suffix), "Pegged.Prefix")(s, p);
+        return defined!(and!(zeroOrMore!(predictiveChoice!(branch!(POS, 0x4000000000UL, 0x0UL,
+                0x0UL, 0x0UL), branch!(NEG, 0x200000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(FUSE,
+                0x0UL, 0x4000000000000000UL, 0x0UL, 0x0UL), branch!(DISCARD, 0x400000000000000UL,
+                0x0UL,
+                0x0UL, 0x0UL), branch!(KEEP, 0x0UL, 0x40000000UL, 0x0UL, 0x0UL), branch!(DROP,
+                0x800000000000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(PROPAGATE, 0x2000000000UL, 0x0UL, 0x0UL,
+                0x0UL))), Suffix), "Pegged.Prefix")(s, p);
     }
 
     static ParseTree Prefix(ref State!false s, size_t p) @nogc nothrow {
@@ -155,8 +162,11 @@ struct Pegged {
     }
 
     private static ParseTree _Suffix(bool CT)(ref State!CT s, size_t p) nothrow {
-        return defined!(and!(Primary, zeroOrMore!(or!(OPTION, ZEROORMORE, ONEORMORE, Action))), "Pegged.Suffix")(
-                s, p);
+        return defined!(and!(Primary, zeroOrMore!(predictiveChoice!(branch!(OPTION,
+                0x8000000000000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(ZEROORMORE, 0x40000000000UL,
+                0x0UL, 0x0UL,
+                0x0UL), branch!(ONEORMORE, 0x80000000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(Action,
+                0x0UL, 0x800000000000000UL, 0x0UL, 0x0UL)))), "Pegged.Suffix")(s, p);
     }
 
     static ParseTree Suffix(ref State!false s, size_t p) @nogc nothrow {
@@ -487,13 +497,13 @@ struct Pegged {
 
     private static ParseTree _Char(bool CT)(ref State!CT s, size_t p) nothrow {
         return defined!(fuse!(or!(and!(backslash, or!(quote, doublequote, backquote, backslash,
-                literal!("-"), literal!("["), literal!("]"), or!(charRange!(110, 110),
-                charRange!(114, 114), charRange!(116, 116)), and!(or!(charRange!(48, 50)),
-                or!(charRange!(48, 55)), or!(charRange!(48, 55))), and!(or!(charRange!(48, 55)),
-                option!(or!(charRange!(48, 55)))), and!(literal!("x"), hexDigit, hexDigit),
-                and!(literal!("u"), hexDigit, hexDigit, hexDigit, hexDigit), and!(literal!("U"),
-                hexDigit, hexDigit, hexDigit, hexDigit, hexDigit, hexDigit, hexDigit, hexDigit))), any)),
-                "Pegged.Char")(s, p);
+                literal!("-"), literal!("["), literal!("]"), charClass!(0x0UL,
+                0x14400000000000UL, 0x0UL, 0x0UL), and!(charRange!(48, 50), charRange!(48, 55),
+                charRange!(48, 55)), and!(charRange!(48, 55), option!(charRange!(48, 55))),
+                and!(literal!("x"), hexDigit,
+                hexDigit), and!(literal!("u"), hexDigit, hexDigit, hexDigit, hexDigit),
+                and!(literal!("U"), hexDigit, hexDigit, hexDigit, hexDigit, hexDigit, hexDigit, hexDigit,
+                hexDigit))), any)), "Pegged.Char")(s, p);
     }
 
     static ParseTree Char(ref State!false s, size_t p) @nogc nothrow {
@@ -1124,7 +1134,9 @@ struct Pegged {
     }
 
     private static ParseTree _Spacing(bool CT)(ref State!CT s, size_t p) nothrow {
-        return defined!(discard!(zeroOrMore!(or!(blank, Comment))), "Pegged.Spacing")(s, p);
+        return defined!(discard!(zeroOrMore!(predictiveChoice!(branch!(blank, 0x100002e00UL,
+                0x0UL, 0x0UL, 0x0UL), branch!(Comment, 0x800000000UL, 0x0UL, 0x0UL, 0x0UL)))), "Pegged.Spacing")(
+                s, p);
     }
 
     static ParseTree Spacing(ref State!false s, size_t p) @nogc nothrow {
@@ -1212,9 +1224,11 @@ struct Pegged {
     }
 
     private static ParseTree _Lambda(bool CT)(ref State!CT s, size_t p) nothrow {
-        return defined!(fuse!(zeroOrMore!(and!(negLookahead!(or!(ACTIONCLOSE, SEPARATOR)),
-                or!(LambdaItems, NestedList!(literal!("{"), LambdaItems, literal!("}")), any)))), "Pegged.Lambda")(
-                s, p);
+        return defined!(
+                fuse!(zeroOrMore!(and!(negLookahead!(predictiveChoice!(branch!(ACTIONCLOSE,
+                0x0UL, 0x2000000000000000UL, 0x0UL, 0x0UL), branch!(SEPARATOR, 0x100000000000UL,
+                0x0UL, 0x0UL, 0x0UL))), or!(LambdaItems, NestedList!(literal!("{"), LambdaItems,
+                literal!("}")), any)))), "Pegged.Lambda")(s, p);
     }
 
     static ParseTree Lambda(ref State!false s, size_t p) @nogc nothrow {

@@ -11,8 +11,8 @@ This document outlines architectural optimizations for `npegged` to narrow the p
 | **Tier 1** | ASCII `charRange` decode bypass | **Implemented** | 1.1x – 1.3x | Low |
 | **Tier 1** | Direct slice & single-char `literal` | **Implemented** | 1.1x – 1.4x | Low |
 | **Tier 1** | Non-memoized fast-path in `State.rule` | **Implemented** | 1.2x – 1.5x | Low |
-| **Tier 2** | Bitmask LUT (`ulong[4]`) for `charClass` | Planned | 2x – 3x (tokens) | Low |
-| **Tier 2** | LL(1) Predictive Choice Dispatch | Planned | 3x – 5x (choices) | Medium |
+| **Tier 2** | Bitmask LUT (`ulong[4]`) for `charClass` | **Implemented** | 2x – 3x (tokens) | Low |
+| **Tier 2** | LL(1) Predictive Choice Dispatch | **Implemented** | 3x – 5x (choices) | Medium |
 | **Tier 3** | CTFE DFA Factoring for Leaf Rules | Planned | 5x – 10x (lexing) | Medium-High |
 | **Tier 3** | SIMD Bulk Delimiter Scanning | Planned | 10x – 20x (strings/CSV) | Medium |
 | **Tier 4** | Zero-Allocation Streaming / Event Mode | Planned | Near-Handwritten | Medium |
@@ -38,7 +38,7 @@ This document outlines architectural optimizations for `npegged` to narrow the p
 
 ---
 
-## 3. Tier 2: Low-Hanging Structural Optimizations
+## 3. Implemented Tier-2 Optimizations
 
 ### 3.1. 256-Bit Bitmask Lookup Tables for Character Classes
 When a grammar specifies character sets or ranges like `[0-9a-fA-F_]`, evaluating nested `or!(...)` combinators causes multiple branch mispredictions per character.
@@ -266,9 +266,9 @@ bool ok = JSON.parseStream(context, input, &handler);
    - ASCII `charRange` bypass.
    - Fast `literal` slice comparison.
    - Non-memoized `State.rule` fast-path.
-2. **Milestone 2**:
-   - Precomputed `ulong[4]` character class bitmasks (`makeCharMask`).
-   - LL(1) First-Set disjoint analysis and switch-based choice emission.
+2. **Milestone 2 (Complete)**:
+   - Precomputed `ulong[4]` character class bitmasks (`CharSetMask` / `charClass`).
+   - LL(1) First-Set disjoint analysis and table-driven choice emission (`predictiveChoice`).
 3. **Milestone 3**:
    - Regular sub-grammar detector in `npegged.introspection`.
    - CTFE DFA compiler for fused `<~` and discarded `<:` leaf rules.

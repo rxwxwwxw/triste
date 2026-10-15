@@ -32,6 +32,38 @@ unittest {
     assert(number(123) == "123");
 }
 
+private bool startsWith(scope string s, scope string prefix) @nogc nothrow pure @safe {
+    return s.length >= prefix.length && s[0 .. prefix.length] == prefix;
+}
+
+private string ulongHex(ulong value) pure nothrow {
+    if (value == 0)
+        return "0x0UL";
+    char[22] buf;
+    buf[0 .. 2] = "0x";
+    enum hex = "0123456789abcdef";
+    char[16] digits;
+    size_t len;
+    ulong v = value;
+    while (v) {
+        digits[len++] = hex[v & 0xF];
+        v >>= 4;
+    }
+    size_t outLen = 2;
+    while (len) {
+        buf[outLen++] = digits[--len];
+    }
+    return (buf[0 .. outLen] ~ "UL").idup;
+}
+
+unittest {
+    assert(ulongHex(0) == "0x0UL");
+    assert(ulongHex(15) == "0xfUL");
+    assert(ulongHex(256) == "0x100UL");
+    assert(startsWith("hello world", "hello"));
+    assert(!startsWith("hello", "world"));
+}
+
 private string quoted(string text) pure nothrow {
     string result = "\"";
     foreach (c; text) {
@@ -297,7 +329,12 @@ private struct Frontend {
         } else if (accept('.'))
             result = "any";
         else if (accept('[')) {
-            string[] ranges;
+            bool allAscii = true;
+            CharSetMask mask;
+            size_t elementCount = 0;
+            dchar singleFirst = 0, singleLast = 0;
+            bool singleByteEscape = false;
+            string[] nonAsciiRanges;
             while (pos < input.length && input[pos] != ']' && !error.message.length) {
                 bool byteEscape = input[pos] == '\\' && pos + 1 < input.length
                     && (input[pos + 1] == 'x' || input[pos + 1] >= '0' && input[pos + 1] <= '7');
@@ -305,18 +342,61 @@ private struct Frontend {
                 if (pos < input.length && input[pos] == '-' && pos + 1 < input.length && input[pos + 1] != ']') {
                     ++pos;
                     auto last = character();
-                    ranges ~= "charRange!(" ~ number(first) ~ ", " ~ number(last) ~ ")";
-                } else if (byteEscape)
-                    ranges ~= "literal!(" ~ quoted([cast(char)first].idup) ~ ")";
-                else
-                    ranges ~= "charRange!(" ~ number(first) ~ ", " ~ number(first) ~ ")";
+                    if (last < 256) {
+                        mask.addRange(first, last);
+                    } else {
+                        allAscii = false;
+                        nonAsciiRanges ~= "charRange!(" ~ number(first) ~ ", " ~ number(last) ~ ")";
+                    }
+                    singleFirst = first;
+                    singleLast = last;
+                    singleByteEscape = false;
+                    ++elementCount;
+                } else if (byteEscape) {
+                    if (first < 256) {
+                        mask.addChar(first);
+                    } else {
+                        allAscii = false;
+                        nonAsciiRanges ~= "literal!(" ~ quoted([cast(char)first].idup) ~ ")";
+                    }
+                    singleFirst = first;
+                    singleLast = first;
+                    singleByteEscape = true;
+                    ++elementCount;
+                } else {
+                    if (first < 256) {
+                        mask.addChar(first);
+                    } else {
+                        allAscii = false;
+                        nonAsciiRanges ~= "charRange!(" ~ number(first) ~ ", " ~ number(first) ~ ")";
+                    }
+                    singleFirst = first;
+                    singleLast = first;
+                    singleByteEscape = false;
+                    ++elementCount;
+                }
             }
             require(']');
-            result = ranges.length ? "or!(" : "fail";
-            foreach (i, range; ranges)
-                result ~= (i ? ", " : "") ~ range;
-            if (ranges.length)
+            if (!elementCount)
+                result = "fail";
+            else if (elementCount == 1 && singleByteEscape) {
+                result = "literal!(" ~ quoted([cast(char)singleFirst].idup) ~ ")";
+            } else if (elementCount == 1 && allAscii) {
+                result = "charRange!(" ~ number(singleFirst) ~ ", " ~ number(singleLast) ~ ")";
+            } else if (allAscii) {
+                result = "charClass!(" ~ ulongHex(mask.bits[0]) ~ ", " ~ ulongHex(
+                        mask.bits[1]) ~ ", " ~ ulongHex(mask.bits[2]) ~ ", " ~ ulongHex(mask.bits[3]) ~ ")";
+            } else {
+                string[] allChoices;
+                if (!mask.empty)
+                    allChoices ~= "charClass!(" ~ ulongHex(mask.bits[0]) ~ ", " ~ ulongHex(
+                            mask.bits[1]) ~ ", " ~ ulongHex(mask.bits[2]) ~ ", " ~ ulongHex(mask.bits[3]) ~ ")";
+                allChoices ~= nonAsciiRanges;
+                result = "or!(";
+                foreach (i, c; allChoices)
+                    result ~= (i ? ", " : "") ~ c;
                 result ~= ")";
+            }
         } else if (pos < input.length && (input[pos] == '\'' || input[pos] == '"')) {
             auto delimiter = input[pos++];
             string text;
@@ -559,7 +639,336 @@ private struct Frontend {
             problem("Grammar needs at least one rule");
     }
 
+    struct FirstSetResult {
+        bool known;
+        bool canBeEmpty;
+        CharSetMask mask;
+    }
+
+    FirstSetResult computeFirstSet(string expr, const string[] visited = null) const nothrow {
+        FirstSetResult res;
+        while (expr.length > 0 && expr[0] == ' ')
+            expr = expr[1 .. $];
+        while (expr.length > 0 && expr[$ - 1] == ' ')
+            expr = expr[0 .. $ - 1];
+
+        if (startsWith(expr, "literal!(") || startsWith(expr, "literal!\"")) {
+            size_t qStart = 0;
+            while (qStart < expr.length && expr[qStart] != '"')
+                qStart++;
+            if (qStart < expr.length) {
+                size_t qEnd = qStart + 1;
+                while (qEnd < expr.length && expr[qEnd] != '"') {
+                    if (expr[qEnd] == '\\' && qEnd + 1 < expr.length)
+                        qEnd += 2;
+                    else
+                        qEnd++;
+                }
+                string content = expr[qStart + 1 .. qEnd];
+                if (content.length == 0) {
+                    res.known = true;
+                    res.canBeEmpty = true;
+                    return res;
+                }
+                char c = content[0];
+                if (c == '\\' && content.length > 1) {
+                    char esc = content[1];
+                    switch (esc) {
+                    case 'n':
+                        c = '\n';
+                        break;
+                    case 'r':
+                        c = '\r';
+                        break;
+                    case 't':
+                        c = '\t';
+                        break;
+                    case '0':
+                        c = '\0';
+                        break;
+                    case '\\':
+                        c = '\\';
+                        break;
+                    case '"':
+                        c = '"';
+                        break;
+                    default:
+                        c = esc;
+                        break;
+                    }
+                }
+                res.known = true;
+                res.canBeEmpty = false;
+                res.mask.addChar(c);
+                return res;
+            }
+        }
+
+        if (startsWith(expr, "charRange!(")) {
+            string inner = expr[11 .. $];
+            if (inner.length > 0 && inner[$ - 1] == ')')
+                inner = inner[0 .. $ - 1];
+            size_t comma = 0;
+            while (comma < inner.length && inner[comma] != ',')
+                comma++;
+            if (comma < inner.length) {
+                string sLow = inner[0 .. comma];
+                string sHigh = inner[comma + 1 .. $];
+                while (sLow.length > 0 && sLow[0] == ' ')
+                    sLow = sLow[1 .. $];
+                while (sHigh.length > 0 && sHigh[0] == ' ')
+                    sHigh = sHigh[1 .. $];
+                uint low = 0, high = 0;
+                foreach (ch; sLow) {
+                    if (ch >= '0' && ch <= '9')
+                        low = low * 10 + (ch - '0');
+                }
+                foreach (ch; sHigh) {
+                    if (ch >= '0' && ch <= '9')
+                        high = high * 10 + (ch - '0');
+                }
+                if (high < 256 && low <= high) {
+                    res.known = true;
+                    res.canBeEmpty = false;
+                    res.mask.addRange(low, high);
+                    return res;
+                }
+            }
+        }
+
+        if (startsWith(expr, "charClass!(")) {
+            string inner = expr[11 .. $];
+            if (inner.length > 0 && inner[$ - 1] == ')')
+                inner = inner[0 .. $ - 1];
+            ulong[4] b;
+            size_t idx = 0;
+            size_t start = 0;
+            for (size_t i = 0; i <= inner.length && idx < 4; ++i) {
+                if (i == inner.length || inner[i] == ',') {
+                    string part = inner[start .. i];
+                    while (part.length > 0 && (part[0] == ' ' || part[0] == '\t'))
+                        part = part[1 .. $];
+                    while (part.length > 0 && (part[$ - 1] == 'U' || part[$ - 1] == 'L' || part[$ - 1] == ' '))
+                        part = part[0 .. $ - 1];
+                    ulong val = 0;
+                    if (startsWith(part, "0x") || startsWith(part, "0X")) {
+                        foreach (ch; part[2 .. $]) {
+                            uint n = ch >= '0' && ch <= '9' ? ch - '0' : ch >= 'a' && ch <= 'f'
+                                ? ch - 'a' + 10 : ch >= 'A' && ch <= 'F' ? ch - 'A' + 10 : 0;
+                            val = (val << 4) | n;
+                        }
+                    } else {
+                        foreach (ch; part) {
+                            if (ch >= '0' && ch <= '9')
+                                val = val * 10 + (ch - '0');
+                        }
+                    }
+                    b[idx++] = val;
+                    start = i + 1;
+                }
+            }
+            if (idx == 4) {
+                res.known = true;
+                res.canBeEmpty = false;
+                res.mask = CharSetMask(b);
+                return res;
+            }
+        }
+
+        if (startsWith(expr, "and!(")) {
+            string inner = expr[5 .. $];
+            size_t depth = 0;
+            bool inQuote = false;
+            size_t firstEnd = inner.length;
+            for (size_t i = 0; i < inner.length; ++i) {
+                char c = inner[i];
+                if (c == '"' && (i == 0 || inner[i - 1] != '\\'))
+                    inQuote = !inQuote;
+                if (!inQuote) {
+                    if (c == '(')
+                        depth++;
+                    else if (c == ')') {
+                        if (depth == 0) {
+                            firstEnd = i;
+                            break;
+                        }
+                        depth--;
+                    } else if (c == ',' && depth == 0) {
+                        firstEnd = i;
+                        break;
+                    }
+                }
+            }
+            string first = inner[0 .. firstEnd];
+            return computeFirstSet(first, visited);
+        }
+
+        foreach (prefix; ["discard!(", "fuse!(", "keep!(", "drop!(", "oneOrMore!("]) {
+            if (startsWith(expr, prefix)) {
+                string inner = expr[prefix.length .. $];
+                if (inner.length > 0 && inner[$ - 1] == ')')
+                    inner = inner[0 .. $ - 1];
+                return computeFirstSet(inner, visited);
+            }
+        }
+
+        if (expr == "digit") {
+            res.known = true;
+            res.mask.addRange('0', '9');
+            return res;
+        }
+        if (expr == "alpha") {
+            res.known = true;
+            res.mask.addRange('a', 'z');
+            return res;
+        }
+        if (expr == "Alpha") {
+            res.known = true;
+            res.mask.addRange('A', 'Z');
+            return res;
+        }
+        if (expr == "hexDigit") {
+            res.known = true;
+            res.mask.addRange('0', '9');
+            res.mask.addRange('a', 'f');
+            res.mask.addRange('A', 'F');
+            return res;
+        }
+        if (expr == "space") {
+            res.known = true;
+            res.mask.addChar(' ');
+            res.mask.addChar('\t');
+            res.mask.addChar('\v');
+            return res;
+        }
+        if (expr == "blank") {
+            res.known = true;
+            res.mask.addChar(' ');
+            res.mask.addChar('\t');
+            res.mask.addChar('\v');
+            res.mask.addChar('\r');
+            res.mask.addChar('\n');
+            return res;
+        }
+        if (expr == "ident" || expr == "identifier") {
+            res.known = true;
+            res.mask.addRange('a', 'z');
+            res.mask.addRange('A', 'Z');
+            res.mask.addChar('_');
+            return res;
+        }
+
+        foreach (r; rules) {
+            if (r.name == expr) {
+                foreach (v; visited) {
+                    if (v == expr)
+                        return res;
+                }
+                return computeFirstSet(r.body, visited ~ expr);
+            }
+        }
+
+        return res;
+    }
+
+    static string[] splitTemplateArgs(string args) pure nothrow {
+        string[] result;
+        size_t depth = 0;
+        bool inQuote = false;
+        size_t start = 0;
+        for (size_t i = 0; i < args.length; ++i) {
+            char c = args[i];
+            if (c == '"' && (i == 0 || args[i - 1] != '\\'))
+                inQuote = !inQuote;
+            if (!inQuote) {
+                if (c == '(')
+                    depth++;
+                else if (c == ')')
+                    depth--;
+                else if (c == ',' && depth == 0) {
+                    result ~= args[start .. i];
+                    start = i + 1;
+                }
+            }
+        }
+        if (start < args.length)
+            result ~= args[start .. $];
+        return result;
+    }
+
+    string optimizeChoice(string[] choices) const nothrow {
+        if (choices.length < 2)
+            return null;
+        FirstSetResult[] firstSets;
+        firstSets.length = choices.length;
+        foreach (i, choice; choices) {
+            firstSets[i] = computeFirstSet(choice);
+            if (!firstSets[i].known || firstSets[i].canBeEmpty || firstSets[i].mask.empty)
+                return null;
+        }
+        for (size_t i = 0; i < choices.length; ++i) {
+            for (size_t j = i + 1; j < choices.length; ++j) {
+                if (firstSets[i].mask.intersects(firstSets[j].mask))
+                    return null;
+            }
+        }
+        string res = "predictiveChoice!(";
+        foreach (i, choice; choices) {
+            auto m = firstSets[i].mask;
+            res ~= (i ? ", " : "") ~ "branch!(" ~ choice ~ ", " ~ ulongHex(m.bits[0]) ~ ", " ~ ulongHex(
+                    m.bits[1]) ~ ", " ~ ulongHex(m.bits[2]) ~ ", " ~ ulongHex(m.bits[3]) ~ ")";
+        }
+        return res ~ ")";
+    }
+
+    string optimizeRule(string expr) const nothrow {
+        size_t i = 0;
+        string result;
+        while (i < expr.length) {
+            if (i + 4 <= expr.length && expr[i .. i + 4] == "or!(") {
+                size_t depth = 1;
+                size_t j = i + 4;
+                bool inQuote = false;
+                while (j < expr.length && depth > 0) {
+                    char c = expr[j];
+                    if (c == '"' && (j == 0 || expr[j - 1] != '\\'))
+                        inQuote = !inQuote;
+                    if (!inQuote) {
+                        if (c == '(')
+                            depth++;
+                        else if (c == ')')
+                            depth--;
+                    }
+                    j++;
+                }
+                string inner = expr[i + 4 .. j - 1];
+                string[] rawChoices = splitTemplateArgs(inner);
+                string[] optimizedChoices;
+                optimizedChoices.length = rawChoices.length;
+                foreach (k, ch; rawChoices) {
+                    optimizedChoices[k] = optimizeRule(ch);
+                }
+                string predicted = optimizeChoice(optimizedChoices);
+                if (predicted.length) {
+                    result ~= predicted;
+                } else {
+                    result ~= "or!(";
+                    foreach (k, ch; optimizedChoices)
+                        result ~= (k ? ", " : "") ~ ch;
+                    result ~= ")";
+                }
+                i = j;
+            } else {
+                result ~= expr[i++];
+            }
+        }
+        return result;
+    }
+
     string emit() nothrow {
+        foreach (ref rule; rules) {
+            rule.body = optimizeRule(rule.body);
+        }
         string result = "struct " ~ name ~ params ~ " {\n";
         bool spacingDefined;
         foreach (rule; rules)
@@ -604,6 +1013,88 @@ private struct Frontend {
         result ~= "}\n";
         return result;
     }
+}
+
+nothrow unittest {
+    Frontend parser;
+    parser.input = "ChoiceTest: Term <- Add / Sub Add <- '+' Term Sub <- '-' Term Cycle <- Cycle";
+    parser.read();
+    assert(!parser.error.message.length);
+    auto emitted = parser.emit();
+    assert(startsWith(parser.rules[0].body, "predictiveChoice!("));
+
+    // Test computeFirstSet
+    auto firstAdd = parser.computeFirstSet("Add");
+    assert(firstAdd.known && !firstAdd.canBeEmpty && firstAdd.mask.contains('+'));
+    auto firstSub = parser.computeFirstSet("Sub");
+    assert(firstSub.known && !firstSub.canBeEmpty && firstSub.mask.contains('-'));
+    assert(!firstAdd.mask.intersects(firstSub.mask));
+
+    // Test literals and escapes in computeFirstSet
+    assert(parser.computeFirstSet(`literal!("\n")`).mask.contains('\n'));
+    assert(parser.computeFirstSet(`literal!("\r")`).mask.contains('\r'));
+    assert(parser.computeFirstSet(`literal!("\t")`).mask.contains('\t'));
+    assert(parser.computeFirstSet(`literal!("\0")`).mask.contains('\0'));
+    assert(parser.computeFirstSet(`literal!("\\")`).mask.contains('\\'));
+    assert(parser.computeFirstSet(`literal!("\"")`).mask.contains('"'));
+    assert(parser.computeFirstSet(`literal!("foo")`).mask.contains('f'));
+    assert(parser.computeFirstSet(`literal!("")`).canBeEmpty);
+    assert(!parser.computeFirstSet(`literal!(`).known);
+
+    // Test charRange
+    assert(parser.computeFirstSet("charRange!(97, 122)").mask.contains('a'));
+    assert(!parser.computeFirstSet("charRange!(300, 400)").known);
+    assert(!parser.computeFirstSet("charRange!(100, 50)").known);
+    assert(!parser.computeFirstSet("charRange!(invalid)").known);
+
+    // Test charClass
+    assert(parser.computeFirstSet("charClass!(0x1UL, 0x2UL, 0x3UL, 0x4UL)").known);
+    assert(parser.computeFirstSet("charClass!(10UL, 20UL, 30UL, 40UL)").known);
+    assert(!parser.computeFirstSet("charClass!(invalid)").known);
+
+    // Test combinator unwrapping
+    assert(parser.computeFirstSet(`and!(literal!("a"), literal!("b"))`).mask.contains('a'));
+    assert(parser.computeFirstSet(`discard!(literal!("a"))`).mask.contains('a'));
+    assert(parser.computeFirstSet(`fuse!(literal!("b"))`).mask.contains('b'));
+    assert(parser.computeFirstSet(`keep!(literal!("c"))`).mask.contains('c'));
+    assert(parser.computeFirstSet(`drop!(literal!("d"))`).mask.contains('d'));
+    assert(parser.computeFirstSet(`oneOrMore!(literal!("e"))`).mask.contains('e'));
+
+    // Test predefined symbols
+    assert(parser.computeFirstSet("digit").mask.contains('5'));
+    assert(parser.computeFirstSet("alpha").mask.contains('k'));
+    assert(parser.computeFirstSet("Alpha").mask.contains('K'));
+    assert(parser.computeFirstSet("hexDigit").mask.contains('f'));
+    assert(parser.computeFirstSet("space").mask.contains(' '));
+    assert(parser.computeFirstSet("blank").mask.contains('\n'));
+    assert(parser.computeFirstSet("ident").mask.contains('_'));
+    assert(parser.computeFirstSet("identifier").mask.contains('_'));
+    assert(!parser.computeFirstSet("nonExistentRule").known);
+    assert(!parser.computeFirstSet("Cycle").known); // recursion guard
+
+    // Test splitTemplateArgs
+    auto args = Frontend.splitTemplateArgs(`A, and!(B, C), literal!(",")`);
+    assert(args.length == 3);
+
+    // Test optimizeChoice
+    assert(parser.optimizeChoice(["A"]) is null); // less than 2
+    assert(parser.optimizeChoice(["unknown1", "unknown2"]) is null);
+
+    // Test overlapping choice falls back to or
+    Frontend overlap;
+    overlap.input = "OverlapTest: Term <- 'a' 'b' / 'a' 'c'";
+    overlap.read();
+    assert(!overlap.error.message.length);
+    auto emittedOverlap = overlap.emit();
+    assert(startsWith(overlap.rules[0].body, "or!("));
+
+    // Test character classes in primary
+    Frontend charClasses;
+    charClasses.input = "CharClasses: Single <- [a] ByteEsc <- [\\xFF] NonAscii <- [\\u03B1-\\u03C9] Mixed <- [a-z\\u03B1-\\u03C9] Empty <- []";
+    charClasses.read();
+    assert(!charClasses.error.message.length);
+    auto emittedClasses = charClasses.emit();
+    assert(emittedClasses.length > 0);
 }
 
 unittest {
