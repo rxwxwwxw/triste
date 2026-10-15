@@ -3,17 +3,26 @@ module npegged.parser;
 public import npegged.peg;
 
 struct Pegged {
-    private static ParseTree _Grammar(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Grammar(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(Spacing, GrammarName, oneOrMore!(Definition), discard!(eoi)), "Pegged.Grammar")(
                 s, p);
     }
 
-    static ParseTree Grammar(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Grammar!false, "Pegged.Grammar", true)(p);
+    static State!(false, false).Node Grammar(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Grammar!(false, false), "Pegged.Grammar", true)(p);
     }
 
-    static ParseTree Grammar(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Grammar!true, "Pegged.Grammar", true)(p);
+    static State!(true, false).Node Grammar(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Grammar!(true, false), "Pegged.Grammar", true)(p);
+    }
+
+    static State!(false, true).Node Grammar(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Grammar!(false, true), "Pegged.Grammar", true)(p);
+    }
+
+    static State!(true, true).Node Grammar(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Grammar!(true, true), "Pegged.Grammar", true)(p);
     }
 
     static ParseResult Grammar(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -25,16 +34,25 @@ struct Pegged {
         return parseCT!(Grammar)(input);
     }
 
-    private static ParseTree _Definition(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Definition(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(LhsName, Arrow, Expression), "Pegged.Definition")(s, p);
     }
 
-    static ParseTree Definition(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Definition!false, "Pegged.Definition", true)(p);
+    static State!(false, false).Node Definition(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Definition!(false, false), "Pegged.Definition", true)(p);
     }
 
-    static ParseTree Definition(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Definition!true, "Pegged.Definition", true)(p);
+    static State!(true, false).Node Definition(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Definition!(true, false), "Pegged.Definition", true)(p);
+    }
+
+    static State!(false, true).Node Definition(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Definition!(false, true), "Pegged.Definition", true)(p);
+    }
+
+    static State!(true, true).Node Definition(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Definition!(true, true), "Pegged.Definition", true)(p);
     }
 
     static ParseResult Definition(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -46,16 +64,25 @@ struct Pegged {
         return parseCT!(Definition)(input);
     }
 
-    private static ParseTree _Expression(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Expression(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(or!(FirstExpression, LongestExpression), "Pegged.Expression")(s, p);
     }
 
-    static ParseTree Expression(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Expression!false, "Pegged.Expression", true)(p);
+    static State!(false, false).Node Expression(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Expression!(false, false), "Pegged.Expression", true)(p);
     }
 
-    static ParseTree Expression(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Expression!true, "Pegged.Expression", true)(p);
+    static State!(true, false).Node Expression(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Expression!(true, false), "Pegged.Expression", true)(p);
+    }
+
+    static State!(false, true).Node Expression(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Expression!(false, true), "Pegged.Expression", true)(p);
+    }
+
+    static State!(true, true).Node Expression(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Expression!(true, true), "Pegged.Expression", true)(p);
     }
 
     static ParseResult Expression(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -67,17 +94,26 @@ struct Pegged {
         return parseCT!(Expression)(input);
     }
 
-    private static ParseTree _FirstExpression(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _FirstExpression(bool CT, bool Check = false)(ref State!(CT,
+            Check) s, size_t p) nothrow {
         return defined!(and!(discard!(option!(OR)), Sequence, oneOrMore!(and!(discard!(OR), Sequence))),
                 "Pegged.FirstExpression")(s, p);
     }
 
-    static ParseTree FirstExpression(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_FirstExpression!false, "Pegged.FirstExpression", true)(p);
+    static State!(false, false).Node FirstExpression(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_FirstExpression!(false, false), "Pegged.FirstExpression", true)(p);
     }
 
-    static ParseTree FirstExpression(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_FirstExpression!true, "Pegged.FirstExpression", true)(p);
+    static State!(true, false).Node FirstExpression(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_FirstExpression!(true, false), "Pegged.FirstExpression", true)(p);
+    }
+
+    static State!(false, true).Node FirstExpression(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_FirstExpression!(false, true), "Pegged.FirstExpression", true)(p);
+    }
+
+    static State!(true, true).Node FirstExpression(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_FirstExpression!(true, true), "Pegged.FirstExpression", true)(p);
     }
 
     static ParseResult FirstExpression(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -89,19 +125,28 @@ struct Pegged {
         return parseCT!(FirstExpression)(input);
     }
 
-    private static ParseTree _LongestExpression(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _LongestExpression(bool CT,
+            bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(and!(discard!(option!(predictiveChoice!(branch!(OR, 0x800000000000UL,
                 0x0UL, 0x0UL, 0x0UL), branch!(LONGEST_OR, 0x0UL, 0x1000000000000000UL, 0x0UL, 0x0UL)))),
                 Sequence, zeroOrMore!(and!(discard!(LONGEST_OR), Sequence))), "Pegged.LongestExpression")(
                 s, p);
     }
 
-    static ParseTree LongestExpression(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_LongestExpression!false, "Pegged.LongestExpression", true)(p);
+    static State!(false, false).Node LongestExpression(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_LongestExpression!(false, false), "Pegged.LongestExpression", true)(p);
     }
 
-    static ParseTree LongestExpression(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_LongestExpression!true, "Pegged.LongestExpression", true)(p);
+    static State!(true, false).Node LongestExpression(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_LongestExpression!(true, false), "Pegged.LongestExpression", true)(p);
+    }
+
+    static State!(false, true).Node LongestExpression(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_LongestExpression!(false, true), "Pegged.LongestExpression", true)(p);
+    }
+
+    static State!(true, true).Node LongestExpression(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_LongestExpression!(true, true), "Pegged.LongestExpression", true)(p);
     }
 
     static ParseResult LongestExpression(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -113,16 +158,25 @@ struct Pegged {
         return parseCT!(LongestExpression)(input);
     }
 
-    private static ParseTree _Sequence(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Sequence(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(oneOrMore!(Prefix), "Pegged.Sequence")(s, p);
     }
 
-    static ParseTree Sequence(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Sequence!false, "Pegged.Sequence", true)(p);
+    static State!(false, false).Node Sequence(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Sequence!(false, false), "Pegged.Sequence", true)(p);
     }
 
-    static ParseTree Sequence(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Sequence!true, "Pegged.Sequence", true)(p);
+    static State!(true, false).Node Sequence(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Sequence!(true, false), "Pegged.Sequence", true)(p);
+    }
+
+    static State!(false, true).Node Sequence(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Sequence!(false, true), "Pegged.Sequence", true)(p);
+    }
+
+    static State!(true, true).Node Sequence(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Sequence!(true, true), "Pegged.Sequence", true)(p);
     }
 
     static ParseResult Sequence(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -134,7 +188,8 @@ struct Pegged {
         return parseCT!(Sequence)(input);
     }
 
-    private static ParseTree _Prefix(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Prefix(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(zeroOrMore!(predictiveChoice!(branch!(POS, 0x4000000000UL, 0x0UL,
                 0x0UL, 0x0UL), branch!(NEG, 0x200000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(FUSE,
                 0x0UL, 0x4000000000000000UL, 0x0UL, 0x0UL), branch!(DISCARD, 0x400000000000000UL,
@@ -144,12 +199,20 @@ struct Pegged {
                 0x0UL))), Suffix), "Pegged.Prefix")(s, p);
     }
 
-    static ParseTree Prefix(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Prefix!false, "Pegged.Prefix", true)(p);
+    static State!(false, false).Node Prefix(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Prefix!(false, false), "Pegged.Prefix", true)(p);
     }
 
-    static ParseTree Prefix(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Prefix!true, "Pegged.Prefix", true)(p);
+    static State!(true, false).Node Prefix(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Prefix!(true, false), "Pegged.Prefix", true)(p);
+    }
+
+    static State!(false, true).Node Prefix(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Prefix!(false, true), "Pegged.Prefix", true)(p);
+    }
+
+    static State!(true, true).Node Prefix(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Prefix!(true, true), "Pegged.Prefix", true)(p);
     }
 
     static ParseResult Prefix(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -161,7 +224,8 @@ struct Pegged {
         return parseCT!(Prefix)(input);
     }
 
-    private static ParseTree _Suffix(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Suffix(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(Primary, zeroOrMore!(predictiveChoice!(branch!(OPTION,
                 0x8000000000000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(ZEROORMORE, 0x40000000000UL,
                 0x0UL, 0x0UL,
@@ -169,12 +233,20 @@ struct Pegged {
                 0x0UL, 0x800000000000000UL, 0x0UL, 0x0UL)))), "Pegged.Suffix")(s, p);
     }
 
-    static ParseTree Suffix(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Suffix!false, "Pegged.Suffix", true)(p);
+    static State!(false, false).Node Suffix(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Suffix!(false, false), "Pegged.Suffix", true)(p);
     }
 
-    static ParseTree Suffix(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Suffix!true, "Pegged.Suffix", true)(p);
+    static State!(true, false).Node Suffix(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Suffix!(true, false), "Pegged.Suffix", true)(p);
+    }
+
+    static State!(false, true).Node Suffix(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Suffix!(false, true), "Pegged.Suffix", true)(p);
+    }
+
+    static State!(true, true).Node Suffix(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Suffix!(true, true), "Pegged.Suffix", true)(p);
     }
 
     static ParseResult Suffix(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -186,18 +258,27 @@ struct Pegged {
         return parseCT!(Suffix)(input);
     }
 
-    private static ParseTree _Primary(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Primary(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(negLookahead!(and!(LhsName, Arrow)), or!(RhsName,
                 and!(discard!(OPEN), Expression, discard!(CLOSE)), Literal, CILiteral, CharClass, ANY)),
                 "Pegged.Primary")(s, p);
     }
 
-    static ParseTree Primary(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Primary!false, "Pegged.Primary", true)(p);
+    static State!(false, false).Node Primary(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Primary!(false, false), "Pegged.Primary", true)(p);
     }
 
-    static ParseTree Primary(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Primary!true, "Pegged.Primary", true)(p);
+    static State!(true, false).Node Primary(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Primary!(true, false), "Pegged.Primary", true)(p);
+    }
+
+    static State!(false, true).Node Primary(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Primary!(false, true), "Pegged.Primary", true)(p);
+    }
+
+    static State!(true, true).Node Primary(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Primary!(true, true), "Pegged.Primary", true)(p);
     }
 
     static ParseResult Primary(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -209,16 +290,25 @@ struct Pegged {
         return parseCT!(Primary)(input);
     }
 
-    private static ParseTree _Identifier(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Identifier(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(identifier, "Pegged.Identifier")(s, p);
     }
 
-    static ParseTree Identifier(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Identifier!false, "Pegged.Identifier", true)(p);
+    static State!(false, false).Node Identifier(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Identifier!(false, false), "Pegged.Identifier", true)(p);
     }
 
-    static ParseTree Identifier(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Identifier!true, "Pegged.Identifier", true)(p);
+    static State!(true, false).Node Identifier(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Identifier!(true, false), "Pegged.Identifier", true)(p);
+    }
+
+    static State!(false, true).Node Identifier(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Identifier!(false, true), "Pegged.Identifier", true)(p);
+    }
+
+    static State!(true, true).Node Identifier(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Identifier!(true, true), "Pegged.Identifier", true)(p);
     }
 
     static ParseResult Identifier(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -230,17 +320,26 @@ struct Pegged {
         return parseCT!(Identifier)(input);
     }
 
-    private static ParseTree _GrammarName(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _GrammarName(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(Identifier, option!(ParamList), Spacing, discard!(literal!(":")),
                 Spacing), "Pegged.GrammarName")(s, p);
     }
 
-    static ParseTree GrammarName(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_GrammarName!false, "Pegged.GrammarName", true)(p);
+    static State!(false, false).Node GrammarName(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_GrammarName!(false, false), "Pegged.GrammarName", true)(p);
     }
 
-    static ParseTree GrammarName(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_GrammarName!true, "Pegged.GrammarName", true)(p);
+    static State!(true, false).Node GrammarName(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_GrammarName!(true, false), "Pegged.GrammarName", true)(p);
+    }
+
+    static State!(false, true).Node GrammarName(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_GrammarName!(false, true), "Pegged.GrammarName", true)(p);
+    }
+
+    static State!(true, true).Node GrammarName(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_GrammarName!(true, true), "Pegged.GrammarName", true)(p);
     }
 
     static ParseResult GrammarName(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -252,16 +351,25 @@ struct Pegged {
         return parseCT!(GrammarName)(input);
     }
 
-    private static ParseTree _LhsName(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _LhsName(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(Identifier, option!(ParamList), Spacing), "Pegged.LhsName")(s, p);
     }
 
-    static ParseTree LhsName(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_LhsName!false, "Pegged.LhsName", true)(p);
+    static State!(false, false).Node LhsName(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_LhsName!(false, false), "Pegged.LhsName", true)(p);
     }
 
-    static ParseTree LhsName(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_LhsName!true, "Pegged.LhsName", true)(p);
+    static State!(true, false).Node LhsName(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_LhsName!(true, false), "Pegged.LhsName", true)(p);
+    }
+
+    static State!(false, true).Node LhsName(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_LhsName!(false, true), "Pegged.LhsName", true)(p);
+    }
+
+    static State!(true, true).Node LhsName(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_LhsName!(true, true), "Pegged.LhsName", true)(p);
     }
 
     static ParseResult LhsName(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -273,17 +381,26 @@ struct Pegged {
         return parseCT!(LhsName)(input);
     }
 
-    private static ParseTree _RhsName(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _RhsName(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(Identifier, option!(ArgList), zeroOrMore!(and!(NAMESEP,
                 Identifier, option!(ArgList))), Spacing), "Pegged.RhsName")(s, p);
     }
 
-    static ParseTree RhsName(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_RhsName!false, "Pegged.RhsName", true)(p);
+    static State!(false, false).Node RhsName(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_RhsName!(false, false), "Pegged.RhsName", true)(p);
     }
 
-    static ParseTree RhsName(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_RhsName!true, "Pegged.RhsName", true)(p);
+    static State!(true, false).Node RhsName(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_RhsName!(true, false), "Pegged.RhsName", true)(p);
+    }
+
+    static State!(false, true).Node RhsName(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_RhsName!(false, true), "Pegged.RhsName", true)(p);
+    }
+
+    static State!(true, true).Node RhsName(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_RhsName!(true, true), "Pegged.RhsName", true)(p);
     }
 
     static ParseResult RhsName(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -295,17 +412,26 @@ struct Pegged {
         return parseCT!(RhsName)(input);
     }
 
-    private static ParseTree _ParamList(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _ParamList(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(discard!(OPEN), Param, zeroOrMore!(and!(discard!(SEPARATOR),
                 Param)), discard!(CLOSE)), "Pegged.ParamList")(s, p);
     }
 
-    static ParseTree ParamList(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_ParamList!false, "Pegged.ParamList", true)(p);
+    static State!(false, false).Node ParamList(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_ParamList!(false, false), "Pegged.ParamList", true)(p);
     }
 
-    static ParseTree ParamList(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_ParamList!true, "Pegged.ParamList", true)(p);
+    static State!(true, false).Node ParamList(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_ParamList!(true, false), "Pegged.ParamList", true)(p);
+    }
+
+    static State!(false, true).Node ParamList(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_ParamList!(false, true), "Pegged.ParamList", true)(p);
+    }
+
+    static State!(true, true).Node ParamList(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_ParamList!(true, true), "Pegged.ParamList", true)(p);
     }
 
     static ParseResult ParamList(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -317,16 +443,25 @@ struct Pegged {
         return parseCT!(ParamList)(input);
     }
 
-    private static ParseTree _Param(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Param(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(or!(DefaultParam, SingleParam), "Pegged.Param")(s, p);
     }
 
-    static ParseTree Param(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Param!false, "Pegged.Param", true)(p);
+    static State!(false, false).Node Param(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Param!(false, false), "Pegged.Param", true)(p);
     }
 
-    static ParseTree Param(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Param!true, "Pegged.Param", true)(p);
+    static State!(true, false).Node Param(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Param!(true, false), "Pegged.Param", true)(p);
+    }
+
+    static State!(false, true).Node Param(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Param!(false, true), "Pegged.Param", true)(p);
+    }
+
+    static State!(true, true).Node Param(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Param!(true, true), "Pegged.Param", true)(p);
     }
 
     static ParseResult Param(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -338,17 +473,26 @@ struct Pegged {
         return parseCT!(Param)(input);
     }
 
-    private static ParseTree _DefaultParam(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DefaultParam(bool CT, bool Check = false)(ref State!(CT,
+            Check) s, size_t p) nothrow {
         return defined!(and!(Identifier, Spacing, discard!(ASSIGN), Expression), "Pegged.DefaultParam")(
                 s, p);
     }
 
-    static ParseTree DefaultParam(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DefaultParam!false, "Pegged.DefaultParam", true)(p);
+    static State!(false, false).Node DefaultParam(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DefaultParam!(false, false), "Pegged.DefaultParam", true)(p);
     }
 
-    static ParseTree DefaultParam(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DefaultParam!true, "Pegged.DefaultParam", true)(p);
+    static State!(true, false).Node DefaultParam(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DefaultParam!(true, false), "Pegged.DefaultParam", true)(p);
+    }
+
+    static State!(false, true).Node DefaultParam(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DefaultParam!(false, true), "Pegged.DefaultParam", true)(p);
+    }
+
+    static State!(true, true).Node DefaultParam(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DefaultParam!(true, true), "Pegged.DefaultParam", true)(p);
     }
 
     static ParseResult DefaultParam(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -360,16 +504,25 @@ struct Pegged {
         return parseCT!(DefaultParam)(input);
     }
 
-    private static ParseTree _SingleParam(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _SingleParam(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(Identifier, Spacing), "Pegged.SingleParam")(s, p);
     }
 
-    static ParseTree SingleParam(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_SingleParam!false, "Pegged.SingleParam", true)(p);
+    static State!(false, false).Node SingleParam(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_SingleParam!(false, false), "Pegged.SingleParam", true)(p);
     }
 
-    static ParseTree SingleParam(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_SingleParam!true, "Pegged.SingleParam", true)(p);
+    static State!(true, false).Node SingleParam(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_SingleParam!(true, false), "Pegged.SingleParam", true)(p);
+    }
+
+    static State!(false, true).Node SingleParam(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_SingleParam!(false, true), "Pegged.SingleParam", true)(p);
+    }
+
+    static State!(true, true).Node SingleParam(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_SingleParam!(true, true), "Pegged.SingleParam", true)(p);
     }
 
     static ParseResult SingleParam(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -381,17 +534,26 @@ struct Pegged {
         return parseCT!(SingleParam)(input);
     }
 
-    private static ParseTree _ArgList(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _ArgList(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(discard!(OPEN), Expression, zeroOrMore!(and!(discard!(SEPARATOR),
                 Expression)), discard!(CLOSE)), "Pegged.ArgList")(s, p);
     }
 
-    static ParseTree ArgList(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_ArgList!false, "Pegged.ArgList", true)(p);
+    static State!(false, false).Node ArgList(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_ArgList!(false, false), "Pegged.ArgList", true)(p);
     }
 
-    static ParseTree ArgList(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_ArgList!true, "Pegged.ArgList", true)(p);
+    static State!(true, false).Node ArgList(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_ArgList!(true, false), "Pegged.ArgList", true)(p);
+    }
+
+    static State!(false, true).Node ArgList(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_ArgList!(false, true), "Pegged.ArgList", true)(p);
+    }
+
+    static State!(true, true).Node ArgList(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_ArgList!(true, true), "Pegged.ArgList", true)(p);
     }
 
     static ParseResult ArgList(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -403,19 +565,30 @@ struct Pegged {
         return parseCT!(ArgList)(input);
     }
 
-    private static ParseTree _Literal(bool CT)(ref State!CT s, size_t p) nothrow {
-        return defined!(or!(and!(quote, fuse!(zeroOrMore!(and!(negLookahead!(quote), Char))),
-                quote, negLookahead!(literal!("i")), Spacing), and!(doublequote,
+    private static State!(CT, Check).Node _Literal(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
+        return defined!(predictiveChoice!(branch!(and!(quote,
+                fuse!(zeroOrMore!(and!(negLookahead!(quote), Char))), quote, negLookahead!(literal!("i")),
+                Spacing), 0x8000000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(and!(doublequote,
                 fuse!(zeroOrMore!(and!(negLookahead!(doublequote),
-                Char))), doublequote, negLookahead!(literal!("i")), Spacing)), "Pegged.Literal")(s, p);
+                Char))), doublequote, negLookahead!(literal!("i")), Spacing), 0x400000000UL, 0x0UL, 0x0UL,
+                0x0UL)), "Pegged.Literal")(s, p);
     }
 
-    static ParseTree Literal(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Literal!false, "Pegged.Literal", true)(p);
+    static State!(false, false).Node Literal(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Literal!(false, false), "Pegged.Literal", true)(p);
     }
 
-    static ParseTree Literal(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Literal!true, "Pegged.Literal", true)(p);
+    static State!(true, false).Node Literal(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Literal!(true, false), "Pegged.Literal", true)(p);
+    }
+
+    static State!(false, true).Node Literal(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Literal!(false, true), "Pegged.Literal", true)(p);
+    }
+
+    static State!(true, true).Node Literal(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Literal!(true, true), "Pegged.Literal", true)(p);
     }
 
     static ParseResult Literal(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -427,19 +600,30 @@ struct Pegged {
         return parseCT!(Literal)(input);
     }
 
-    private static ParseTree _CILiteral(bool CT)(ref State!CT s, size_t p) nothrow {
-        return defined!(or!(and!(quote, fuse!(zeroOrMore!(and!(negLookahead!(quote), Char))),
-                quote, discard!(literal!("i")), Spacing), and!(doublequote,
+    private static State!(CT, Check).Node _CILiteral(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
+        return defined!(predictiveChoice!(branch!(and!(quote,
+                fuse!(zeroOrMore!(and!(negLookahead!(quote), Char))), quote, discard!(literal!("i")), Spacing),
+                0x8000000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(and!(doublequote,
                 fuse!(zeroOrMore!(and!(negLookahead!(doublequote),
-                Char))), doublequote, discard!(literal!("i")), Spacing)), "Pegged.CILiteral")(s, p);
+                Char))), doublequote, discard!(literal!("i")), Spacing), 0x400000000UL, 0x0UL, 0x0UL, 0x0UL)),
+                "Pegged.CILiteral")(s, p);
     }
 
-    static ParseTree CILiteral(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_CILiteral!false, "Pegged.CILiteral", true)(p);
+    static State!(false, false).Node CILiteral(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_CILiteral!(false, false), "Pegged.CILiteral", true)(p);
     }
 
-    static ParseTree CILiteral(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_CILiteral!true, "Pegged.CILiteral", true)(p);
+    static State!(true, false).Node CILiteral(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_CILiteral!(true, false), "Pegged.CILiteral", true)(p);
+    }
+
+    static State!(false, true).Node CILiteral(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_CILiteral!(false, true), "Pegged.CILiteral", true)(p);
+    }
+
+    static State!(true, true).Node CILiteral(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_CILiteral!(true, true), "Pegged.CILiteral", true)(p);
     }
 
     static ParseResult CILiteral(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -451,18 +635,27 @@ struct Pegged {
         return parseCT!(CILiteral)(input);
     }
 
-    private static ParseTree _CharClass(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _CharClass(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(discard!(literal!("[")),
                 zeroOrMore!(and!(negLookahead!(literal!("]")), CharRange)), discard!(literal!("]")), Spacing),
                 "Pegged.CharClass")(s, p);
     }
 
-    static ParseTree CharClass(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_CharClass!false, "Pegged.CharClass", true)(p);
+    static State!(false, false).Node CharClass(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_CharClass!(false, false), "Pegged.CharClass", true)(p);
     }
 
-    static ParseTree CharClass(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_CharClass!true, "Pegged.CharClass", true)(p);
+    static State!(true, false).Node CharClass(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_CharClass!(true, false), "Pegged.CharClass", true)(p);
+    }
+
+    static State!(false, true).Node CharClass(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_CharClass!(false, true), "Pegged.CharClass", true)(p);
+    }
+
+    static State!(true, true).Node CharClass(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_CharClass!(true, true), "Pegged.CharClass", true)(p);
     }
 
     static ParseResult CharClass(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -474,16 +667,25 @@ struct Pegged {
         return parseCT!(CharClass)(input);
     }
 
-    private static ParseTree _CharRange(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _CharRange(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(or!(and!(Char, literal!("-"), Char), Char), "Pegged.CharRange")(s, p);
     }
 
-    static ParseTree CharRange(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_CharRange!false, "Pegged.CharRange", true)(p);
+    static State!(false, false).Node CharRange(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_CharRange!(false, false), "Pegged.CharRange", true)(p);
     }
 
-    static ParseTree CharRange(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_CharRange!true, "Pegged.CharRange", true)(p);
+    static State!(true, false).Node CharRange(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_CharRange!(true, false), "Pegged.CharRange", true)(p);
+    }
+
+    static State!(false, true).Node CharRange(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_CharRange!(false, true), "Pegged.CharRange", true)(p);
+    }
+
+    static State!(true, true).Node CharRange(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_CharRange!(true, true), "Pegged.CharRange", true)(p);
     }
 
     static ParseResult CharRange(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -495,7 +697,7 @@ struct Pegged {
         return parseCT!(CharRange)(input);
     }
 
-    private static ParseTree _Char(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Char(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(fuse!(or!(and!(backslash, or!(quote, doublequote, backquote, backslash,
                 literal!("-"), literal!("["), literal!("]"), charClass!(0x0UL,
                 0x14400000000000UL, 0x0UL, 0x0UL), and!(charRange!(48, 50), charRange!(48, 55),
@@ -506,12 +708,20 @@ struct Pegged {
                 hexDigit))), any)), "Pegged.Char")(s, p);
     }
 
-    static ParseTree Char(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Char!false, "Pegged.Char", true)(p);
+    static State!(false, false).Node Char(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Char!(false, false), "Pegged.Char", true)(p);
     }
 
-    static ParseTree Char(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Char!true, "Pegged.Char", true)(p);
+    static State!(true, false).Node Char(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Char!(true, false), "Pegged.Char", true)(p);
+    }
+
+    static State!(false, true).Node Char(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Char!(false, true), "Pegged.Char", true)(p);
+    }
+
+    static State!(true, true).Node Char(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Char!(true, true), "Pegged.Char", true)(p);
     }
 
     static ParseResult Char(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -523,17 +733,26 @@ struct Pegged {
         return parseCT!(Char)(input);
     }
 
-    private static ParseTree _Arrow(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Arrow(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(or!(LEFTARROW, FUSEARROW, DISCARDARROW, KEEPARROW, DROPARROW,
                 PROPAGATEARROW, ACTIONARROW, SPACEARROW), "Pegged.Arrow")(s, p);
     }
 
-    static ParseTree Arrow(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Arrow!false, "Pegged.Arrow", true)(p);
+    static State!(false, false).Node Arrow(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Arrow!(false, false), "Pegged.Arrow", true)(p);
     }
 
-    static ParseTree Arrow(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Arrow!true, "Pegged.Arrow", true)(p);
+    static State!(true, false).Node Arrow(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Arrow!(true, false), "Pegged.Arrow", true)(p);
+    }
+
+    static State!(false, true).Node Arrow(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Arrow!(false, true), "Pegged.Arrow", true)(p);
+    }
+
+    static State!(true, true).Node Arrow(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Arrow!(true, true), "Pegged.Arrow", true)(p);
     }
 
     static ParseResult Arrow(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -545,16 +764,25 @@ struct Pegged {
         return parseCT!(Arrow)(input);
     }
 
-    private static ParseTree _LEFTARROW(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _LEFTARROW(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("<-"), Spacing), "Pegged.LEFTARROW")(s, p);
     }
 
-    static ParseTree LEFTARROW(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_LEFTARROW!false, "Pegged.LEFTARROW", true)(p);
+    static State!(false, false).Node LEFTARROW(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_LEFTARROW!(false, false), "Pegged.LEFTARROW", true)(p);
     }
 
-    static ParseTree LEFTARROW(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_LEFTARROW!true, "Pegged.LEFTARROW", true)(p);
+    static State!(true, false).Node LEFTARROW(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_LEFTARROW!(true, false), "Pegged.LEFTARROW", true)(p);
+    }
+
+    static State!(false, true).Node LEFTARROW(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_LEFTARROW!(false, true), "Pegged.LEFTARROW", true)(p);
+    }
+
+    static State!(true, true).Node LEFTARROW(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_LEFTARROW!(true, true), "Pegged.LEFTARROW", true)(p);
     }
 
     static ParseResult LEFTARROW(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -566,16 +794,25 @@ struct Pegged {
         return parseCT!(LEFTARROW)(input);
     }
 
-    private static ParseTree _FUSEARROW(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _FUSEARROW(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("<~"), Spacing), "Pegged.FUSEARROW")(s, p);
     }
 
-    static ParseTree FUSEARROW(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_FUSEARROW!false, "Pegged.FUSEARROW", true)(p);
+    static State!(false, false).Node FUSEARROW(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_FUSEARROW!(false, false), "Pegged.FUSEARROW", true)(p);
     }
 
-    static ParseTree FUSEARROW(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_FUSEARROW!true, "Pegged.FUSEARROW", true)(p);
+    static State!(true, false).Node FUSEARROW(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_FUSEARROW!(true, false), "Pegged.FUSEARROW", true)(p);
+    }
+
+    static State!(false, true).Node FUSEARROW(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_FUSEARROW!(false, true), "Pegged.FUSEARROW", true)(p);
+    }
+
+    static State!(true, true).Node FUSEARROW(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_FUSEARROW!(true, true), "Pegged.FUSEARROW", true)(p);
     }
 
     static ParseResult FUSEARROW(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -587,16 +824,25 @@ struct Pegged {
         return parseCT!(FUSEARROW)(input);
     }
 
-    private static ParseTree _DISCARDARROW(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DISCARDARROW(bool CT, bool Check = false)(ref State!(CT,
+            Check) s, size_t p) nothrow {
         return defined!(and!(literal!("<:"), Spacing), "Pegged.DISCARDARROW")(s, p);
     }
 
-    static ParseTree DISCARDARROW(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DISCARDARROW!false, "Pegged.DISCARDARROW", true)(p);
+    static State!(false, false).Node DISCARDARROW(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DISCARDARROW!(false, false), "Pegged.DISCARDARROW", true)(p);
     }
 
-    static ParseTree DISCARDARROW(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DISCARDARROW!true, "Pegged.DISCARDARROW", true)(p);
+    static State!(true, false).Node DISCARDARROW(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DISCARDARROW!(true, false), "Pegged.DISCARDARROW", true)(p);
+    }
+
+    static State!(false, true).Node DISCARDARROW(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DISCARDARROW!(false, true), "Pegged.DISCARDARROW", true)(p);
+    }
+
+    static State!(true, true).Node DISCARDARROW(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DISCARDARROW!(true, true), "Pegged.DISCARDARROW", true)(p);
     }
 
     static ParseResult DISCARDARROW(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -608,16 +854,25 @@ struct Pegged {
         return parseCT!(DISCARDARROW)(input);
     }
 
-    private static ParseTree _KEEPARROW(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _KEEPARROW(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("<^"), Spacing), "Pegged.KEEPARROW")(s, p);
     }
 
-    static ParseTree KEEPARROW(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_KEEPARROW!false, "Pegged.KEEPARROW", true)(p);
+    static State!(false, false).Node KEEPARROW(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_KEEPARROW!(false, false), "Pegged.KEEPARROW", true)(p);
     }
 
-    static ParseTree KEEPARROW(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_KEEPARROW!true, "Pegged.KEEPARROW", true)(p);
+    static State!(true, false).Node KEEPARROW(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_KEEPARROW!(true, false), "Pegged.KEEPARROW", true)(p);
+    }
+
+    static State!(false, true).Node KEEPARROW(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_KEEPARROW!(false, true), "Pegged.KEEPARROW", true)(p);
+    }
+
+    static State!(true, true).Node KEEPARROW(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_KEEPARROW!(true, true), "Pegged.KEEPARROW", true)(p);
     }
 
     static ParseResult KEEPARROW(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -629,16 +884,25 @@ struct Pegged {
         return parseCT!(KEEPARROW)(input);
     }
 
-    private static ParseTree _DROPARROW(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DROPARROW(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("<;"), Spacing), "Pegged.DROPARROW")(s, p);
     }
 
-    static ParseTree DROPARROW(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DROPARROW!false, "Pegged.DROPARROW", true)(p);
+    static State!(false, false).Node DROPARROW(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DROPARROW!(false, false), "Pegged.DROPARROW", true)(p);
     }
 
-    static ParseTree DROPARROW(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DROPARROW!true, "Pegged.DROPARROW", true)(p);
+    static State!(true, false).Node DROPARROW(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DROPARROW!(true, false), "Pegged.DROPARROW", true)(p);
+    }
+
+    static State!(false, true).Node DROPARROW(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DROPARROW!(false, true), "Pegged.DROPARROW", true)(p);
+    }
+
+    static State!(true, true).Node DROPARROW(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DROPARROW!(true, true), "Pegged.DROPARROW", true)(p);
     }
 
     static ParseResult DROPARROW(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -650,16 +914,25 @@ struct Pegged {
         return parseCT!(DROPARROW)(input);
     }
 
-    private static ParseTree _PROPAGATEARROW(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _PROPAGATEARROW(bool CT, bool Check = false)(ref State!(CT,
+            Check) s, size_t p) nothrow {
         return defined!(and!(literal!("<%"), Spacing), "Pegged.PROPAGATEARROW")(s, p);
     }
 
-    static ParseTree PROPAGATEARROW(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_PROPAGATEARROW!false, "Pegged.PROPAGATEARROW", true)(p);
+    static State!(false, false).Node PROPAGATEARROW(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_PROPAGATEARROW!(false, false), "Pegged.PROPAGATEARROW", true)(p);
     }
 
-    static ParseTree PROPAGATEARROW(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_PROPAGATEARROW!true, "Pegged.PROPAGATEARROW", true)(p);
+    static State!(true, false).Node PROPAGATEARROW(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_PROPAGATEARROW!(true, false), "Pegged.PROPAGATEARROW", true)(p);
+    }
+
+    static State!(false, true).Node PROPAGATEARROW(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_PROPAGATEARROW!(false, true), "Pegged.PROPAGATEARROW", true)(p);
+    }
+
+    static State!(true, true).Node PROPAGATEARROW(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_PROPAGATEARROW!(true, true), "Pegged.PROPAGATEARROW", true)(p);
     }
 
     static ParseResult PROPAGATEARROW(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -671,16 +944,25 @@ struct Pegged {
         return parseCT!(PROPAGATEARROW)(input);
     }
 
-    private static ParseTree _SPACEARROW(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _SPACEARROW(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("<"), Spacing), "Pegged.SPACEARROW")(s, p);
     }
 
-    static ParseTree SPACEARROW(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_SPACEARROW!false, "Pegged.SPACEARROW", true)(p);
+    static State!(false, false).Node SPACEARROW(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_SPACEARROW!(false, false), "Pegged.SPACEARROW", true)(p);
     }
 
-    static ParseTree SPACEARROW(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_SPACEARROW!true, "Pegged.SPACEARROW", true)(p);
+    static State!(true, false).Node SPACEARROW(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_SPACEARROW!(true, false), "Pegged.SPACEARROW", true)(p);
+    }
+
+    static State!(false, true).Node SPACEARROW(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_SPACEARROW!(false, true), "Pegged.SPACEARROW", true)(p);
+    }
+
+    static State!(true, true).Node SPACEARROW(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_SPACEARROW!(true, true), "Pegged.SPACEARROW", true)(p);
     }
 
     static ParseResult SPACEARROW(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -692,16 +974,25 @@ struct Pegged {
         return parseCT!(SPACEARROW)(input);
     }
 
-    private static ParseTree _ACTIONARROW(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _ACTIONARROW(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("<"), Action, Spacing), "Pegged.ACTIONARROW")(s, p);
     }
 
-    static ParseTree ACTIONARROW(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_ACTIONARROW!false, "Pegged.ACTIONARROW", true)(p);
+    static State!(false, false).Node ACTIONARROW(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_ACTIONARROW!(false, false), "Pegged.ACTIONARROW", true)(p);
     }
 
-    static ParseTree ACTIONARROW(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_ACTIONARROW!true, "Pegged.ACTIONARROW", true)(p);
+    static State!(true, false).Node ACTIONARROW(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_ACTIONARROW!(true, false), "Pegged.ACTIONARROW", true)(p);
+    }
+
+    static State!(false, true).Node ACTIONARROW(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_ACTIONARROW!(false, true), "Pegged.ACTIONARROW", true)(p);
+    }
+
+    static State!(true, true).Node ACTIONARROW(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_ACTIONARROW!(true, true), "Pegged.ACTIONARROW", true)(p);
     }
 
     static ParseResult ACTIONARROW(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -713,16 +1004,24 @@ struct Pegged {
         return parseCT!(ACTIONARROW)(input);
     }
 
-    private static ParseTree _OR(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _OR(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(and!(literal!("/"), Spacing), "Pegged.OR")(s, p);
     }
 
-    static ParseTree OR(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_OR!false, "Pegged.OR", true)(p);
+    static State!(false, false).Node OR(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_OR!(false, false), "Pegged.OR", true)(p);
     }
 
-    static ParseTree OR(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_OR!true, "Pegged.OR", true)(p);
+    static State!(true, false).Node OR(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_OR!(true, false), "Pegged.OR", true)(p);
+    }
+
+    static State!(false, true).Node OR(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_OR!(false, true), "Pegged.OR", true)(p);
+    }
+
+    static State!(true, true).Node OR(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_OR!(true, true), "Pegged.OR", true)(p);
     }
 
     static ParseResult OR(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -734,16 +1033,25 @@ struct Pegged {
         return parseCT!(OR)(input);
     }
 
-    private static ParseTree _LONGEST_OR(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _LONGEST_OR(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("|"), Spacing), "Pegged.LONGEST_OR")(s, p);
     }
 
-    static ParseTree LONGEST_OR(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_LONGEST_OR!false, "Pegged.LONGEST_OR", true)(p);
+    static State!(false, false).Node LONGEST_OR(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_LONGEST_OR!(false, false), "Pegged.LONGEST_OR", true)(p);
     }
 
-    static ParseTree LONGEST_OR(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_LONGEST_OR!true, "Pegged.LONGEST_OR", true)(p);
+    static State!(true, false).Node LONGEST_OR(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_LONGEST_OR!(true, false), "Pegged.LONGEST_OR", true)(p);
+    }
+
+    static State!(false, true).Node LONGEST_OR(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_LONGEST_OR!(false, true), "Pegged.LONGEST_OR", true)(p);
+    }
+
+    static State!(true, true).Node LONGEST_OR(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_LONGEST_OR!(true, true), "Pegged.LONGEST_OR", true)(p);
     }
 
     static ParseResult LONGEST_OR(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -755,16 +1063,24 @@ struct Pegged {
         return parseCT!(LONGEST_OR)(input);
     }
 
-    private static ParseTree _POS(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _POS(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(and!(literal!("&"), Spacing), "Pegged.POS")(s, p);
     }
 
-    static ParseTree POS(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_POS!false, "Pegged.POS", true)(p);
+    static State!(false, false).Node POS(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_POS!(false, false), "Pegged.POS", true)(p);
     }
 
-    static ParseTree POS(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_POS!true, "Pegged.POS", true)(p);
+    static State!(true, false).Node POS(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_POS!(true, false), "Pegged.POS", true)(p);
+    }
+
+    static State!(false, true).Node POS(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_POS!(false, true), "Pegged.POS", true)(p);
+    }
+
+    static State!(true, true).Node POS(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_POS!(true, true), "Pegged.POS", true)(p);
     }
 
     static ParseResult POS(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -776,16 +1092,24 @@ struct Pegged {
         return parseCT!(POS)(input);
     }
 
-    private static ParseTree _NEG(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _NEG(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(and!(literal!("!"), Spacing), "Pegged.NEG")(s, p);
     }
 
-    static ParseTree NEG(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_NEG!false, "Pegged.NEG", true)(p);
+    static State!(false, false).Node NEG(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_NEG!(false, false), "Pegged.NEG", true)(p);
     }
 
-    static ParseTree NEG(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_NEG!true, "Pegged.NEG", true)(p);
+    static State!(true, false).Node NEG(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_NEG!(true, false), "Pegged.NEG", true)(p);
+    }
+
+    static State!(false, true).Node NEG(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_NEG!(false, true), "Pegged.NEG", true)(p);
+    }
+
+    static State!(true, true).Node NEG(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_NEG!(true, true), "Pegged.NEG", true)(p);
     }
 
     static ParseResult NEG(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -797,16 +1121,24 @@ struct Pegged {
         return parseCT!(NEG)(input);
     }
 
-    private static ParseTree _FUSE(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _FUSE(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(and!(literal!("~"), Spacing), "Pegged.FUSE")(s, p);
     }
 
-    static ParseTree FUSE(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_FUSE!false, "Pegged.FUSE", true)(p);
+    static State!(false, false).Node FUSE(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_FUSE!(false, false), "Pegged.FUSE", true)(p);
     }
 
-    static ParseTree FUSE(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_FUSE!true, "Pegged.FUSE", true)(p);
+    static State!(true, false).Node FUSE(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_FUSE!(true, false), "Pegged.FUSE", true)(p);
+    }
+
+    static State!(false, true).Node FUSE(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_FUSE!(false, true), "Pegged.FUSE", true)(p);
+    }
+
+    static State!(true, true).Node FUSE(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_FUSE!(true, true), "Pegged.FUSE", true)(p);
     }
 
     static ParseResult FUSE(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -818,16 +1150,25 @@ struct Pegged {
         return parseCT!(FUSE)(input);
     }
 
-    private static ParseTree _DISCARD(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DISCARD(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!(":"), Spacing), "Pegged.DISCARD")(s, p);
     }
 
-    static ParseTree DISCARD(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DISCARD!false, "Pegged.DISCARD", true)(p);
+    static State!(false, false).Node DISCARD(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DISCARD!(false, false), "Pegged.DISCARD", true)(p);
     }
 
-    static ParseTree DISCARD(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DISCARD!true, "Pegged.DISCARD", true)(p);
+    static State!(true, false).Node DISCARD(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DISCARD!(true, false), "Pegged.DISCARD", true)(p);
+    }
+
+    static State!(false, true).Node DISCARD(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DISCARD!(false, true), "Pegged.DISCARD", true)(p);
+    }
+
+    static State!(true, true).Node DISCARD(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DISCARD!(true, true), "Pegged.DISCARD", true)(p);
     }
 
     static ParseResult DISCARD(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -839,16 +1180,24 @@ struct Pegged {
         return parseCT!(DISCARD)(input);
     }
 
-    private static ParseTree _KEEP(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _KEEP(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(and!(literal!("^"), Spacing), "Pegged.KEEP")(s, p);
     }
 
-    static ParseTree KEEP(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_KEEP!false, "Pegged.KEEP", true)(p);
+    static State!(false, false).Node KEEP(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_KEEP!(false, false), "Pegged.KEEP", true)(p);
     }
 
-    static ParseTree KEEP(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_KEEP!true, "Pegged.KEEP", true)(p);
+    static State!(true, false).Node KEEP(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_KEEP!(true, false), "Pegged.KEEP", true)(p);
+    }
+
+    static State!(false, true).Node KEEP(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_KEEP!(false, true), "Pegged.KEEP", true)(p);
+    }
+
+    static State!(true, true).Node KEEP(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_KEEP!(true, true), "Pegged.KEEP", true)(p);
     }
 
     static ParseResult KEEP(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -860,16 +1209,24 @@ struct Pegged {
         return parseCT!(KEEP)(input);
     }
 
-    private static ParseTree _DROP(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DROP(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(and!(literal!(";"), Spacing), "Pegged.DROP")(s, p);
     }
 
-    static ParseTree DROP(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DROP!false, "Pegged.DROP", true)(p);
+    static State!(false, false).Node DROP(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DROP!(false, false), "Pegged.DROP", true)(p);
     }
 
-    static ParseTree DROP(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DROP!true, "Pegged.DROP", true)(p);
+    static State!(true, false).Node DROP(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DROP!(true, false), "Pegged.DROP", true)(p);
+    }
+
+    static State!(false, true).Node DROP(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DROP!(false, true), "Pegged.DROP", true)(p);
+    }
+
+    static State!(true, true).Node DROP(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DROP!(true, true), "Pegged.DROP", true)(p);
     }
 
     static ParseResult DROP(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -881,16 +1238,25 @@ struct Pegged {
         return parseCT!(DROP)(input);
     }
 
-    private static ParseTree _PROPAGATE(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _PROPAGATE(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("%"), Spacing), "Pegged.PROPAGATE")(s, p);
     }
 
-    static ParseTree PROPAGATE(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_PROPAGATE!false, "Pegged.PROPAGATE", true)(p);
+    static State!(false, false).Node PROPAGATE(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_PROPAGATE!(false, false), "Pegged.PROPAGATE", true)(p);
     }
 
-    static ParseTree PROPAGATE(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_PROPAGATE!true, "Pegged.PROPAGATE", true)(p);
+    static State!(true, false).Node PROPAGATE(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_PROPAGATE!(true, false), "Pegged.PROPAGATE", true)(p);
+    }
+
+    static State!(false, true).Node PROPAGATE(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_PROPAGATE!(false, true), "Pegged.PROPAGATE", true)(p);
+    }
+
+    static State!(true, true).Node PROPAGATE(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_PROPAGATE!(true, true), "Pegged.PROPAGATE", true)(p);
     }
 
     static ParseResult PROPAGATE(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -902,16 +1268,25 @@ struct Pegged {
         return parseCT!(PROPAGATE)(input);
     }
 
-    private static ParseTree _OPTION(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _OPTION(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("?"), Spacing), "Pegged.OPTION")(s, p);
     }
 
-    static ParseTree OPTION(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_OPTION!false, "Pegged.OPTION", true)(p);
+    static State!(false, false).Node OPTION(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_OPTION!(false, false), "Pegged.OPTION", true)(p);
     }
 
-    static ParseTree OPTION(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_OPTION!true, "Pegged.OPTION", true)(p);
+    static State!(true, false).Node OPTION(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_OPTION!(true, false), "Pegged.OPTION", true)(p);
+    }
+
+    static State!(false, true).Node OPTION(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_OPTION!(false, true), "Pegged.OPTION", true)(p);
+    }
+
+    static State!(true, true).Node OPTION(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_OPTION!(true, true), "Pegged.OPTION", true)(p);
     }
 
     static ParseResult OPTION(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -923,16 +1298,25 @@ struct Pegged {
         return parseCT!(OPTION)(input);
     }
 
-    private static ParseTree _ZEROORMORE(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _ZEROORMORE(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("*"), Spacing), "Pegged.ZEROORMORE")(s, p);
     }
 
-    static ParseTree ZEROORMORE(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_ZEROORMORE!false, "Pegged.ZEROORMORE", true)(p);
+    static State!(false, false).Node ZEROORMORE(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_ZEROORMORE!(false, false), "Pegged.ZEROORMORE", true)(p);
     }
 
-    static ParseTree ZEROORMORE(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_ZEROORMORE!true, "Pegged.ZEROORMORE", true)(p);
+    static State!(true, false).Node ZEROORMORE(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_ZEROORMORE!(true, false), "Pegged.ZEROORMORE", true)(p);
+    }
+
+    static State!(false, true).Node ZEROORMORE(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_ZEROORMORE!(false, true), "Pegged.ZEROORMORE", true)(p);
+    }
+
+    static State!(true, true).Node ZEROORMORE(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_ZEROORMORE!(true, true), "Pegged.ZEROORMORE", true)(p);
     }
 
     static ParseResult ZEROORMORE(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -944,16 +1328,25 @@ struct Pegged {
         return parseCT!(ZEROORMORE)(input);
     }
 
-    private static ParseTree _ONEORMORE(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _ONEORMORE(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("+"), Spacing), "Pegged.ONEORMORE")(s, p);
     }
 
-    static ParseTree ONEORMORE(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_ONEORMORE!false, "Pegged.ONEORMORE", true)(p);
+    static State!(false, false).Node ONEORMORE(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_ONEORMORE!(false, false), "Pegged.ONEORMORE", true)(p);
     }
 
-    static ParseTree ONEORMORE(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_ONEORMORE!true, "Pegged.ONEORMORE", true)(p);
+    static State!(true, false).Node ONEORMORE(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_ONEORMORE!(true, false), "Pegged.ONEORMORE", true)(p);
+    }
+
+    static State!(false, true).Node ONEORMORE(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_ONEORMORE!(false, true), "Pegged.ONEORMORE", true)(p);
+    }
+
+    static State!(true, true).Node ONEORMORE(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_ONEORMORE!(true, true), "Pegged.ONEORMORE", true)(p);
     }
 
     static ParseResult ONEORMORE(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -965,16 +1358,25 @@ struct Pegged {
         return parseCT!(ONEORMORE)(input);
     }
 
-    private static ParseTree _ACTIONOPEN(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _ACTIONOPEN(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("{"), Spacing), "Pegged.ACTIONOPEN")(s, p);
     }
 
-    static ParseTree ACTIONOPEN(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_ACTIONOPEN!false, "Pegged.ACTIONOPEN", true)(p);
+    static State!(false, false).Node ACTIONOPEN(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_ACTIONOPEN!(false, false), "Pegged.ACTIONOPEN", true)(p);
     }
 
-    static ParseTree ACTIONOPEN(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_ACTIONOPEN!true, "Pegged.ACTIONOPEN", true)(p);
+    static State!(true, false).Node ACTIONOPEN(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_ACTIONOPEN!(true, false), "Pegged.ACTIONOPEN", true)(p);
+    }
+
+    static State!(false, true).Node ACTIONOPEN(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_ACTIONOPEN!(false, true), "Pegged.ACTIONOPEN", true)(p);
+    }
+
+    static State!(true, true).Node ACTIONOPEN(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_ACTIONOPEN!(true, true), "Pegged.ACTIONOPEN", true)(p);
     }
 
     static ParseResult ACTIONOPEN(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -986,16 +1388,25 @@ struct Pegged {
         return parseCT!(ACTIONOPEN)(input);
     }
 
-    private static ParseTree _ACTIONCLOSE(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _ACTIONCLOSE(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("}"), Spacing), "Pegged.ACTIONCLOSE")(s, p);
     }
 
-    static ParseTree ACTIONCLOSE(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_ACTIONCLOSE!false, "Pegged.ACTIONCLOSE", true)(p);
+    static State!(false, false).Node ACTIONCLOSE(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_ACTIONCLOSE!(false, false), "Pegged.ACTIONCLOSE", true)(p);
     }
 
-    static ParseTree ACTIONCLOSE(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_ACTIONCLOSE!true, "Pegged.ACTIONCLOSE", true)(p);
+    static State!(true, false).Node ACTIONCLOSE(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_ACTIONCLOSE!(true, false), "Pegged.ACTIONCLOSE", true)(p);
+    }
+
+    static State!(false, true).Node ACTIONCLOSE(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_ACTIONCLOSE!(false, true), "Pegged.ACTIONCLOSE", true)(p);
+    }
+
+    static State!(true, true).Node ACTIONCLOSE(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_ACTIONCLOSE!(true, true), "Pegged.ACTIONCLOSE", true)(p);
     }
 
     static ParseResult ACTIONCLOSE(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1007,16 +1418,25 @@ struct Pegged {
         return parseCT!(ACTIONCLOSE)(input);
     }
 
-    private static ParseTree _SEPARATOR(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _SEPARATOR(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!(","), Spacing), "Pegged.SEPARATOR")(s, p);
     }
 
-    static ParseTree SEPARATOR(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_SEPARATOR!false, "Pegged.SEPARATOR", true)(p);
+    static State!(false, false).Node SEPARATOR(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_SEPARATOR!(false, false), "Pegged.SEPARATOR", true)(p);
     }
 
-    static ParseTree SEPARATOR(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_SEPARATOR!true, "Pegged.SEPARATOR", true)(p);
+    static State!(true, false).Node SEPARATOR(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_SEPARATOR!(true, false), "Pegged.SEPARATOR", true)(p);
+    }
+
+    static State!(false, true).Node SEPARATOR(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_SEPARATOR!(false, true), "Pegged.SEPARATOR", true)(p);
+    }
+
+    static State!(true, true).Node SEPARATOR(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_SEPARATOR!(true, true), "Pegged.SEPARATOR", true)(p);
     }
 
     static ParseResult SEPARATOR(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1028,16 +1448,25 @@ struct Pegged {
         return parseCT!(SEPARATOR)(input);
     }
 
-    private static ParseTree _ASSIGN(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _ASSIGN(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("="), Spacing), "Pegged.ASSIGN")(s, p);
     }
 
-    static ParseTree ASSIGN(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_ASSIGN!false, "Pegged.ASSIGN", true)(p);
+    static State!(false, false).Node ASSIGN(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_ASSIGN!(false, false), "Pegged.ASSIGN", true)(p);
     }
 
-    static ParseTree ASSIGN(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_ASSIGN!true, "Pegged.ASSIGN", true)(p);
+    static State!(true, false).Node ASSIGN(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_ASSIGN!(true, false), "Pegged.ASSIGN", true)(p);
+    }
+
+    static State!(false, true).Node ASSIGN(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_ASSIGN!(false, true), "Pegged.ASSIGN", true)(p);
+    }
+
+    static State!(true, true).Node ASSIGN(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_ASSIGN!(true, true), "Pegged.ASSIGN", true)(p);
     }
 
     static ParseResult ASSIGN(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1049,16 +1478,25 @@ struct Pegged {
         return parseCT!(ASSIGN)(input);
     }
 
-    private static ParseTree _NAMESEP(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _NAMESEP(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(literal!("."), "Pegged.NAMESEP")(s, p);
     }
 
-    static ParseTree NAMESEP(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_NAMESEP!false, "Pegged.NAMESEP", true)(p);
+    static State!(false, false).Node NAMESEP(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_NAMESEP!(false, false), "Pegged.NAMESEP", true)(p);
     }
 
-    static ParseTree NAMESEP(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_NAMESEP!true, "Pegged.NAMESEP", true)(p);
+    static State!(true, false).Node NAMESEP(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_NAMESEP!(true, false), "Pegged.NAMESEP", true)(p);
+    }
+
+    static State!(false, true).Node NAMESEP(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_NAMESEP!(false, true), "Pegged.NAMESEP", true)(p);
+    }
+
+    static State!(true, true).Node NAMESEP(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_NAMESEP!(true, true), "Pegged.NAMESEP", true)(p);
     }
 
     static ParseResult NAMESEP(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1070,16 +1508,24 @@ struct Pegged {
         return parseCT!(NAMESEP)(input);
     }
 
-    private static ParseTree _OPEN(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _OPEN(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(and!(literal!("("), Spacing), "Pegged.OPEN")(s, p);
     }
 
-    static ParseTree OPEN(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_OPEN!false, "Pegged.OPEN", true)(p);
+    static State!(false, false).Node OPEN(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_OPEN!(false, false), "Pegged.OPEN", true)(p);
     }
 
-    static ParseTree OPEN(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_OPEN!true, "Pegged.OPEN", true)(p);
+    static State!(true, false).Node OPEN(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_OPEN!(true, false), "Pegged.OPEN", true)(p);
+    }
+
+    static State!(false, true).Node OPEN(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_OPEN!(false, true), "Pegged.OPEN", true)(p);
+    }
+
+    static State!(true, true).Node OPEN(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_OPEN!(true, true), "Pegged.OPEN", true)(p);
     }
 
     static ParseResult OPEN(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1091,16 +1537,25 @@ struct Pegged {
         return parseCT!(OPEN)(input);
     }
 
-    private static ParseTree _CLOSE(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _CLOSE(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!(")"), Spacing), "Pegged.CLOSE")(s, p);
     }
 
-    static ParseTree CLOSE(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_CLOSE!false, "Pegged.CLOSE", true)(p);
+    static State!(false, false).Node CLOSE(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_CLOSE!(false, false), "Pegged.CLOSE", true)(p);
     }
 
-    static ParseTree CLOSE(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_CLOSE!true, "Pegged.CLOSE", true)(p);
+    static State!(true, false).Node CLOSE(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_CLOSE!(true, false), "Pegged.CLOSE", true)(p);
+    }
+
+    static State!(false, true).Node CLOSE(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_CLOSE!(false, true), "Pegged.CLOSE", true)(p);
+    }
+
+    static State!(true, true).Node CLOSE(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_CLOSE!(true, true), "Pegged.CLOSE", true)(p);
     }
 
     static ParseResult CLOSE(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1112,16 +1567,24 @@ struct Pegged {
         return parseCT!(CLOSE)(input);
     }
 
-    private static ParseTree _ANY(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _ANY(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(and!(literal!("."), Spacing), "Pegged.ANY")(s, p);
     }
 
-    static ParseTree ANY(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_ANY!false, "Pegged.ANY", true)(p);
+    static State!(false, false).Node ANY(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_ANY!(false, false), "Pegged.ANY", true)(p);
     }
 
-    static ParseTree ANY(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_ANY!true, "Pegged.ANY", true)(p);
+    static State!(true, false).Node ANY(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_ANY!(true, false), "Pegged.ANY", true)(p);
+    }
+
+    static State!(false, true).Node ANY(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_ANY!(false, true), "Pegged.ANY", true)(p);
+    }
+
+    static State!(true, true).Node ANY(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_ANY!(true, true), "Pegged.ANY", true)(p);
     }
 
     static ParseResult ANY(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1133,18 +1596,27 @@ struct Pegged {
         return parseCT!(ANY)(input);
     }
 
-    private static ParseTree _Spacing(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Spacing(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(discard!(zeroOrMore!(predictiveChoice!(branch!(blank, 0x100002e00UL,
                 0x0UL, 0x0UL, 0x0UL), branch!(Comment, 0x800000000UL, 0x0UL, 0x0UL, 0x0UL)))), "Pegged.Spacing")(
                 s, p);
     }
 
-    static ParseTree Spacing(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Spacing!false, "Pegged.Spacing", true)(p);
+    static State!(false, false).Node Spacing(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Spacing!(false, false), "Pegged.Spacing", true)(p);
     }
 
-    static ParseTree Spacing(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Spacing!true, "Pegged.Spacing", true)(p);
+    static State!(true, false).Node Spacing(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Spacing!(true, false), "Pegged.Spacing", true)(p);
+    }
+
+    static State!(false, true).Node Spacing(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Spacing!(false, true), "Pegged.Spacing", true)(p);
+    }
+
+    static State!(true, true).Node Spacing(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Spacing!(true, true), "Pegged.Spacing", true)(p);
     }
 
     static ParseResult Spacing(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1156,17 +1628,26 @@ struct Pegged {
         return parseCT!(Spacing)(input);
     }
 
-    private static ParseTree _Comment(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Comment(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(literal!("#"), zeroOrMore!(and!(negLookahead!(eol), any)), discard!(eol)),
                 "Pegged.Comment")(s, p);
     }
 
-    static ParseTree Comment(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Comment!false, "Pegged.Comment", true)(p);
+    static State!(false, false).Node Comment(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Comment!(false, false), "Pegged.Comment", true)(p);
     }
 
-    static ParseTree Comment(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Comment!true, "Pegged.Comment", true)(p);
+    static State!(true, false).Node Comment(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Comment!(true, false), "Pegged.Comment", true)(p);
+    }
+
+    static State!(false, true).Node Comment(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Comment!(false, true), "Pegged.Comment", true)(p);
+    }
+
+    static State!(true, true).Node Comment(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Comment!(true, true), "Pegged.Comment", true)(p);
     }
 
     static ParseResult Comment(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1178,17 +1659,26 @@ struct Pegged {
         return parseCT!(Comment)(input);
     }
 
-    private static ParseTree _Space(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Space(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(or!(spacing, literal!("\\t"), literal!("\\n"), literal!("\\r")), "Pegged.Space")(
                 s, p);
     }
 
-    static ParseTree Space(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Space!false, "Pegged.Space", true)(p);
+    static State!(false, false).Node Space(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Space!(false, false), "Pegged.Space", true)(p);
     }
 
-    static ParseTree Space(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Space!true, "Pegged.Space", true)(p);
+    static State!(true, false).Node Space(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Space!(true, false), "Pegged.Space", true)(p);
+    }
+
+    static State!(false, true).Node Space(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Space!(false, true), "Pegged.Space", true)(p);
+    }
+
+    static State!(true, true).Node Space(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Space!(true, true), "Pegged.Space", true)(p);
     }
 
     static ParseResult Space(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1200,18 +1690,27 @@ struct Pegged {
         return parseCT!(Space)(input);
     }
 
-    private static ParseTree _Action(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Action(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(discard!(ACTIONOPEN), Spacing, and!(or!(Lambda,
                 qualifiedIdentifier), zeroOrMore!(and!(discard!(SEPARATOR), or!(Lambda, qualifiedIdentifier)))),
                 Spacing, discard!(ACTIONCLOSE)), "Pegged.Action")(s, p);
     }
 
-    static ParseTree Action(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Action!false, "Pegged.Action", true)(p);
+    static State!(false, false).Node Action(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Action!(false, false), "Pegged.Action", true)(p);
     }
 
-    static ParseTree Action(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Action!true, "Pegged.Action", true)(p);
+    static State!(true, false).Node Action(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Action!(true, false), "Pegged.Action", true)(p);
+    }
+
+    static State!(false, true).Node Action(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Action!(false, true), "Pegged.Action", true)(p);
+    }
+
+    static State!(true, true).Node Action(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Action!(true, true), "Pegged.Action", true)(p);
     }
 
     static ParseResult Action(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1223,7 +1722,8 @@ struct Pegged {
         return parseCT!(Action)(input);
     }
 
-    private static ParseTree _Lambda(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _Lambda(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(
                 fuse!(zeroOrMore!(and!(negLookahead!(predictiveChoice!(branch!(ACTIONCLOSE,
                 0x0UL, 0x2000000000000000UL, 0x0UL, 0x0UL), branch!(SEPARATOR, 0x100000000000UL,
@@ -1231,12 +1731,20 @@ struct Pegged {
                 literal!("}")), any)))), "Pegged.Lambda")(s, p);
     }
 
-    static ParseTree Lambda(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_Lambda!false, "Pegged.Lambda", true)(p);
+    static State!(false, false).Node Lambda(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_Lambda!(false, false), "Pegged.Lambda", true)(p);
     }
 
-    static ParseTree Lambda(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_Lambda!true, "Pegged.Lambda", true)(p);
+    static State!(true, false).Node Lambda(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_Lambda!(true, false), "Pegged.Lambda", true)(p);
+    }
+
+    static State!(false, true).Node Lambda(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_Lambda!(false, true), "Pegged.Lambda", true)(p);
+    }
+
+    static State!(true, true).Node Lambda(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_Lambda!(true, true), "Pegged.Lambda", true)(p);
     }
 
     static ParseResult Lambda(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1248,17 +1756,26 @@ struct Pegged {
         return parseCT!(Lambda)(input);
     }
 
-    private static ParseTree _LambdaItems(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _LambdaItems(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(or!(fuse!(DComment), fuse!(DString), fuse!(DParamList)), "Pegged.LambdaItems")(
                 s, p);
     }
 
-    static ParseTree LambdaItems(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_LambdaItems!false, "Pegged.LambdaItems", true)(p);
+    static State!(false, false).Node LambdaItems(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_LambdaItems!(false, false), "Pegged.LambdaItems", true)(p);
     }
 
-    static ParseTree LambdaItems(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_LambdaItems!true, "Pegged.LambdaItems", true)(p);
+    static State!(true, false).Node LambdaItems(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_LambdaItems!(true, false), "Pegged.LambdaItems", true)(p);
+    }
+
+    static State!(false, true).Node LambdaItems(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_LambdaItems!(false, true), "Pegged.LambdaItems", true)(p);
+    }
+
+    static State!(true, true).Node LambdaItems(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_LambdaItems!(true, true), "Pegged.LambdaItems", true)(p);
     }
 
     static ParseResult LambdaItems(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1270,16 +1787,25 @@ struct Pegged {
         return parseCT!(LambdaItems)(input);
     }
 
-    private static ParseTree _DString(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DString(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(or!(WYSString, DBQString, TKNString, DLMString), "Pegged.DString")(s, p);
     }
 
-    static ParseTree DString(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DString!false, "Pegged.DString", true)(p);
+    static State!(false, false).Node DString(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DString!(false, false), "Pegged.DString", true)(p);
     }
 
-    static ParseTree DString(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DString!true, "Pegged.DString", true)(p);
+    static State!(true, false).Node DString(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DString!(true, false), "Pegged.DString", true)(p);
+    }
+
+    static State!(false, true).Node DString(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DString!(false, true), "Pegged.DString", true)(p);
+    }
+
+    static State!(true, true).Node DString(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DString!(true, true), "Pegged.DString", true)(p);
     }
 
     static ParseResult DString(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1291,18 +1817,29 @@ struct Pegged {
         return parseCT!(DString)(input);
     }
 
-    private static ParseTree _WYSString(bool CT)(ref State!CT s, size_t p) nothrow {
-        return defined!(or!(and!(literal!("r"), doublequote,
-                zeroOrMore!(and!(negLookahead!(doublequote), any)), doublequote), and!(backquote,
-                zeroOrMore!(and!(negLookahead!(backquote), any)), backquote)), "Pegged.WYSString")(s, p);
+    private static State!(CT, Check).Node _WYSString(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
+        return defined!(predictiveChoice!(branch!(and!(literal!("r"), doublequote,
+                zeroOrMore!(and!(negLookahead!(doublequote), any)), doublequote), 0x0UL,
+                0x4000000000000UL, 0x0UL, 0x0UL), branch!(and!(backquote,
+                zeroOrMore!(and!(negLookahead!(backquote),
+                any)), backquote), 0x0UL, 0x100000000UL, 0x0UL, 0x0UL)), "Pegged.WYSString")(s, p);
     }
 
-    static ParseTree WYSString(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_WYSString!false, "Pegged.WYSString", true)(p);
+    static State!(false, false).Node WYSString(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_WYSString!(false, false), "Pegged.WYSString", true)(p);
     }
 
-    static ParseTree WYSString(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_WYSString!true, "Pegged.WYSString", true)(p);
+    static State!(true, false).Node WYSString(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_WYSString!(true, false), "Pegged.WYSString", true)(p);
+    }
+
+    static State!(false, true).Node WYSString(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_WYSString!(false, true), "Pegged.WYSString", true)(p);
+    }
+
+    static State!(true, true).Node WYSString(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_WYSString!(true, true), "Pegged.WYSString", true)(p);
     }
 
     static ParseResult WYSString(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1314,17 +1851,26 @@ struct Pegged {
         return parseCT!(WYSString)(input);
     }
 
-    private static ParseTree _DBQString(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DBQString(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(doublequote, zeroOrMore!(and!(negLookahead!(doublequote), Char)),
                 doublequote), "Pegged.DBQString")(s, p);
     }
 
-    static ParseTree DBQString(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DBQString!false, "Pegged.DBQString", true)(p);
+    static State!(false, false).Node DBQString(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DBQString!(false, false), "Pegged.DBQString", true)(p);
     }
 
-    static ParseTree DBQString(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DBQString!true, "Pegged.DBQString", true)(p);
+    static State!(true, false).Node DBQString(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DBQString!(true, false), "Pegged.DBQString", true)(p);
+    }
+
+    static State!(false, true).Node DBQString(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DBQString!(false, true), "Pegged.DBQString", true)(p);
+    }
+
+    static State!(true, true).Node DBQString(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DBQString!(true, true), "Pegged.DBQString", true)(p);
     }
 
     static ParseResult DBQString(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1336,17 +1882,26 @@ struct Pegged {
         return parseCT!(DBQString)(input);
     }
 
-    private static ParseTree _TKNString(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _TKNString(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(posLookahead!(literal!("q{")), and!(literal!("q"),
                 NestedList!(literal!("{"), DString, literal!("}")))), "Pegged.TKNString")(s, p);
     }
 
-    static ParseTree TKNString(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_TKNString!false, "Pegged.TKNString", true)(p);
+    static State!(false, false).Node TKNString(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_TKNString!(false, false), "Pegged.TKNString", true)(p);
     }
 
-    static ParseTree TKNString(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_TKNString!true, "Pegged.TKNString", true)(p);
+    static State!(true, false).Node TKNString(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_TKNString!(true, false), "Pegged.TKNString", true)(p);
+    }
+
+    static State!(false, true).Node TKNString(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_TKNString!(false, true), "Pegged.TKNString", true)(p);
+    }
+
+    static State!(true, true).Node TKNString(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_TKNString!(true, true), "Pegged.TKNString", true)(p);
     }
 
     static ParseResult TKNString(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1358,7 +1913,8 @@ struct Pegged {
         return parseCT!(TKNString)(input);
     }
 
-    private static ParseTree _DLMString(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DLMString(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(and!(and!(literal!("q"), doublequote),
                 or!(and!(posLookahead!(literal!("{")), NestedList!(literal!("{"), DString, literal!("}"))),
                 and!(posLookahead!(literal!("[")), NestedList!(literal!("["), DString, literal!("]"))),
@@ -1367,12 +1923,20 @@ struct Pegged {
                 doublequote), "Pegged.DLMString")(s, p);
     }
 
-    static ParseTree DLMString(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DLMString!false, "Pegged.DLMString", true)(p);
+    static State!(false, false).Node DLMString(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DLMString!(false, false), "Pegged.DLMString", true)(p);
     }
 
-    static ParseTree DLMString(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DLMString!true, "Pegged.DLMString", true)(p);
+    static State!(true, false).Node DLMString(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DLMString!(true, false), "Pegged.DLMString", true)(p);
+    }
+
+    static State!(false, true).Node DLMString(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DLMString!(false, true), "Pegged.DLMString", true)(p);
+    }
+
+    static State!(true, true).Node DLMString(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DLMString!(true, true), "Pegged.DLMString", true)(p);
     }
 
     static ParseResult DLMString(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1384,16 +1948,25 @@ struct Pegged {
         return parseCT!(DLMString)(input);
     }
 
-    private static ParseTree _DComment(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DComment(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(or!(DLineComment, DBlockComment, DNestingBlockComment), "Pegged.DComment")(s, p);
     }
 
-    static ParseTree DComment(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DComment!false, "Pegged.DComment", true)(p);
+    static State!(false, false).Node DComment(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DComment!(false, false), "Pegged.DComment", true)(p);
     }
 
-    static ParseTree DComment(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DComment!true, "Pegged.DComment", true)(p);
+    static State!(true, false).Node DComment(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DComment!(true, false), "Pegged.DComment", true)(p);
+    }
+
+    static State!(false, true).Node DComment(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DComment!(false, true), "Pegged.DComment", true)(p);
+    }
+
+    static State!(true, true).Node DComment(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DComment!(true, true), "Pegged.DComment", true)(p);
     }
 
     static ParseResult DComment(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1405,17 +1978,26 @@ struct Pegged {
         return parseCT!(DComment)(input);
     }
 
-    private static ParseTree _DLineComment(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DLineComment(bool CT, bool Check = false)(ref State!(CT,
+            Check) s, size_t p) nothrow {
         return defined!(and!(literal!("//"), zeroOrMore!(and!(negLookahead!(endOfLine), any)),
                 endOfLine), "Pegged.DLineComment")(s, p);
     }
 
-    static ParseTree DLineComment(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DLineComment!false, "Pegged.DLineComment", true)(p);
+    static State!(false, false).Node DLineComment(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DLineComment!(false, false), "Pegged.DLineComment", true)(p);
     }
 
-    static ParseTree DLineComment(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DLineComment!true, "Pegged.DLineComment", true)(p);
+    static State!(true, false).Node DLineComment(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DLineComment!(true, false), "Pegged.DLineComment", true)(p);
+    }
+
+    static State!(false, true).Node DLineComment(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DLineComment!(false, true), "Pegged.DLineComment", true)(p);
+    }
+
+    static State!(true, true).Node DLineComment(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DLineComment!(true, true), "Pegged.DLineComment", true)(p);
     }
 
     static ParseResult DLineComment(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1427,17 +2009,26 @@ struct Pegged {
         return parseCT!(DLineComment)(input);
     }
 
-    private static ParseTree _DBlockComment(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DBlockComment(bool CT, bool Check = false)(ref State!(CT,
+            Check) s, size_t p) nothrow {
         return defined!(and!(literal!("/*"), zeroOrMore!(and!(negLookahead!(literal!("*/")),
                 any)), literal!("*/")), "Pegged.DBlockComment")(s, p);
     }
 
-    static ParseTree DBlockComment(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DBlockComment!false, "Pegged.DBlockComment", true)(p);
+    static State!(false, false).Node DBlockComment(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DBlockComment!(false, false), "Pegged.DBlockComment", true)(p);
     }
 
-    static ParseTree DBlockComment(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DBlockComment!true, "Pegged.DBlockComment", true)(p);
+    static State!(true, false).Node DBlockComment(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DBlockComment!(true, false), "Pegged.DBlockComment", true)(p);
+    }
+
+    static State!(false, true).Node DBlockComment(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DBlockComment!(false, true), "Pegged.DBlockComment", true)(p);
+    }
+
+    static State!(true, true).Node DBlockComment(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DBlockComment!(true, true), "Pegged.DBlockComment", true)(p);
     }
 
     static ParseResult DBlockComment(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1449,17 +2040,27 @@ struct Pegged {
         return parseCT!(DBlockComment)(input);
     }
 
-    private static ParseTree _DNestingBlockComment(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DNestingBlockComment(bool CT,
+            bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow {
         return defined!(NestedList!(literal!("/+"), literal!("+/")), "Pegged.DNestingBlockComment")(s,
                 p);
     }
 
-    static ParseTree DNestingBlockComment(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DNestingBlockComment!false, "Pegged.DNestingBlockComment", true)(p);
+    static State!(false, false).Node DNestingBlockComment(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DNestingBlockComment!(false, false), "Pegged.DNestingBlockComment", true)(p);
     }
 
-    static ParseTree DNestingBlockComment(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DNestingBlockComment!true, "Pegged.DNestingBlockComment", true)(p);
+    static State!(true, false).Node DNestingBlockComment(CompileTime = void)(ref State!(true, false) s,
+            size_t p) nothrow {
+        return s.rule!(_DNestingBlockComment!(true, false), "Pegged.DNestingBlockComment", true)(p);
+    }
+
+    static State!(false, true).Node DNestingBlockComment(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DNestingBlockComment!(false, true), "Pegged.DNestingBlockComment", true)(p);
+    }
+
+    static State!(true, true).Node DNestingBlockComment(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DNestingBlockComment!(true, true), "Pegged.DNestingBlockComment", true)(p);
     }
 
     static ParseResult DNestingBlockComment(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1471,16 +2072,25 @@ struct Pegged {
         return parseCT!(DNestingBlockComment)(input);
     }
 
-    private static ParseTree _DParamList(bool CT)(ref State!CT s, size_t p) nothrow {
+    private static State!(CT, Check).Node _DParamList(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t p) nothrow {
         return defined!(NestedList!(literal!("("), literal!(")")), "Pegged.DParamList")(s, p);
     }
 
-    static ParseTree DParamList(ref State!false s, size_t p) @nogc nothrow {
-        return s.rule!(_DParamList!false, "Pegged.DParamList", true)(p);
+    static State!(false, false).Node DParamList(ref State!(false, false) s, size_t p) @nogc nothrow {
+        return s.rule!(_DParamList!(false, false), "Pegged.DParamList", true)(p);
     }
 
-    static ParseTree DParamList(CompileTime = void)(ref State!true s, size_t p) nothrow {
-        return s.rule!(_DParamList!true, "Pegged.DParamList", true)(p);
+    static State!(true, false).Node DParamList(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+        return s.rule!(_DParamList!(true, false), "Pegged.DParamList", true)(p);
+    }
+
+    static State!(false, true).Node DParamList(ref State!(false, true) s, size_t p) @nogc nothrow {
+        return s.rule!(_DParamList!(false, true), "Pegged.DParamList", true)(p);
+    }
+
+    static State!(true, true).Node DParamList(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        return s.rule!(_DParamList!(true, true), "Pegged.DParamList", true)(p);
     }
 
     static ParseResult DParamList(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1493,7 +2103,8 @@ struct Pegged {
     }
 
     template NestedList(alias L, alias Items, alias R) {
-        private static ParseTree _NestedList(bool CT)(ref State!CT s, size_t p) nothrow {
+        private static State!(CT, Check).Node _NestedList(bool CT, bool Check = false)(ref State!(CT,
+                Check) s, size_t p) nothrow {
             return defined!(and!(keep!(L), zeroOrMore!(and!(negLookahead!(or!(L, R, Items)),
                     any)), zeroOrMore!(or!(Items, NestedList!(L, Items, R),
                     zeroOrMore!(and!(negLookahead!(or!(L, R, Items)), any)))),
@@ -1501,12 +2112,20 @@ struct Pegged {
                     s, p);
         }
 
-        static ParseTree _entry(ref State!false s, size_t p) @nogc nothrow {
-            return s.rule!(_NestedList!false, "Pegged.NestedList", true)(p);
+        static State!(false, false).Node _entry(ref State!(false, false) s, size_t p) @nogc nothrow {
+            return s.rule!(_NestedList!(false, false), "Pegged.NestedList", true)(p);
         }
 
-        static ParseTree _entry(CompileTime = void)(ref State!true s, size_t p) nothrow {
-            return s.rule!(_NestedList!true, "Pegged.NestedList", true)(p);
+        static State!(true, false).Node _entry(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+            return s.rule!(_NestedList!(true, false), "Pegged.NestedList", true)(p);
+        }
+
+        static State!(false, true).Node _entry(ref State!(false, true) s, size_t p) @nogc nothrow {
+            return s.rule!(_NestedList!(false, true), "Pegged.NestedList", true)(p);
+        }
+
+        static State!(true, true).Node _entry(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+            return s.rule!(_NestedList!(true, true), "Pegged.NestedList", true)(p);
         }
 
         static ParseResult _entry(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1522,19 +2141,28 @@ struct Pegged {
     }
 
     template NestedList(alias L, alias R) {
-        private static ParseTree _NestedList(bool CT)(ref State!CT s, size_t p) nothrow {
+        private static State!(CT, Check).Node _NestedList(bool CT, bool Check = false)(ref State!(CT,
+                Check) s, size_t p) nothrow {
             return defined!(and!(keep!(L), zeroOrMore!(and!(negLookahead!(or!(L, R)), any)),
                     zeroOrMore!(or!(NestedList!(L, R), zeroOrMore!(and!(negLookahead!(or!(L, R)), any)))),
                     zeroOrMore!(and!(negLookahead!(or!(L, R)), any)), keep!(R)), "Pegged.NestedList")(
                     s, p);
         }
 
-        static ParseTree _entry(ref State!false s, size_t p) @nogc nothrow {
-            return s.rule!(_NestedList!false, "Pegged.NestedList", true)(p);
+        static State!(false, false).Node _entry(ref State!(false, false) s, size_t p) @nogc nothrow {
+            return s.rule!(_NestedList!(false, false), "Pegged.NestedList", true)(p);
         }
 
-        static ParseTree _entry(CompileTime = void)(ref State!true s, size_t p) nothrow {
-            return s.rule!(_NestedList!true, "Pegged.NestedList", true)(p);
+        static State!(true, false).Node _entry(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
+            return s.rule!(_NestedList!(true, false), "Pegged.NestedList", true)(p);
+        }
+
+        static State!(false, true).Node _entry(ref State!(false, true) s, size_t p) @nogc nothrow {
+            return s.rule!(_NestedList!(false, true), "Pegged.NestedList", true)(p);
+        }
+
+        static State!(true, true).Node _entry(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+            return s.rule!(_NestedList!(true, true), "Pegged.NestedList", true)(p);
         }
 
         static ParseResult _entry(Context)(ref Context ctx, string input) @nogc nothrow 
@@ -1549,15 +2177,25 @@ struct Pegged {
         alias NestedList = _entry;
     }
 
-    static ParseTree opCall(ref State!false s, size_t p) @nogc nothrow {
+    static State!(false, false).Node opCall(ref State!(false, false) s, size_t p) @nogc nothrow {
         auto t = Grammar(s, p);
         t.name = "Pegged";
         return t;
     }
 
-    static ParseTree opCall(CompileTime = void)(ref State!true s, size_t p) nothrow {
+    static State!(true, false).Node opCall(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow {
         auto t = Grammar(s, p);
         t.name = "Pegged";
+        return t;
+    }
+
+    static State!(false, true).Node opCall(ref State!(false, true) s, size_t p) @nogc nothrow {
+        auto t = Grammar(s, p);
+        return t;
+    }
+
+    static State!(true, true).Node opCall(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow {
+        auto t = Grammar(s, p);
         return t;
     }
 

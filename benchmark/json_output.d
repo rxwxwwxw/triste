@@ -63,7 +63,8 @@ struct JsonOutput {
     foreach (i; 0 .. 65)
         assert(output.add(OutputNode(NodeKind.number, i, i + 1)) == i);
     assert(output.nodes.length == 65 && output.nodes[64].end == 65);
-    assert(output.arena.allocationCalls == 3);
+    assert(output.arena.allocationCalls > 0 && output.arena.allocationCalls <= 3);
+    assert(output.arena.requestedBytes == (32 + 64 + 128) * OutputNode.sizeof);
     output.reject();
     assert(!output.accepted && !output.nodes.length);
     JsonOutput failed;

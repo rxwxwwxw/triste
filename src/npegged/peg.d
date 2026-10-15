@@ -56,6 +56,18 @@ struct ParseTree {
     assert(failure.status == Status.ok && failure.data.length);
 }
 
+/// Internal recognition value: no input views, names, output or diagnostic arrays.
+struct RecognitionNode {
+    size_t begin, end, failEnd;
+    bool successful;
+}
+
+@nogc nothrow unittest {
+    static assert(RecognitionNode.sizeof < ParseTree.sizeof);
+    RecognitionNode node;
+    assert(!node.successful && node.begin == 0 && node.end == 0 && node.failEnd == 0);
+}
+
 /// Limits are per parse; contexts can be reused or used independently by threads.
 struct ParseContext {
     size_t memoryLimit = 256 * 1024 * 1024;
@@ -76,7 +88,11 @@ struct ParseResult {
 }
 
 /// One invocation's storage and rule state. CTFE instantiations use compiler storage.
-struct State(bool CT) {
+struct State(bool CT, bool Check = false) {
+    static if (Check)
+        alias Node = RecognitionNode;
+    else
+        alias Node = ParseTree;
     Arena* arena;
     string input;
     ParseContext context;
@@ -85,13 +101,13 @@ struct State(bool CT) {
     private Entry* entries;
     private Entry*[] buckets;
     private size_t entryCount;
-    private ParseTree furthestFailure;
+    private Node furthestFailure;
     private bool hasFailure;
-    private alias ParserIdentity = ParseTree function(ref State!CT, size_t) nothrow;
+    private alias ParserIdentity = Node function(ref State!(CT, Check), size_t) nothrow;
     private struct Entry {
         ParserIdentity identity;
         size_t position, hash;
-        ParseTree seed;
+        Node seed;
         bool active, recursive, valid;
         Entry* next;
         Entry* bucketNext;
@@ -132,6 +148,31 @@ struct State(bool CT) {
         }
     }
 
+    /// Isolated tree execution preserves action-visible captures and memo seeds.
+    Node treeFallback(alias parser)(size_t pos) nothrow {
+        State!(CT, false) outputState;
+        outputState.arena = arena;
+        outputState.input = input;
+        outputState.context = context;
+        outputState.steps = steps;
+        outputState.depth = depth;
+        outputState.status = status;
+        auto result = parser(outputState, pos);
+        steps = outputState.steps;
+        depth = outputState.depth;
+        status = outputState.status;
+        input = outputState.input;
+        context = outputState.context;
+        if (outputState.hasFailure) {
+            auto failed = node(outputState.furthestFailure.begin, outputState.furthestFailure.end, false);
+            failed.failEnd = outputState.furthestFailure.failEnd;
+            recordFailure(failed);
+        }
+        auto recognized = node(result.begin, result.end, result.successful);
+        recognized.failEnd = result.failEnd;
+        return recognized;
+    }
+
     T[] allocate(T)(size_t n) nothrow {
         static if (CT) {
             if (__ctfe)
@@ -159,6 +200,8 @@ struct State(bool CT) {
     }
 
     T[] single(T)(T value) nothrow {
+        static if (Check && (is(T == string) || is(T == ParseTree)))
+            return null;
         auto data = allocate!T(1);
         if (data.length)
             data[0] = value;
@@ -176,9 +219,10 @@ struct State(bool CT) {
         return true;
     }
 
-    ParseTree node(size_t start, size_t end, bool success = true) nothrow {
-        ParseTree result;
-        result.input = input;
+    Node node(size_t start, size_t end, bool success = true) nothrow {
+        Node result;
+        static if (!Check)
+            result.input = input;
         result.begin = start;
         result.end = end;
         result.failEnd = end;
@@ -186,16 +230,18 @@ struct State(bool CT) {
         return result;
     }
 
-    ParseTree failure(size_t pos, string expected) nothrow {
+    Node failure(size_t pos, string expected) nothrow {
         auto result = node(pos, pos, false);
-        result.matches = single(expected);
+        static if (!Check)
+            result.matches = single(expected);
         recordFailure(result);
         return result;
     }
 
-    void recordFailure(ParseTree candidate) nothrow {
-        while (candidate.failedChild.length && tick())
-            candidate = candidate.failedChild[0];
+    void recordFailure(Node candidate) nothrow {
+        static if (!Check)
+            while (candidate.failedChild.length && tick())
+                candidate = candidate.failedChild[0];
         if (candidate.end > candidate.failEnd)
             candidate.failEnd = candidate.end;
         if (!hasFailure || candidate.failEnd >= furthestFailure.failEnd) {
@@ -204,18 +250,19 @@ struct State(bool CT) {
         }
     }
 
-    ParseTree finish(ParseTree tree) nothrow {
+    Node finish(Node tree) nothrow {
         if (tree.end > tree.failEnd)
             tree.failEnd = tree.end;
         if (hasFailure && furthestFailure.failEnd >= tree.failEnd && (!tree.successful
                 || furthestFailure.failEnd > tree.end)) {
             tree.failEnd = furthestFailure.failEnd;
-            tree.failedChild = single(furthestFailure);
+            static if (!Check)
+                tree.failedChild = single(furthestFailure);
         }
         return tree;
     }
     /// Seed growth, with dependent memo entries invalidated whenever a seed grows.
-    ParseTree rule(alias body, string name, bool memoize = true)(size_t pos) nothrow {
+    Node rule(alias body, string name, bool memoize = true)(size_t pos) nothrow {
         if (!tick())
             return node(pos, pos, false);
         static if (!memoize) {
@@ -227,7 +274,8 @@ struct State(bool CT) {
             scope (exit)
                 --depth;
             auto candidate = body(this, pos);
-            candidate.name = name;
+            static if (!Check)
+                candidate.name = name;
             return candidate;
         } else {
             enum baseHash = keyHash(body.mangleof);
@@ -285,7 +333,8 @@ struct State(bool CT) {
                 --depth;
             do {
                 auto candidate = body(this, pos);
-                candidate.name = name;
+                static if (!Check)
+                    candidate.name = name;
                 if (!candidate.successful || (entry.seed.successful && candidate.end <= entry.seed
                         .end)) {
                     if (!entry.seed.successful)
@@ -345,6 +394,44 @@ ParseResult parse(alias parser)(ref ParseContext context, scope string input) @n
     return result;
 }
 
+/// Synchronous recognition borrows input only for the duration of this call.
+/// Memo storage and conservative action fallbacks remain owned by this result.
+struct CheckResult {
+    Arena arena;
+    Status status = Status.invalidInput;
+    bool successful;
+    size_t end, failEnd;
+    @disable this(this);
+    @disable this(ref CheckResult);
+}
+
+CheckResult check(alias parser)(ref ParseContext context, scope string input) @nogc nothrow {
+    CheckResult result;
+    result.arena.limit = context.memoryLimit;
+    State!(false, true) state;
+    state.arena = &result.arena;
+    state.input = input;
+    state.context = context;
+    auto tree = state.finish(parser(state, 0));
+    result.status = state.status != Status.ok ? state.status : (tree.successful ? Status.ok : Status
+            .mismatch);
+    result.successful = result.status == Status.ok;
+    result.end = tree.end;
+    result.failEnd = tree.failEnd;
+    return result;
+}
+
+@nogc nothrow unittest {
+    ParseContext context;
+    auto good = check!(and!(literal!"ab", eoi))(context, "ab");
+    assert(good.successful && good.end == 2 && good.arena.allocationCalls == 0);
+    auto bad = check!(and!(literal!"ab", eoi))(context, "ax");
+    assert(bad.status == Status.mismatch && bad.failEnd == 1 && bad.arena.used == 0);
+    context.stepLimit = 0;
+    auto limited = check!(literal!"a")(context, "a");
+    assert(limited.status == Status.resourceLimit && !limited.successful);
+}
+
 /// CTFE entry point. Allocation is confined to compiler-managed storage.
 ParseTree parseCT(alias parser)(string input) nothrow {
     assert(__ctfe, "Use parse!(parser)(context, input) at runtime");
@@ -355,9 +442,10 @@ ParseTree parseCT(alias parser)(string input) nothrow {
     return tree;
 }
 
-ParseTree eps(bool CT)(ref State!CT s, size_t pos) nothrow {
+State!(CT, Check).Node eps(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
     auto result = s.node(pos, pos);
-    result.matches = s.single("");
+    static if (!Check)
+        result.matches = s.single("");
     return result;
 }
 
@@ -367,7 +455,7 @@ ParseTree eps(bool CT)(ref State!CT s, size_t pos) nothrow {
     assert(result.successful && result.matches == [""]);
 }
 
-ParseTree fail(bool CT)(ref State!CT s, size_t pos) nothrow {
+State!(CT, Check).Node fail(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
     return s.failure(pos, "failure");
 }
 
@@ -377,7 +465,7 @@ ParseTree fail(bool CT)(ref State!CT s, size_t pos) nothrow {
     assert(result.status == Status.mismatch);
 }
 
-ParseTree eoi(bool CT)(ref State!CT s, size_t pos) nothrow {
+State!(CT, Check).Node eoi(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
     return pos == s.input.length ? s.node(pos, pos) : s.failure(pos, "end of input");
 }
 
@@ -390,11 +478,12 @@ ParseTree eoi(bool CT)(ref State!CT s, size_t pos) nothrow {
 }
 
 alias endOfInput = eoi;
-ParseTree any(bool CT)(ref State!CT s, size_t pos) nothrow {
+State!(CT, Check).Node any(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
     if (!s.tick() || pos >= s.input.length)
         return s.failure(pos, "any char");
     auto result = s.node(pos, pos + 1);
-    result.matches = s.single(s.input[pos .. pos + 1]);
+    static if (!Check)
+        result.matches = s.single(s.input[pos .. pos + 1]);
     return result;
 }
 
@@ -408,7 +497,7 @@ ParseTree any(bool CT)(ref State!CT s, size_t pos) nothrow {
 
 /// Literal matching uses byte offsets, as in the upstream engine.
 template literal(string text) {
-    ParseTree literal(bool CT)(ref State!CT s, size_t pos) nothrow {
+    State!(CT, Check).Node literal(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
         if (!s.tick())
             return s.node(pos, pos, false);
         static if (text.length == 0) {
@@ -416,7 +505,8 @@ template literal(string text) {
         } else static if (text.length == 1) {
             if (pos < s.input.length && s.input[pos] == text[0]) {
                 auto result = s.node(pos, pos + 1);
-                result.matches = s.single(s.input[pos .. pos + 1]);
+                static if (!Check)
+                    result.matches = s.single(s.input[pos .. pos + 1]);
                 return result;
             }
             auto result = s.failure(pos, text);
@@ -426,7 +516,8 @@ template literal(string text) {
         } else {
             if (pos + text.length <= s.input.length && s.input[pos .. pos + text.length] == text) {
                 auto result = s.node(pos, pos + text.length);
-                result.matches = s.single(s.input[pos .. pos + text.length]);
+                static if (!Check)
+                    result.matches = s.single(s.input[pos .. pos + text.length]);
                 return result;
             }
             size_t i;
@@ -504,8 +595,14 @@ bool decode(scope string input, ref size_t pos, out dchar value) @nogc nothrow p
     }
 }
 
-template charRange(dchar low, dchar high) {
-    ParseTree charRange(bool CT)(ref State!CT s, size_t pos) nothrow {
+struct charRange(dchar low, dchar high) {
+    enum byteScanner = high < 128;
+    enum expectation = "character range";
+    static bool byteMatches(ubyte c) @nogc nothrow pure {
+        return c >= low && c <= high;
+    }
+
+    static State!(CT, Check).Node opCall(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
         static if (high < 128) {
             if (!s.tick() || pos >= s.input.length)
                 return s.failure(pos, "character range");
@@ -513,7 +610,8 @@ template charRange(dchar low, dchar high) {
             if (c < low || c > high)
                 return s.failure(pos, "character range");
             auto result = s.node(pos, pos + 1);
-            result.matches = s.single(s.input[pos .. pos + 1]);
+            static if (!Check)
+                result.matches = s.single(s.input[pos .. pos + 1]);
             return result;
         } else {
             size_t end = pos;
@@ -521,7 +619,8 @@ template charRange(dchar low, dchar high) {
             if (!s.tick() || !decode(s.input, end, value) || value < low || value > high)
                 return s.failure(pos, "character range");
             auto result = s.node(pos, end);
-            result.matches = s.single(s.input[pos .. end]);
+            static if (!Check)
+                result.matches = s.single(s.input[pos .. end]);
             return result;
         }
     }
@@ -633,8 +732,15 @@ struct CharSetMask {
     assert(inverted.contains('b'));
 }
 
-template charClass(ulong b0, ulong b1, ulong b2, ulong b3) {
-    ParseTree charClass(bool CT)(ref State!CT s, size_t pos) nothrow {
+struct charClass(ulong b0, ulong b1, ulong b2, ulong b3) {
+    enum byteScanner = true;
+    enum expectation = "character class";
+    static bool byteMatches(ubyte c) @nogc nothrow pure {
+        enum ulong[4] bits = [b0, b1, b2, b3];
+        return (bits[c >> 6] & (1UL << (c & 63))) != 0;
+    }
+
+    static State!(CT, Check).Node opCall(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
         if (!s.tick() || pos >= s.input.length)
             return s.failure(pos, "character class");
         const ubyte c = cast(ubyte)s.input[pos];
@@ -642,7 +748,8 @@ template charClass(ulong b0, ulong b1, ulong b2, ulong b3) {
         if ((bits[c >> 6] & (1UL << (c & 63))) == 0)
             return s.failure(pos, "character class");
         auto result = s.node(pos, pos + 1);
-        result.matches = s.single(s.input[pos .. pos + 1]);
+        static if (!Check)
+            result.matches = s.single(s.input[pos .. pos + 1]);
         return result;
     }
 }
@@ -665,10 +772,10 @@ template charClass(CharSetMask mask) {
 }
 
 template and(rules...) {
-    ParseTree and(bool CT)(ref State!CT s, size_t pos) nothrow {
+    State!(CT, Check).Node and(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
         auto result = s.node(pos, pos);
-        State!CT.Builder!string matches = {owner: &s};
-        State!CT.Builder!ParseTree children = {owner: &s};
+        State!(CT, Check).Builder!string matches = {owner: &s};
+        State!(CT, Check).Builder!ParseTree children = {owner: &s};
         static foreach (r; rules) {
             {
                 if (!s.tick())
@@ -677,15 +784,21 @@ template and(rules...) {
                 if (!next.successful) {
                     result.successful = false;
                     result.failEnd = next.failEnd;
-                    result.matches = next.matches;
-                    result.failedChild = s.single(next);
+                    static if (!Check)
+                        result.matches = next.matches;
+                    static if (!Check)
+                        result.failedChild = s.single(next);
                     return result;
                 }
                 result.end = next.end;
-                matches.put(next.matches);
-                children.put(next.children);
-                result.matches = matches.data();
-                result.children = children.data();
+                static if (!Check) {
+                    matches.put(next.matches);
+                    children.put(next.children);
+                }
+                static if (!Check)
+                    result.matches = matches.data();
+                static if (!Check)
+                    result.children = children.data();
             }
         }
         return result;
@@ -701,7 +814,7 @@ template and(rules...) {
 }
 
 template choice(bool longest, rules...) {
-    ParseTree choice(bool CT)(ref State!CT s, size_t pos) nothrow {
+    State!(CT, Check).Node choice(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
         auto result = s.node(pos, pos, false);
         static foreach (r; rules) {
             {
@@ -760,7 +873,7 @@ template predictiveChoice(branches...) {
 
     enum ubyte[256] branchTable = computeTable();
 
-    ParseTree predictiveChoice(bool CT)(ref State!CT s, size_t pos) nothrow {
+    State!(CT, Check).Node predictiveChoice(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
         if (!s.tick())
             return s.node(pos, pos, false);
         if (pos >= s.input.length) {
@@ -811,31 +924,75 @@ template longest_match(rules...) {
     assert(result.end == 2);
 }
 
-template repeat(alias r, size_t minimum, size_t maximum = size_t.max) {
-    ParseTree repeat(bool CT)(ref State!CT s, size_t pos) nothrow {
-        auto result = s.node(pos, pos);
-        State!CT.Builder!string matches = {owner: &s};
-        State!CT.Builder!ParseTree children = {owner: &s};
-        size_t count;
-        while (count < maximum && s.tick()) {
-            auto next = r(s, result.end);
-            if (!next.successful) {
-                if (count < minimum)
-                    return next;
-                break;
+struct repeat(alias r, size_t minimum, size_t maximum = size_t.max) {
+    enum byteScanner = __traits(hasMember, r, "byteScanner") && r.byteScanner;
+    static if (byteScanner) {
+        /// Preserve generic repetition's loop/terminal ticks and stopping mismatch.
+        static State!(CT, Check).Node scan(bool Capture, bool CT, bool Check = false)(ref State!(CT,
+                Check) s, size_t pos) nothrow {
+            auto result = s.node(pos, pos);
+            size_t count;
+            while (count < maximum && s.tick()) {
+                if (!s.tick() || result.end >= s.input.length || !r.byteMatches(cast(ubyte)s.input[result
+                        .end])) {
+                    auto failure = s.failure(result.end, r.expectation);
+                    if (count < minimum)
+                        return failure;
+                    break;
+                }
+                ++result.end;
+                ++count;
             }
-            matches.put(next.matches);
-            children.put(next.children);
-            result.matches = matches.data();
-            result.children = children.data();
-            ++count;
-            if (next.end == result.end)
-                break;
-            result.end = next.end;
+            if (count < minimum || s.status != Status.ok)
+                result.successful = false;
+            static if (!Check) {
+                if (!result.successful) {
+                    // Failed transforms retain the unfused child output.
+                    static if (!Check)
+                        result.matches = s.allocate!string(count);
+                    foreach (i; 0 .. result.matches.length)
+                        result.matches[i] = s.input[pos + i .. pos + i + 1];
+                } else static if (Capture) {
+                    if (result.end != pos)
+                        static if (!Check)
+                            result.matches = s.single(s.input[pos .. result.end]);
+                }
+            }
+            return result;
         }
-        if (count < minimum || s.status != Status.ok)
-            result.successful = false;
-        return result;
+    }
+    static State!(CT, Check).Node opCall(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
+        static if (Check && byteScanner)
+            return scan!false(s, pos);
+        else {
+            auto result = s.node(pos, pos);
+            State!(CT, Check).Builder!string matches = {owner: &s};
+            State!(CT, Check).Builder!ParseTree children = {owner: &s};
+            size_t count;
+            while (count < maximum && s.tick()) {
+                auto next = r(s, result.end);
+                if (!next.successful) {
+                    if (count < minimum)
+                        return next;
+                    break;
+                }
+                static if (!Check) {
+                    matches.put(next.matches);
+                    children.put(next.children);
+                }
+                static if (!Check)
+                    result.matches = matches.data();
+                static if (!Check)
+                    result.children = children.data();
+                ++count;
+                if (next.end == result.end)
+                    break;
+                result.end = next.end;
+            }
+            if (count < minimum || s.status != Status.ok)
+                result.successful = false;
+            return result;
+        }
     }
 }
 
@@ -845,6 +1002,37 @@ template repeat(alias r, size_t minimum, size_t maximum = size_t.max) {
     assert(result.end == 3);
     auto bad = parse!(repeat!(digit, 2, 3))(context, "1");
     assert(!bad.successful);
+}
+
+version (unittest) private State!(CT, Check).Node wrappedDigit(bool CT,
+        bool Check = false)(ref State!(CT, Check) state, size_t pos) nothrow {
+    return digit(state, pos);
+}
+
+@nogc nothrow unittest {
+    foreach (input; ["", "x", "1", "12", "1234", "12x"]) {
+        foreach (budget; 0 .. 14) {
+            ParseContext context;
+            context.stepLimit = budget;
+            auto specialized = parse!(fuse!(repeat!(digit, 2, 3)))(context, input);
+            auto generic = parse!(fuse!(repeat!(wrappedDigit, 2, 3)))(context, input);
+            assert(specialized.status == generic.status);
+            assert(specialized.successful == generic.successful);
+            assert(specialized.end == generic.end && specialized.failEnd == generic.failEnd);
+            assert(specialized.matches == generic.matches);
+            auto checked = check!(repeat!(digit, 2, 3))(context, input);
+            assert(checked.status == generic.status && checked.end == generic.end);
+            assert(checked.failEnd == generic.failEnd && checked.arena.allocationCalls == 0);
+        }
+    }
+    ParseContext context;
+    auto discarded = parse!(discard!(zeroOrMore!digit))(context, "123x");
+    assert(discarded.end == 3 && discarded.matches.length == 0);
+    auto unicode = parse!(fuse!(oneOrMore!(charRange!('α', 'ω'))))(context, "αβx");
+    assert(unicode.matches == ["αβ"] && unicode.end == 4);
+    enum mask = CharSetMask.fromRanges(['0', '9']);
+    auto bytes = check!(oneOrMore!(charClass!mask))(context, "12x");
+    assert(bytes.successful && bytes.end == 2 && bytes.arena.used == 0);
 }
 
 template zeroOrMore(alias r) {
@@ -880,7 +1068,7 @@ template option(alias r) {
 }
 
 template lookahead(alias r, bool positive) {
-    ParseTree lookahead(bool CT)(ref State!CT s, size_t pos) nothrow {
+    State!(CT, Check).Node lookahead(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
         auto saved = s.furthestFailure;
         bool hadFailure = s.hasFailure;
         auto next = r(s, pos);
@@ -891,7 +1079,8 @@ template lookahead(alias r, bool positive) {
         auto result = s.node(pos, pos, next.successful == positive);
         if (!result.successful) {
             static if (positive) {
-                result.matches = next.matches;
+                static if (!Check)
+                    result.matches = next.matches;
                 result.failEnd = next.failEnd;
                 if (nestedHadFailure)
                     s.recordFailure(nestedFailure);
@@ -932,40 +1121,46 @@ template negLookahead(alias r) {
 
 /// Tree transforms keep grammar nodes only; primitive combinators are flattened.
 template transform(alias r, char operation) {
-    ParseTree transform(bool CT)(ref State!CT s, size_t pos) nothrow {
-        auto result = r(s, pos);
-        if (!result.successful)
+    State!(CT, Check).Node transform(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
+        static if ((operation == '~' || operation == ':') && __traits(hasMember, r, "scan")) {
+            return r.scan!(operation == '~')(s, pos);
+        } else static if (Check) {
+            return r(s, pos);
+        } else {
+            auto result = r(s, pos);
+            if (!result.successful)
+                return result;
+            static if (operation == '~') {
+                string joined;
+                size_t length;
+                foreach (match; result.matches)
+                    length += match.length;
+                auto bytes = s.allocate!char(length);
+                size_t offset;
+                if (bytes.length == length)
+                    foreach (match; result.matches) {
+                        bytes[offset .. offset + match.length] = match[];
+                        offset += match.length;
+                    }
+                if (result.matches.length)
+                    result.matches = s.single(cast(string)bytes);
+                result.children = null;
+            } else static if (operation == ':') {
+                result.matches = null;
+                result.children = null;
+            } else static if (operation == ';')
+                result.children = null;
+            else static if (operation == '%') {
+                ParseTree[] children;
+                foreach (child; result.children)
+                    children = s.append(children, child.children);
+                result.children = children;
+            } else static if (operation == '^') {
+                if (!result.children.length)
+                    result.children = s.single(result);
+            }
             return result;
-        static if (operation == '~') {
-            string joined;
-            size_t length;
-            foreach (match; result.matches)
-                length += match.length;
-            auto bytes = s.allocate!char(length);
-            size_t offset;
-            if (bytes.length == length)
-                foreach (match; result.matches) {
-                    bytes[offset .. offset + match.length] = match[];
-                    offset += match.length;
-                }
-            if (result.matches.length)
-                result.matches = s.single(cast(string)bytes);
-            result.children = null;
-        } else static if (operation == ':') {
-            result.matches = null;
-            result.children = null;
-        } else static if (operation == ';')
-            result.children = null;
-        else static if (operation == '%') {
-            ParseTree[] children;
-            foreach (child; result.children)
-                children = s.append(children, child.children);
-            result.children = children;
-        } else static if (operation == '^') {
-            if (!result.children.length)
-                result.children = s.single(result);
         }
-        return result;
     }
 }
 
@@ -1036,11 +1231,13 @@ template discardChildren(alias r) {
 }
 
 template defined(alias r, string name) {
-    ParseTree defined(bool CT)(ref State!CT s, size_t pos) nothrow {
+    State!(CT, Check).Node defined(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
         auto result = r(s, pos);
-        result.name = name;
-        if (result.matches.length || !result.successful)
-            result.children = s.single(result);
+        static if (!Check)
+            result.name = name;
+        static if (!Check)
+            if (result.matches.length || !result.successful)
+                result.children = s.single(result);
         return result;
     }
 }
@@ -1052,9 +1249,10 @@ template defined(alias r, string name) {
 }
 
 template named(alias r, string name) {
-    ParseTree named(bool CT)(ref State!CT s, size_t pos) nothrow {
+    State!(CT, Check).Node named(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
         auto result = r(s, pos);
-        result.name = name;
+        static if (!Check)
+            result.name = name;
         return result;
     }
 }
@@ -1066,19 +1264,23 @@ template named(alias r, string name) {
 }
 
 template action(alias r, alias act) {
-    ParseTree action(bool CT)(ref State!CT s, size_t pos) nothrow {
-        auto result = r(s, pos);
-        if (s.status != Status.ok) {
-            result.successful = false;
+    State!(CT, Check).Node action(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
+        static if (Check) {
+            return s.treeFallback!(npegged.peg.action!(r, act))(pos);
+        } else {
+            auto result = r(s, pos);
+            if (s.status != Status.ok) {
+                result.successful = false;
+                return result;
+            }
+            static if (__traits(compiles, act(s, result)))
+                result = act(s, result);
+            else
+                result = act(result);
+            if (!result.successful)
+                s.recordFailure(result);
             return result;
         }
-        static if (__traits(compiles, act(s, result)))
-            result = act(s, result);
-        else
-            result = act(result);
-        if (!result.successful)
-            s.recordFailure(result);
-        return result;
     }
 }
 
@@ -1089,8 +1291,24 @@ template action(alias r, alias act) {
     assert(result.name == "acted");
 }
 
+@nogc nothrow unittest {
+    ParseContext context;
+    alias inspected = action!(literal!"a", (ParseTree tree) @nogc nothrow{
+        assert(tree.matches == ["a"]);
+        tree.successful = tree.input.length == 1;
+        return tree;
+    });
+    auto good = check!inspected(context, "a");
+    assert(good.successful && good.arena.allocationCalls > 0);
+    auto bad = check!inspected(context, "ab");
+    assert(!bad.successful && bad.status == Status.mismatch);
+    context.memoryLimit = 0;
+    auto exhausted = check!inspected(context, "a");
+    assert(!exhausted.successful && exhausted.status == Status.resourceLimit);
+}
+
 template wrapAround(alias before, alias target, alias after) {
-    ParseTree wrapAround(bool CT)(ref State!CT s, size_t pos) nothrow {
+    State!(CT, Check).Node wrapAround(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t pos) nothrow {
         auto leading = before(s, pos);
         if (!leading.successful)
             return leading;
@@ -1102,12 +1320,14 @@ template wrapAround(alias before, alias target, alias after) {
             return trailing;
         result.begin = leading.begin;
         result.end = trailing.end;
-        if (result.children.length == 1 && result.children[0].name == result.name) {
-            auto child = result.children[0];
-            child.begin = result.begin;
-            child.end = result.end;
-            result.children = s.single(child);
-        }
+        static if (!Check)
+            if (result.children.length == 1 && result.children[0].name == result.name) {
+                auto child = result.children[0];
+                child.begin = result.begin;
+                child.end = result.end;
+                static if (!Check)
+                    result.children = s.single(child);
+            }
         return result;
     }
 }
@@ -1202,12 +1422,14 @@ template list0(alias element, alias separator) {
 
 /// Full Unicode folding, preserving Pegged's fixed byte-length literal consumption.
 template caseInsensitiveLiteral(string text) {
-    ParseTree caseInsensitiveLiteral(bool CT)(ref State!CT s, size_t pos) nothrow {
+    State!(CT, Check).Node caseInsensitiveLiteral(bool CT, bool Check = false)(ref State!(CT, Check) s,
+            size_t pos) nothrow {
         if (!s.tick() || pos > s.input.length || text.length > s.input.length - pos
                 || !caseEqual(s.input[pos .. pos + text.length], text))
             return s.failure(pos, text);
         auto result = s.node(pos, pos + text.length);
-        result.matches = s.single(text);
+        static if (!Check)
+            result.matches = s.single(text);
         return result;
     }
 }
@@ -1258,7 +1480,7 @@ bool caseEqual(scope string a, scope string b) @nogc nothrow pure {
 }
 
 /// Matches a boundary between alphabetic and non-alphabetic input (zero bytes).
-ParseTree wordBoundary(bool CT)(ref State!CT state, size_t pos) nothrow {
+State!(CT, Check).Node wordBoundary(bool CT, bool Check = false)(ref State!(CT, Check) state, size_t pos) nothrow {
     import npegged.unicode : isAlphabetic;
 
     bool left, right;
@@ -1290,7 +1512,7 @@ ParseTree wordBoundary(bool CT)(ref State!CT state, size_t pos) nothrow {
 }
 
 template keywords(words...) {
-    ParseTree keywords(bool CT)(ref State!CT state, size_t pos) nothrow {
+    State!(CT, Check).Node keywords(bool CT, bool Check = false)(ref State!(CT, Check) state, size_t pos) nothrow {
         auto best = state.node(pos, pos, false);
         static foreach (word; words) {
             {
@@ -1312,10 +1534,11 @@ template keywords(words...) {
 }
 
 template discardMatches(alias parser) {
-    ParseTree discardMatches(bool CT)(ref State!CT state, size_t pos) nothrow {
+    State!(CT, Check).Node discardMatches(bool CT, bool Check = false)(ref State!(CT, Check) state, size_t pos) nothrow {
         auto result = parser(state, pos);
         if (result.successful)
-            result.matches = null;
+            static if (!Check)
+                result.matches = null;
         return result;
     }
 }
@@ -1327,22 +1550,26 @@ template discardMatches(alias parser) {
 }
 
 template spaceAnd(alias separator, parsers...) {
-    ParseTree spaceAnd(bool CT)(ref State!CT state, size_t pos) nothrow {
+    State!(CT, Check).Node spaceAnd(bool CT, bool Check = false)(ref State!(CT, Check) state, size_t pos) nothrow {
         auto result = state.node(pos, pos);
-        State!CT.Builder!string matches = {owner: &state};
-        State!CT.Builder!ParseTree children = {owner: &state};
+        State!(CT, Check).Builder!string matches = {owner: &state};
+        State!(CT, Check).Builder!ParseTree children = {owner: &state};
         static foreach (parser; parsers) {
             {
                 auto part = wrapAround!(separator, parser, separator)(state, result.end);
                 if (!part.successful)
                     return part;
                 result.end = part.end;
-                matches.put(part.matches);
-                children.put(part.children);
+                static if (!Check) {
+                    matches.put(part.matches);
+                    children.put(part.children);
+                }
             }
         }
-        result.matches = matches.data();
-        result.children = children.data();
+        static if (!Check)
+            result.matches = matches.data();
+        static if (!Check)
+            result.children = children.data();
         return result;
     }
 }

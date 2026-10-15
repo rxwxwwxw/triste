@@ -3,7 +3,7 @@ module benchmark.json_comparison;
 import benchmark.json_output : OutputMode, JsonOutput, projectTree, fingerprint, handwrittenOutput, ambiguousOutput;
 import benchmark.json_npegged : NPJson = JSON;
 import benchmark.json_pegged : PJson = JSON;
-import npegged.peg : ParseContext;
+import npegged.peg : ParseContext, check;
 import benchmark.ambiguous_npegged : NPAmbiguous = Ambiguous;
 import benchmark.ambiguous_pegged : PAmbiguous = Ambiguous;
 import npegged.storage : Status;
@@ -42,6 +42,19 @@ Observation observeNPegged(string input, OutputMode mode, bool ambiguous = false
         size_t memoryLimit = 256 * 1024 * 1024, size_t outputLimit = 256 * 1024 * 1024) @nogc nothrow {
     ParseContext context;
     context.memoryLimit = memoryLimit;
+    if (mode == OutputMode.validation) {
+        auto native = ambiguous ? check!(NPAmbiguous.opCall)(context, input) : check!(NPJson.opCall)(
+                context, input);
+        JsonOutput output;
+        output.accepted = native.successful;
+        auto result = summarize(output);
+        result.allocationCalls = native.arena.allocationCalls;
+        result.payloadBytes = native.arena.requestedBytes;
+        result.reservedBytes = native.arena.used;
+        if (native.status != Status.ok && native.status != Status.mismatch)
+            result.status = native.status;
+        return result;
+    }
     auto native = ambiguous ? NPAmbiguous(context, input) : NPJson(context, input);
     JsonOutput output;
     output.arena.limit = outputLimit;

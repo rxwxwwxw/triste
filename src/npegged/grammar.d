@@ -3,6 +3,7 @@
 module npegged.grammar;
 public import npegged.peg;
 import npegged.io;
+import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts;
 
 nothrow:
 
@@ -13,7 +14,8 @@ struct Diagnostic {
 
 enum Memoization {
     no,
-    yes
+    yes,
+    selective
 }
 
 private string number(size_t value) pure nothrow {
@@ -115,6 +117,9 @@ private struct Frontend {
     Rule[] rules;
     string name, params;
     bool memoize = true;
+    bool selective;
+    private GrammarAnalysis analyzed;
+    private bool hasAnalysis;
     void skip() nothrow {
         while (pos < input.length) {
             if (input[pos] == ' ' || input[pos] == '\t' || input[pos] == '\n' || input[pos] == '\r')
@@ -592,6 +597,7 @@ private struct Frontend {
     }
 
     void read() nothrow {
+        hasAnalysis = false;
         name = ident();
         params = parameters();
         require(':');
@@ -645,7 +651,7 @@ private struct Frontend {
         CharSetMask mask;
     }
 
-    FirstSetResult computeFirstSet(string expr, const string[] visited = null) const nothrow {
+    FirstSetResult primitiveFirstSet(string expr) const nothrow {
         FirstSetResult res;
         while (expr.length > 0 && expr[0] == ' ')
             expr = expr[1 .. $];
@@ -727,7 +733,7 @@ private struct Frontend {
                     if (ch >= '0' && ch <= '9')
                         high = high * 10 + (ch - '0');
                 }
-                if (high < 256 && low <= high) {
+                if (high < 128 && low <= high) {
                     res.known = true;
                     res.canBeEmpty = false;
                     res.mask.addRange(low, high);
@@ -772,43 +778,6 @@ private struct Frontend {
                 res.canBeEmpty = false;
                 res.mask = CharSetMask(b);
                 return res;
-            }
-        }
-
-        if (startsWith(expr, "and!(")) {
-            string inner = expr[5 .. $];
-            size_t depth = 0;
-            bool inQuote = false;
-            size_t firstEnd = inner.length;
-            for (size_t i = 0; i < inner.length; ++i) {
-                char c = inner[i];
-                if (c == '"' && (i == 0 || inner[i - 1] != '\\'))
-                    inQuote = !inQuote;
-                if (!inQuote) {
-                    if (c == '(')
-                        depth++;
-                    else if (c == ')') {
-                        if (depth == 0) {
-                            firstEnd = i;
-                            break;
-                        }
-                        depth--;
-                    } else if (c == ',' && depth == 0) {
-                        firstEnd = i;
-                        break;
-                    }
-                }
-            }
-            string first = inner[0 .. firstEnd];
-            return computeFirstSet(first, visited);
-        }
-
-        foreach (prefix; ["discard!(", "fuse!(", "keep!(", "drop!(", "oneOrMore!("]) {
-            if (startsWith(expr, prefix)) {
-                string inner = expr[prefix.length .. $];
-                if (inner.length > 0 && inner[$ - 1] == ')')
-                    inner = inner[0 .. $ - 1];
-                return computeFirstSet(inner, visited);
             }
         }
 
@@ -858,34 +827,145 @@ private struct Frontend {
             return res;
         }
 
-        foreach (r; rules) {
-            if (r.name == expr) {
-                foreach (v; visited) {
-                    if (v == expr)
-                        return res;
+        return res;
+    }
+
+    private size_t expressionNode(ref GrammarAnalysis graph, string text) const nothrow {
+        while (text.length && (text[0] == ' ' || text[0] == '\t'))
+            text = text[1 .. $];
+        while (text.length && (text[$ - 1] == ' ' || text[$ - 1] == '\t'))
+            text = text[0 .. $ - 1];
+        Expression node;
+        node.source = text;
+        if (graph.ruleIndex(text) != size_t.max) {
+            node.kind = ExpressionKind.reference;
+            node.reference = text;
+        } else if (text == "eps" || text == "eoi" || text == "endOfInput" || text == "fail") {
+            node.kind = ExpressionKind.terminal;
+            node.known = true;
+            node.nullable = text == "fail" ? Nullable.no : Nullable.yes;
+        } else if (text == "any") {
+            node.kind = ExpressionKind.terminal;
+            node.known = true;
+            node.nullable = Nullable.no;
+            node.first = CharSetMask([ulong.max, ulong.max, ulong.max, ulong.max]);
+        } else {
+            size_t marker;
+            while (marker < text.length && text[marker] != '!')
+                ++marker;
+            string combinator = text[0 .. marker];
+            bool compound = marker + 2 < text.length && text[marker .. marker + 2] == "!(" && text[$ - 1] == ')';
+            string[] args;
+            if (compound)
+                args = splitTemplateArgs(text[marker + 2 .. $ - 1]);
+            node.arguments = args;
+            bool children;
+            if (compound && (combinator == "and" || combinator == "wrapAround")) {
+                node.kind = ExpressionKind.sequence;
+                children = true;
+            } else if (compound && (combinator == "or" || combinator == "longest_match"
+                    || combinator == "predictiveChoice")) {
+                node.kind = ExpressionKind.choice;
+                children = true;
+            } else if (compound && args.length && (combinator == "option" || combinator == "zeroOrMore")) {
+                node.kind = combinator == "option" ? ExpressionKind.optional : ExpressionKind
+                    .repetition;
+                args.length = 1;
+                children = true;
+            } else if (compound && args.length && (combinator == "posLookahead" || combinator == "negLookahead")) {
+                node.kind = ExpressionKind.predicate;
+                args.length = 1;
+                children = true;
+            } else if (compound && args.length && (combinator == "discard" || combinator == "fuse"
+                    || combinator == "keep"
+                    || combinator == "drop" || combinator == "propagate" || combinator == "oneOrMore"
+                    || combinator == "named" || combinator == "defined" || combinator == "branch")) {
+                node.kind = ExpressionKind.wrapper;
+                args.length = 1;
+                children = true;
+            }
+            if (children) {
+                node.combinator = combinator;
+                foreach (arg; args)
+                    node.children ~= expressionNode(graph, arg);
+            } else {
+                auto primitive = primitiveFirstSet(text);
+                if (primitive.known) {
+                    node.kind = ExpressionKind.terminal;
+                    node.first = primitive.mask;
+                    node.known = true;
+                    node.nullable = primitive.canBeEmpty ? Nullable.yes : Nullable.no;
+                } else if (startsWith(text, "charRange!(") || startsWith(text, "charClass!(")
+                        || startsWith(text, "caseInsensitiveLiteral!(")) {
+                    // Unknown Unicode FIRST bytes must not imply unknown rule calls.
+                    node.kind = ExpressionKind.terminal;
+                    node.nullable = Nullable.no;
+                } else if (text == "spacing") {
+                    node.kind = ExpressionKind.terminal;
+                    node.nullable = Nullable.yes;
+                    node.known = true;
+                    node.first = primitiveFirstSet("blank").mask;
+                } else if (text == "doublequote" || text == "backslash" || text == "quote"
+                        || text == "slash" || text == "backquote" || text == "tab") {
+                    node.kind = ExpressionKind.terminal;
+                    node.nullable = Nullable.no;
+                    node.known = true;
+                    node.first.addChar(text == "doublequote" ? '"' : text == "backslash"
+                            ? '\\' : text == "quote" ? '\'' : text == "slash" ? '/' : text == "tab" ? '\t' : '`');
+                } else if (text == "endOfLine" || text == "eol") {
+                    node.kind = ExpressionKind.terminal;
+                    node.nullable = Nullable.no;
+                    node.known = true;
+                    node.first.addChar('\r');
+                    node.first.addChar('\n');
+                } else if (marker == text.length) {
+                    node.kind = ExpressionKind.reference;
+                    node.reference = text;
                 }
-                return computeFirstSet(r.body, visited ~ expr);
             }
         }
+        graph.expressions ~= node;
+        return graph.expressions.length - 1;
+    }
 
-        return res;
+    private void prepareAnalysis() nothrow {
+        analyzed = GrammarAnalysis.init;
+        foreach (rule; rules)
+            analyzed.names ~= rule.name;
+        foreach (rule; rules)
+            analyzed.roots ~= expressionNode(analyzed, rule.body);
+        analyzed.solve();
+        hasAnalysis = true;
+    }
+
+    FirstSetResult computeFirstSet(string expression) nothrow {
+        if (!hasAnalysis)
+            prepareAnalysis();
+        auto query = analyzed;
+        auto root = expressionNode(query, expression);
+        const value = query.appendFacts(root);
+        return FirstSetResult(value.known && value.nullable != Nullable.unknown,
+                value.nullable != Nullable.no, value.first);
     }
 
     static string[] splitTemplateArgs(string args) pure nothrow {
         string[] result;
-        size_t depth = 0;
-        bool inQuote = false;
-        size_t start = 0;
-        for (size_t i = 0; i < args.length; ++i) {
-            char c = args[i];
-            if (c == '"' && (i == 0 || args[i - 1] != '\\'))
+        size_t depth, start;
+        bool inQuote;
+        for (size_t i; i < args.length; ++i) {
+            const c = args[i];
+            if (inQuote && c == '\\' && i + 1 < args.length) {
+                ++i;
+                continue;
+            }
+            if (c == '"')
                 inQuote = !inQuote;
-            if (!inQuote) {
+            else if (!inQuote) {
                 if (c == '(')
-                    depth++;
-                else if (c == ')')
-                    depth--;
-                else if (c == ',' && depth == 0) {
+                    ++depth;
+                else if (c == ')' && depth)
+                    --depth;
+                else if (c == ',' && !depth) {
                     result ~= args[start .. i];
                     start = i + 1;
                 }
@@ -896,79 +976,77 @@ private struct Frontend {
         return result;
     }
 
-    string optimizeChoice(string[] choices) const nothrow {
+    private string dispatchChoice(string[] choices, FirstFacts[] values) nothrow {
         if (choices.length < 2)
             return null;
-        FirstSetResult[] firstSets;
-        firstSets.length = choices.length;
-        foreach (i, choice; choices) {
-            firstSets[i] = computeFirstSet(choice);
-            if (!firstSets[i].known || firstSets[i].canBeEmpty || firstSets[i].mask.empty)
+        foreach (value; values)
+            if (!value.known || value.nullable != Nullable.no || value.first.empty)
                 return null;
-        }
-        for (size_t i = 0; i < choices.length; ++i) {
-            for (size_t j = i + 1; j < choices.length; ++j) {
-                if (firstSets[i].mask.intersects(firstSets[j].mask))
+        foreach (i; 0 .. values.length)
+            foreach (j; i + 1 .. values.length)
+                if (values[i].first.intersects(values[j].first))
                     return null;
-            }
-        }
-        string res = "predictiveChoice!(";
+        string result = "predictiveChoice!(";
         foreach (i, choice; choices) {
-            auto m = firstSets[i].mask;
-            res ~= (i ? ", " : "") ~ "branch!(" ~ choice ~ ", " ~ ulongHex(m.bits[0]) ~ ", " ~ ulongHex(
-                    m.bits[1]) ~ ", " ~ ulongHex(m.bits[2]) ~ ", " ~ ulongHex(m.bits[3]) ~ ")";
+            const mask = values[i].first;
+            result ~= (i ? ", " : "") ~ "branch!(" ~ choice ~ ", " ~ ulongHex(
+                    mask.bits[0]) ~ ", " ~ ulongHex(mask.bits[1]) ~ ", " ~ ulongHex(
+                    mask.bits[2]) ~ ", " ~ ulongHex(mask.bits[3]) ~ ")";
         }
-        return res ~ ")";
+        return result ~ ")";
     }
 
-    string optimizeRule(string expr) const nothrow {
-        size_t i = 0;
-        string result;
-        while (i < expr.length) {
-            if (i + 4 <= expr.length && expr[i .. i + 4] == "or!(") {
-                size_t depth = 1;
-                size_t j = i + 4;
-                bool inQuote = false;
-                while (j < expr.length && depth > 0) {
-                    char c = expr[j];
-                    if (c == '"' && (j == 0 || expr[j - 1] != '\\'))
-                        inQuote = !inQuote;
-                    if (!inQuote) {
-                        if (c == '(')
-                            depth++;
-                        else if (c == ')')
-                            depth--;
-                    }
-                    j++;
-                }
-                string inner = expr[i + 4 .. j - 1];
-                string[] rawChoices = splitTemplateArgs(inner);
-                string[] optimizedChoices;
-                optimizedChoices.length = rawChoices.length;
-                foreach (k, ch; rawChoices) {
-                    optimizedChoices[k] = optimizeRule(ch);
-                }
-                string predicted = optimizeChoice(optimizedChoices);
-                if (predicted.length) {
-                    result ~= predicted;
-                } else {
-                    result ~= "or!(";
-                    foreach (k, ch; optimizedChoices)
-                        result ~= (k ? ", " : "") ~ ch;
-                    result ~= ")";
-                }
-                i = j;
-            } else {
-                result ~= expr[i++];
-            }
+    string optimizeChoice(string[] choices) nothrow {
+        if (!hasAnalysis)
+            prepareAnalysis();
+        auto query = analyzed;
+        FirstFacts[] values;
+        foreach (choice; choices) {
+            auto root = expressionNode(query, choice);
+            values ~= query.appendFacts(root);
         }
-        return result;
+        return dispatchChoice(choices, values);
+    }
+
+    private string emitExpression(const ref GrammarAnalysis graph, size_t index) nothrow {
+        const ref node = graph.expressions[index];
+        if (!node.children.length)
+            return node.source;
+        string[] args;
+        foreach (i, argument; node.arguments)
+            args ~= i < node.children.length ? emitExpression(graph, node.children[i]) : argument;
+        if (node.combinator == "or") {
+            FirstFacts[] values;
+            foreach (child; node.children)
+                values ~= graph.facts[child];
+            auto predicted = dispatchChoice(args, values);
+            if (predicted.length)
+                return predicted;
+        }
+        string result = node.combinator ~ "!(";
+        foreach (i, arg; args)
+            result ~= (i ? ", " : "") ~ arg;
+        return result ~ ")";
+    }
+
+    string optimizeRule(string expression) nothrow {
+        if (!hasAnalysis)
+            prepareAnalysis();
+        auto query = analyzed;
+        auto root = expressionNode(query, expression);
+        query.appendFacts(root);
+        return emitExpression(query, root);
     }
 
     string emit() nothrow {
-        foreach (ref rule; rules) {
-            rule.body = optimizeRule(rule.body);
-        }
+        prepareAnalysis();
+        foreach (i, ref rule; rules)
+            rule.body = emitExpression(analyzed, analyzed.roots[i]);
+        bool actionGrammar;
+        foreach (rule; rules)
+            foreach (i; 0 .. rule.body.length)
+                if (startsWith(rule.body[i .. $], "action!("))
+                    actionGrammar = true;
         string result = "struct " ~ name ~ params ~ " {\n";
         bool spacingDefined;
         foreach (rule; rules)
@@ -976,21 +1054,26 @@ private struct Frontend {
                 spacingDefined = true;
         if (!spacingDefined)
             result ~= "alias Spacing = npegged.peg.spacing;\n";
-        foreach (rule; rules) {
+        foreach (ruleIndex, rule; rules) {
+            bool cache = memoize && (!selective || analyzed.conservative || analyzed.leftRecursive[ruleIndex]);
+            if (params.length || rule.params.length)
+                cache = memoize;
             if (rule.params.length)
                 result ~= "template " ~ rule.name ~ rule.params ~ " {\n";
             string r = rule.name;
             string entryName = rule.params.length ? "_entry" : r;
-            result ~= "private static ParseTree _" ~ r
-                ~ "(bool CT)(ref State!CT s, size_t p) nothrow { return defined!("
-                ~ rule.body ~ ", " ~ quoted(name ~ "." ~ r) ~ ")(s,p); }\n";
+            result ~= "private static State!(CT, Check).Node _" ~ r ~ "(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow { return defined!(" ~ rule
+                .body ~ ", " ~ quoted(name ~ "." ~ r) ~ ")(s,p); }\n";
             // Concrete overloads break recursive attribute-inference cycles.
-            foreach (mode; ["false", "true"]) {
-                auto attributes = mode == "false" ? " @nogc nothrow" : " nothrow";
-                result ~= "static ParseTree " ~ entryName ~ (mode == "true"
-                        ? "(CompileTime = void)" : "") ~ "(ref State!" ~ mode
-                    ~ " s, size_t p)" ~ attributes ~ " { return s.rule!(_" ~ r ~ "!" ~ mode ~ ", "
-                    ~ quoted(name ~ "." ~ r) ~ ", " ~ (memoize ? "true" : "false") ~ ")(p); }\n";
+            foreach (mode; ["false, false", "true, false", "false, true", "true, true"]) {
+                auto attributes = !startsWith(mode, "true") ? " @nogc nothrow" : " nothrow";
+                result ~= "static State!(" ~ mode ~ ").Node " ~ entryName ~ (startsWith(mode, "true")
+                        ? "(CompileTime = void)" : "") ~ "(ref State!(" ~ mode ~ ") s, size_t p)" ~ attributes;
+                if (actionGrammar && (mode == "false, true" || mode == "true, true"))
+                    result ~= " { return s.treeFallback!(" ~ entryName ~ ")(p); }\n";
+                else
+                    result ~= " { return s.rule!(_" ~ r ~ "!(" ~ mode ~ "), " ~ quoted(
+                            name ~ "." ~ r) ~ ", " ~ (cache ? "true" : "false") ~ ")(p); }\n";
             }
             result ~= "static ParseResult " ~ entryName ~ "(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(" ~ entryName ~ ")(ctx,input); }\n";
             result ~= "static ParseTree " ~ entryName
@@ -1001,11 +1084,12 @@ private struct Frontend {
         }
         if (!rules[0].params.length) {
             auto first = rules[0].name;
-            foreach (mode; ["false", "true"]) {
-                result ~= "static ParseTree opCall" ~ (mode == "true"
-                        ? "(CompileTime = void)" : "") ~ "(ref State!" ~ mode ~ " s, size_t p)" ~ (
-                        mode == "false" ? " @nogc" : "") ~ " nothrow { auto t = " ~ first
-                    ~ "(s,p); t.name = " ~ quoted(name) ~ "; return t; }\n";
+            foreach (mode; ["false, false", "true, false", "false, true", "true, true"]) {
+                result ~= "static State!(" ~ mode ~ ").Node opCall" ~ (startsWith(mode, "true")
+                        ? "(CompileTime = void)" : "") ~ "(ref State!(" ~ mode ~ ") s, size_t p)" ~ (
+                        !startsWith(mode, "true") ? " @nogc" : "") ~ " nothrow { auto t = " ~ first
+                    ~ "(s,p); " ~ ((mode == "false, true" || mode == "true, true")
+                            ? "" : "t.name = " ~ quoted(name) ~ "; ") ~ "return t; }\n";
             }
             result ~= "static ParseResult opCall(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(opCall)(ctx,input); }\n";
             result ~= "static ParseTree opCall(Input)(Input input) nothrow if (is(Input == string)) { return parseCT!(opCall)(input); }\n";
@@ -1095,6 +1179,50 @@ nothrow unittest {
     assert(!charClasses.error.message.length);
     auto emittedClasses = charClasses.emit();
     assert(emittedClasses.length > 0);
+
+    assert(ulongHex(0x1234UL) == "0x1234UL");
+    assert(ulongHex(0UL) == "0x0UL");
+
+    Frontend opt;
+    opt.input = "Opt: A <- 'a' / 'b' Single <- 'x'";
+    opt.read();
+    opt.emit();
+    assert(opt.optimizeRule("or!(literal!('a'), literal!('b'))").length);
+    assert(opt.optimizeRule("or!(literal!('a'), literal!('b'))").length);
+    assert(opt.optimizeRule("longest_match!(literal!('a'), literal!('b'))").length);
+    assert(opt.optimizeRule("predictiveChoice!(literal!('a'), literal!('b'))").length);
+    assert(opt.optimizeRule("option!(literal!('a'))").length);
+    assert(opt.optimizeRule("zeroOrMore!(literal!('a'))").length);
+    assert(opt.optimizeRule("posLookahead!(literal!('a'))").length);
+    assert(opt.optimizeRule("negLookahead!(literal!('a'))").length);
+    assert(opt.optimizeRule("named!(literal!('a'), \"name\")").length);
+    assert(opt.optimizeRule("branch!(literal!('a'), 0UL, 0UL, 0UL, 0UL)").length);
+    assert(opt.optimizeRule("eps").length);
+    assert(opt.optimizeRule("eoi").length);
+    assert(opt.optimizeRule("endOfInput").length);
+    assert(opt.optimizeRule("fail").length);
+    assert(opt.optimizeRule("any").length);
+    assert(opt.optimizeRule("spacing").length);
+    assert(opt.optimizeRule("doublequote").length);
+    assert(opt.optimizeRule("backslash").length);
+    assert(opt.optimizeRule("quote").length);
+    assert(opt.optimizeRule("slash").length);
+    assert(opt.optimizeRule("backquote").length);
+    assert(opt.optimizeRule("tab").length);
+    assert(opt.optimizeRule("endOfLine").length);
+    assert(opt.optimizeRule("eol").length);
+    assert(opt.primitiveFirstSet("  literal!(\"a\")  ").known);
+    assert(opt.primitiveFirstSet("literal!(\"\")").canBeEmpty);
+    assert(opt.primitiveFirstSet("charClass!(0x1UL, 0X2UL, 3UL, 4UL)").known);
+    assert(opt.primitiveFirstSet("charRange!(  10 ,  20 )").known);
+    assert(Frontend.splitTemplateArgs(`"\\", a`).length == 2);
+    assert(Frontend.splitTemplateArgs("a, b").length == 2);
+
+    Frontend aheadTest;
+    aheadTest.input = "DefAhead: Rule(T = ')') <- 'a' Other <- Rule";
+    aheadTest.read();
+    assert(!aheadTest.error.message.length);
+    assert(aheadTest.emit().length);
 }
 
 unittest {
@@ -1179,7 +1307,8 @@ unittest {
 string grammar(Memoization memo = Memoization.yes)(string definition) nothrow {
     Frontend frontend;
     frontend.input = definition;
-    frontend.memoize = memo == Memoization.yes;
+    frontend.memoize = memo != Memoization.no;
+    frontend.selective = memo == Memoization.selective;
     frontend.read();
     if (frontend.error.message.length)
         return "static assert(false, " ~ quoted(
@@ -1229,6 +1358,41 @@ RuntimeTest:
     }
 }
 
+@nogc nothrow unittest {
+    ParseContext context;
+    foreach (input; ["1+2+3", "x", "1+"]) {
+        auto tree = RuntimeTest(context, input);
+        auto recognized = check!(RuntimeTest.opCall)(context, input);
+        assert(recognized.status == tree.status);
+        assert(recognized.successful == tree.successful && recognized.end == tree.end);
+        assert(recognized.failEnd == tree.failEnd);
+    }
+    context.depthLimit = 0;
+    assert(check!(RuntimeTest.opCall)(context, "1").status == Status.resourceLimit);
+    context = ParseContext.init;
+    context.memoryLimit = 0;
+    assert(check!(RuntimeTest.opCall)(context, "1").status == Status.resourceLimit);
+}
+
+version (unittest) private ParseTree countAction(bool CT)(ref State!CT state, ParseTree tree) nothrow {
+    ++*cast(size_t*)state.context.userData;
+    return tree;
+}
+
+version (unittest) mixin(grammar(`ActionRecognition: Root <- (Root 'a' / 'a'){countAction}`));
+
+@nogc nothrow unittest {
+    ParseContext context;
+    size_t calls;
+    context.userData = &calls;
+    auto tree = ActionRecognition(context, "aaa");
+    const treeCalls = calls;
+    calls = 0;
+    auto recognized = check!(ActionRecognition.opCall)(context, "aaa");
+    assert(recognized.successful == tree.successful && recognized.end == tree.end);
+    assert(calls == treeCalls && calls > 0);
+}
+
 /// Cold runtime generation reports errors explicitly. Output uses selective druntime GC.
 struct GenerationResult {
     Status status = Status.invalidInput;
@@ -1239,7 +1403,8 @@ struct GenerationResult {
 GenerationResult generate(Memoization memo = Memoization.yes)(string definition, string moduleName = "") nothrow {
     Frontend frontend;
     frontend.input = definition;
-    frontend.memoize = memo == Memoization.yes;
+    frontend.memoize = memo != Memoization.no;
+    frontend.selective = memo == Memoization.selective;
     frontend.read();
     if (frontend.error.message.length)
         return GenerationResult(Status.invalidInput, null, frontend.error);

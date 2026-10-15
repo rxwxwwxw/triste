@@ -16,7 +16,7 @@ find . -maxdepth 1 -name '*.lst' -delete
 DC=dmd scripts/build.sh -cov
 scripts/collect_coverage.sh build/coverage build/dmd/tests dmd-unit
 COVERAGE_DIR=build/coverage DC=dmd scripts/examples.sh -cov
-find build -name '*.gcda' -delete
+find build \( -name '*.gcda' -o -name '*.gcno' -o -name '*.profile' \) -delete
 DC=gdc scripts/build.sh --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno
 scripts/collect_coverage.sh build/coverage build/gdc/tests gdc-unit
 COVERAGE_DIR=build/coverage DC=gdc scripts/examples.sh --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno

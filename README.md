@@ -38,6 +38,19 @@ recursion. Parsing accepts prefixes unless the grammar includes `eoi`.
 `Status` distinguishes mismatch, invalid input, memory failure, resource limits,
 and I/O failure. `result.failMsg` returns an owning diagnostic text buffer.
 
+For validation without a retained tree, use
+`check!(Arithmetic.opCall)(context, input)`. This synchronous recognizer borrows
+input for the call and returns a move-only `CheckResult` with status, success,
+end and furthest-failure offsets. It omits match, child and diagnostic arrays;
+memoized grammars still allocate memo storage. Generated grammars containing
+actions conservatively use tree execution so callbacks retain their captures
+and seed-growth behavior. Include `eoi` to require complete input consumption.
+
+ASCII range/class repetitions in recognition mode use scalar byte scanners.
+Fused or discarded range/class repetitions also use those scanners in tree mode;
+contiguous fused captures borrow the result-owned input. Ordinary repetition
+retains its per-character matches, and Unicode ranges retain scalar decoding.
+
 Compile-time parsing remains available:
 
 ```d

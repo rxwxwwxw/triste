@@ -38,6 +38,9 @@ struct Arena {
     }
 
     private Block* head;
+    private ubyte* cursor;
+    private size_t available;
+    private enum slabBytes = 4096;
     size_t limit = 256 * 1024 * 1024;
     /// Cumulative successful allocator bytes, including block/alignment overhead.
     size_t used;
@@ -73,24 +76,46 @@ struct Arena {
             status = Status.resourceLimit;
             return null;
         }
-        size_t bytes = count * T.sizeof + overhead;
-        if (used > limit || bytes > limit - used) {
+        size_t payload = count * T.sizeof;
+        if (used > limit) {
             status = Status.resourceLimit;
             return null;
         }
-        ++allocationCalls;
-        auto block = cast(Block*)allocator(bytes);
-        if (block is null) {
-            status = Status.outOfMemory;
-            return null;
+        size_t padding = (alignment - (cast(size_t)cursor & (alignment - 1))) & (alignment - 1);
+        T* data;
+        if (cursor !is null && padding <= available && payload <= available - padding) {
+            data = cast(T*)(cursor + padding);
+            cursor += padding + payload;
+            available -= padding + payload;
+        } else {
+            size_t minimum = payload + overhead;
+            if (minimum > limit - used) {
+                status = Status.resourceLimit;
+                return null;
+            }
+            size_t bytes = minimum < slabBytes ? slabBytes : minimum;
+            if (bytes > limit - used)
+                bytes = limit - used;
+            ++allocationCalls;
+            auto block = cast(Block*)allocator(bytes);
+            if (block is null) {
+                status = Status.outOfMemory;
+                return null;
+            }
+            block.next = head;
+            block.bytes = bytes;
+            head = block;
+            used += bytes;
+            auto start = cast(ubyte*)(block + 1);
+            padding = (alignment - (cast(size_t)start & (alignment - 1))) & (alignment - 1);
+            data = cast(T*)(start + padding);
+            // Dedicated oversized blocks must not displace a partially used slab.
+            if (minimum <= slabBytes) {
+                cursor = cast(ubyte*)(data + count);
+                available = bytes - Block.sizeof - padding - payload;
+            }
         }
-        block.next = head;
-        block.bytes = bytes;
-        head = block;
-        used += bytes;
-        requestedBytes += count * T.sizeof;
-        auto address = (cast(size_t)(block + 1) + alignment - 1) & ~(alignment - 1);
-        auto data = cast(T*)address;
+        requestedBytes += payload;
         foreach (i; 0 .. count)
             data[i] = T.init;
         return data[0 .. count];
@@ -118,11 +143,11 @@ struct Arena {
     auto second = arena.copy!int(first);
     assert(second == [42, 0]);
     assert(first.ptr != second.ptr);
-    assert(arena.allocationCalls == 2 && arena.requestedBytes == 4 * int.sizeof);
+    assert(arena.allocationCalls == 1 && arena.requestedBytes == 4 * int.sizeof);
     arena.limit = arena.used;
-    assert(arena.allocate!int(1).length == 0);
+    assert(arena.allocate!ubyte(arena.available + 1).length == 0);
     assert(arena.status == Status.resourceLimit);
-    assert(arena.allocationCalls == 2 && arena.requestedBytes == 4 * int.sizeof);
+    assert(arena.allocationCalls == 1 && arena.requestedBytes == 4 * int.sizeof);
     Arena failed;
     failed.allocator = (size_t bytes) @nogc nothrow => cast(void*)null;
     assert(failed.allocate!int(1).length == 0 && failed.status == Status.outOfMemory);
@@ -132,6 +157,37 @@ struct Arena {
     assert(overflow.allocate!ulong(size_t.max).length == 0);
     assert(overflow.status == Status.resourceLimit);
     assert(overflow.allocationCalls == 0 && overflow.requestedBytes == 0 && overflow.used == 0);
+}
+
+@nogc nothrow unittest {
+    struct Aligned {
+        align(64) ulong value = 17;
+    }
+
+    Arena arena;
+    auto prefix = arena.allocate!ubyte(1);
+    prefix[0] = 93;
+    auto aligned = arena.allocate!Aligned(2);
+    assert(cast(size_t)aligned.ptr % Aligned.alignof == 0);
+    assert(aligned[0].value == 17 && aligned[1].value == 17);
+    auto calls = arena.allocationCalls;
+    auto large = arena.allocate!ubyte(8192);
+    assert(large.length == 8192 && arena.allocationCalls == calls + 1);
+    auto tail = arena.allocate!ubyte(1);
+    assert(tail.length == 1 && arena.allocationCalls == calls + 1);
+    assert(prefix[0] == 93 && aligned[0].value == 17);
+    Arena bounded;
+    bounded.limit = 64;
+    assert(bounded.allocate!ubyte(8).length == 8);
+    assert(bounded.used == 64);
+    auto remaining = bounded.available;
+    assert(bounded.allocate!ubyte(remaining).length == remaining);
+    assert(bounded.allocate!ubyte(1).length == 0);
+    assert(bounded.status == Status.resourceLimit);
+    Arena independent;
+    auto other = independent.allocate!ubyte(1);
+    other[0] = 12;
+    assert(prefix[0] == 93 && other[0] == 12);
 }
 
 /// A growable, move-only buffer for utilities outside the parser.

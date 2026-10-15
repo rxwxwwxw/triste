@@ -551,7 +551,9 @@ int main(string[] args) {
                     "Ambiguous.") ? ArenaMetrics(observed.allocationCalls,
                     observed.payloadBytes, observed.reservedBytes) : engine == 1
                 ? bc.getNPeggedArenaPeak(bc.input) : ArenaMetrics.init;
-            string execution = engine == 2 ? "direct" : comparison ? "native-tree-projection" : "native-tree";
+            string execution = engine == 2 ? "direct" : comparison && engine == 1
+                && mode == OutputMode.validation
+                ? "recognition" : comparison ? "native-tree-projection" : "native-tree";
             if (jsonOutput) {
                 if (matched)
                     printf(",");

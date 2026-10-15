@@ -36,9 +36,10 @@ record before timing:
   arrays contain ordered values. No engine decodes strings or converts numbers.
 
 The caller retains immutable input for every engine. Copies required by an
-engine are included. Pegged and NPegged construct their native generic trees
-internally and project them to these outputs, including validation; `execution`
-records this as `native-tree-projection`. Chumsky validation uses `Parser.check`;
+engine are included. NPegged validation uses its synchronous borrowing recognizer
+(`execution=recognition`), with memo storage still included. Its spans/tree modes
+and all Pegged modes build native generic trees and project them to these outputs
+(`execution=native-tree-projection`). Chumsky validation uses `Parser.check`;
 its span/tree outputs project a native AST. The handwritten parser emits the
 common outputs directly. Equal output obligations do not imply equal internal
 work; the measurements expose the cost of each current implementation.

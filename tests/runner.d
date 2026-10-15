@@ -154,6 +154,27 @@ Actions(Token = 'a'):
     }}
 GRAM";
 
+@nogc nothrow private void recognition() {
+    ParseContext context;
+    foreach (input; ["a", "ababa", "x"]) {
+        auto tree = Cycle(context, input);
+        auto checked = check!(Cycle.opCall)(context, input);
+        assert(checked.status == tree.status && checked.successful == tree.successful);
+        assert(checked.end == tree.end && checked.failEnd == tree.failEnd);
+    }
+    foreach (input; ["<a>text</a>", "<a>text</b>"]) {
+        auto tree = XML(context, input);
+        auto checked = check!(XML.opCall)(context, input);
+        assert(checked.status == tree.status && checked.successful == tree.successful);
+        assert(checked.end == tree.end);
+    }
+    auto first = check!(Numbers.opCall)(context, "123");
+    auto second = Numbers(context, "456");
+    assert(first.successful && second.matches == ["456"]);
+    context.stepLimit = 1;
+    assert(check!(Cycle.opCall)(context, "ababa").status == Status.resourceLimit);
+}
+
 int main() nothrow {
     alarm(180);
     scope (exit)
@@ -167,6 +188,15 @@ int main() nothrow {
         ParseContext context;
         auto parsed = Pegged(context, definition);
         assert(parsed.successful && parsed.end == definition.length);
+        auto checked = check!(Pegged.opCall)(context, definition);
+        assert(checked.successful && checked.end == parsed.end);
+        Arena checkedArena;
+        State!(true, true) checkedCompilerStorage;
+        checkedCompilerStorage.arena = &checkedArena;
+        checkedCompilerStorage.input = definition;
+        auto checkedAlternate = Pegged(checkedCompilerStorage, 0);
+        assert(checkedAlternate.successful && checkedAlternate.end == parsed.end);
+        static assert(typeof(checkedAlternate).sizeof < ParseTree.sizeof);
         Arena alternateArena;
         State!true compileTimeStorage;
         compileTimeStorage.arena = &alternateArena;
@@ -178,6 +208,7 @@ int main() nothrow {
     GC.disable();
     leftRecursion();
     ownershipAndLimits();
+    recognition();
     workflows();
     GC.enable();
     return 0;
