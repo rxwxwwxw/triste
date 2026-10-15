@@ -23,6 +23,7 @@ def run(command, *, cwd=ROOT, env=None, timeout=300):
 
 
 def main():
+    run([sys.executable, str(ROOT / 'tests/test_performance_gate.py')], timeout=30)
     OUTPUT.mkdir(parents=True, exist_ok=True)
     # Keep each fresh collection isolated from core coverage and older benchmark runs.
     if COVERAGE.exists():

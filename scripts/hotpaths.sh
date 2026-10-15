@@ -2,7 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/hotpaths
-for compiler in dmd ldc2 gdc; do
+compilers=${COMPILERS:-"dmd ldc2 gdc"}
+for compiler in $compilers; do
  case $compiler in
    dmd|ldc2) args=(-Isrc -c -vgc tests/hotpath.d "-of=build/hotpaths/$compiler.o");;
    gdc) args=(-Isrc -c -ftransition=nogc tests/hotpath.d -o "build/hotpaths/$compiler.o");;

@@ -46,10 +46,19 @@ memoized grammars still allocate memo storage. Generated grammars containing
 actions conservatively use tree execution so callbacks retain their captures
 and seed-growth behavior. Include `eoi` to require complete input consumption.
 
+Use `grammar!(Memoization.selective)(definition)` to retain memoization for
+left-recursive components while bypassing it for other analyzed rules. The default remains `Memoization.yes`; keep full packrat memoization for
+backtracking-heavy grammars. Unknown external calls, actions and parameterized
+rules use conservative caching. Ordinary nested recursion alone does not require
+seed growth. Recognition uses a small offset/status value rather than a tree.
+
 ASCII range/class repetitions in recognition mode use scalar byte scanners.
 Fused or discarded range/class repetitions also use those scanners in tree mode;
 contiguous fused captures borrow the result-owned input. Ordinary repetition
 retains its per-character matches, and Unicode ranges retain scalar decoding.
+Byte choices and delimiter lookahead followed by `.` also expose scanner metadata,
+including predictive choices. Scanner boundaries use the generic parser so
+failure diagnostics and partially exhausted step budgets retain their behavior.
 
 Compile-time parsing remains available:
 

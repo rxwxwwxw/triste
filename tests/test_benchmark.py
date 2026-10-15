@@ -76,8 +76,47 @@ class BenchmarkRunnerTests(unittest.TestCase):
                     self.assertTrue(group[2]['arenaMeasured'])
                     if mode == 'validation':
                         self.assertEqual(group[2]['allocatorCallsPerOp'], 0)
+                        self.assertEqual(group[1]['allocatorCallsPerOp'], 0)
                     if not group[0]['expectedAccepted']:
                         self.assertEqual(group[0]['outputNodes'], 0)
+
+    def test_workload_validation(self):
+        exported = self.run_runner('--workloads', '--export-corpus')
+        self.assertEqual(exported.returncode, 0, exported.stderr)
+        corpus = json.loads(exported.stdout)
+        names = {case['name'] for case in corpus}
+        self.assertTrue(all(case['output'] == 'validation' for case in corpus))
+        self.assertEqual({name.split('.')[0] for name in names},
+                         {'Arithmetic', 'CSV', 'Numbers', 'PEGGrammar'})
+        self.assertTrue(any(not case['expectedAccepted'] for case in corpus))
+        result = self.run_runner('--workloads', '--json', '--memory',
+                                 '--iterations=2', '--samples=2')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = json.loads(result.stdout)['benchmarks']
+        self.assertEqual(len(rows), 2 * len(names))
+        self.assertEqual({r['name'] for r in rows}, names)
+        for offset in range(0, len(rows), 2):
+            np, hand = rows[offset:offset + 2]
+            self.assertEqual((np['engine'], hand['engine']), ('NPegged', 'Handwritten'))
+            self.assertEqual(np['execution'], 'recognition')
+            for key in ('output', 'outputHash', 'outputNodes', 'expectedAccepted'):
+                self.assertEqual(np[key], hand[key])
+            self.assertEqual(np['output'], 'validation')
+            self.assertTrue(np['arenaMeasured'] and hand['arenaMeasured'])
+        self.assertEqual(self.run_runner('--workloads', '--mode=tree').returncode, 2)
+
+    def test_target_engines(self):
+        result = self.run_runner('--mode=validation', '--target-engines', '--json',
+                                 '--iterations=10', '--samples=2', '--memory')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = json.loads(result.stdout)['benchmarks']
+        self.assertEqual(len(rows), 26)
+        self.assertEqual({r['engine'] for r in rows}, {'NPegged', 'Handwritten'})
+        for offset in range(0, len(rows), 2):
+            pair = rows[offset:offset + 2]
+            self.assertEqual(pair[0]['outputHash'], pair[1]['outputHash'])
+            self.assertEqual(pair[0]['allocatorCallsPerOp'], 0)
+            self.assertEqual(pair[0]['execution'], 'recognition')
 
     def test_legacy_aliases_and_help(self):
         result = self.run_runner('-n', '2', '--samples', '2', '-f', 'JSON.Small', '-m', '--json')

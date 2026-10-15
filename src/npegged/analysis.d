@@ -107,7 +107,8 @@ nothrow:
             return result;
         case ExpressionKind.predicate:
             result.nullable = Nullable.yes;
-            result.known = true;
+            // Unknown children can contain actions; skipping them changes effects.
+            result.known = facts[expression.children[0]].known;
             return result;
         case ExpressionKind.wrapper:
             return facts[expression.children[0]];
@@ -140,6 +141,43 @@ nothrow:
             if (expression.kind == ExpressionKind.sequence && facts[child].nullable == Nullable.no)
                 break;
         }
+    }
+
+    private bool selectedBelow(size_t index, const(uint)[] kinds, ref bool[] visiting) const {
+        const ref expression = expressions[index];
+        if (expression.kind == ExpressionKind.unknown)
+            return true;
+        if (expression.kind == ExpressionKind.predicate)
+            return false;
+        if (expression.kind == ExpressionKind.reference) {
+            auto rule = ruleIndex(expression.reference);
+            if (rule == size_t.max || kinds[rule] != uint.max)
+                return true;
+            if (visiting[rule])
+                return false;
+            visiting[rule] = true;
+            auto selected = selectedBelow(roots[rule], kinds, visiting);
+            visiting[rule] = false;
+            return selected;
+        }
+        foreach (child; expression.children)
+            if (selectedBelow(child, kinds, visiting))
+                return true;
+        return false;
+    }
+
+    /// Selected leaves can be emitted after success, avoiding speculative allocation.
+    bool[] selectedLeaves(const(uint)[] kinds) const {
+        assert(kinds.length == names.length);
+        auto result = new bool[names.length];
+        foreach (i, kind; kinds) {
+            if (kind == uint.max)
+                continue;
+            auto visiting = new bool[names.length];
+            visiting[i] = true;
+            result[i] = !selectedBelow(roots[i], kinds, visiting);
+        }
+        return result;
     }
 
     // Tarjan SCC: ordinary recursion after a consumed terminal creates no left edge.
@@ -262,4 +300,23 @@ unittest {
     GrammarAnalysis empty;
     empty.solve();
     assert(!empty.conservative && empty.leftRecursive.length == 0);
+}
+
+unittest {
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["Root", "Leaf", "Predicate", "Cycle"];
+    graph.expressions = [
+        Expression(K.reference, null, "Leaf"), Expression(K.terminal), Expression(K.predicate,
+                [0]), Expression(K.sequence, [2, 1]), Expression(K.reference, null, "Cycle"),
+        Expression(K.choice, [4, 1]), Expression(K.reference, null, "outside"), Expression(K.unknown)
+    ];
+    graph.roots = [0, 1, 3, 5];
+    assert(graph.selectedLeaves([0U, 1U, 2U, uint.max]) == [false, true, true, false]);
+    graph.roots[0] = 4;
+    assert(graph.selectedLeaves([0U, uint.max, uint.max, uint.max])[0]);
+    graph.roots[0] = 6;
+    assert(!graph.selectedLeaves([0U, uint.max, uint.max, uint.max])[0]);
+    graph.roots[0] = 7;
+    assert(!graph.selectedLeaves([0U, uint.max, uint.max, uint.max])[0]);
 }

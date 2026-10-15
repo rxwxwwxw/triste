@@ -63,6 +63,17 @@ extra parse, including reallocations; reserved bytes are `null` because portable
 System allocator overhead is unknown. GC counters are reported separately and
 exclude malloc traffic. Parser construction is excluded from allocator samples.
 
+The NPegged comparison grammars explicitly use `Memoization.selective`.
+JSON groups ordinary string runs into a fused lexical rule with escape fallback;
+the same grammar text is used for both PEG engines. The acceptance language and
+common output records remain checked. Validation of these grammars allocates
+no parser storage; owned tree output still includes its allocation and copying.
+
+Use `--target-engines` on the D runner to time NPegged and handwritten D only.
+All-engine acceptance/output checks still execute before timing. This avoids
+spending most of a high-iteration target measurement in the contextual Pegged
+engine. The four-engine comparison script keeps its original engine set.
+
 For the D engines alone, run `scripts/benchmark.sh --mode=tree --memory --json
 --iterations=20 --samples=5` as one command. Omitting `--mode` retains the legacy
 mixed-output suite (arithmetic, CSV, numbers, and PEG grammars as well as JSON).
@@ -86,3 +97,35 @@ The D helper modules contain adjacent unit tests; Rust tests run with
 `timeout 30s cargo test --locked --manifest-path benchmark/chumsky/Cargo.toml`.
 Chumsky parser APIs are documented at
 https://docs.rs/chumsky/0.13.0/chumsky/trait.Parser.html.
+
+`python3 scripts/performance_gate.py` builds once and runs NPegged/handwritten
+pairs in three independent processes per output mode, each with seven measured
+samples. It writes raw measurements, per-case ratios, failures and source/compiler
+metadata to `build/performance-acceptance.json`, and fails if any ratio exceeds 5.
+It rejects unequal outputs, incomplete pairs, unresolved clocks and source changes
+during measurement. Use `--modes validation` to gate that mode separately; a
+partial-mode pass is not a full performance-plan acceptance. The current corpus
+covers JSON and ambiguity; the other handwritten workloads still need adapters.
+Run it without concurrent compilation or other heavy work. `make DC=ldc2
+performance-check` is equivalent (one shell command).
+
+### Additional handwritten validation workloads
+
+`--workloads` selects paired NPegged/handwritten validation for arithmetic, CSV,
+scientific/hex/binary numbers, and the handwritten PEG syntax recognizer:
+
+```bash
+scripts/benchmark.sh --workloads --json --memory --iterations=2000 --samples=7
+build/ldc2/benchmark_runner --workloads --export-corpus
+```
+
+NPegged uses selective generated recognition grammars in `workload_grammars.d`.
+Both engines return boolean acceptance with complete consumption; input is borrowed
+synchronously. These rows do not time generic trees or claim span/tree coverage.
+The suite omits Pegged because its illustrative grammars have different syntax.
+The PEG adapter follows the handwritten recognizer's permissive syntax (including
+balanced parameter text and repeated suffixes), rather than the bootstrap language.
+Adjacent differential tests cover short exhaustive arithmetic/CSV/numeric inputs
+and PEG token combinations. The default repeated `performance_gate.py` now includes
+this corpus in addition to the requested JSON/ambiguity output modes. A pass still
+requires every row to meet 5× in every run; exploratory results are not acceptance.

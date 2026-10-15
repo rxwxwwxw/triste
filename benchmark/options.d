@@ -11,7 +11,7 @@ struct Options {
     size_t iterations;
     size_t samples = 5;
     string filter;
-    bool json, memory, comparison, exportCorpus;
+    bool json, memory, comparison, exportCorpus, targetEngines, workloads;
     OutputMode mode;
 }
 
@@ -104,6 +104,13 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
             case "--export-corpus":
                 options.exportCorpus = true;
                 break;
+            case "--workloads":
+                options.workloads = true;
+                options.comparison = true;
+                break;
+            case "--target-engines":
+                options.targetEngines = true;
+                break;
             case "--help":
             case "-h":
                 return OptionStatus.help;
@@ -112,6 +119,8 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
             }
         }
     }
+    if (options.workloads && options.mode != OutputMode.validation)
+        return OptionStatus.invalid;
     return OptionStatus.ok;
 }
 
@@ -120,19 +129,21 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
         ["runner"], ["runner", "-n", "2", "-f", "JSON", "-m", "--json"],
         ["runner", "--iterations=3", "--samples=2", "--filter=", "--mode=tree"],
         ["runner", "--iterations", "3", "--samples", "2", "--filter", "JSON", "--mode", "spans"],
-        ["runner", "--mode=validation", "--export-corpus", "--memory"]
+        ["runner", "--mode=validation", "--export-corpus", "--memory", "--target-engines"]
     ];
     foreach (args; valid) {
         Options options;
         assert(parseOptions(args, options) == OptionStatus.ok);
     }
     static immutable string[] combined = [
-        "runner", "-n=2", "-f=JSON", "-m", "--json", "--mode=tree", "--samples=3", "--export-corpus"
+        "runner", "-n=2", "-f=JSON", "-m", "--json", "--mode=tree", "--samples=3",
+        "--export-corpus", "--target-engines"
     ];
     Options options;
     assert(parseOptions(combined, options) == OptionStatus.ok);
     assert(options.iterations == 2 && options.samples == 3 && options.filter == "JSON");
-    assert(options.memory && options.json && options.comparison && options.exportCorpus);
+    assert(options.memory && options.json && options.comparison && options.exportCorpus && options
+            .targetEngines);
     assert(options.mode == OutputMode.tree);
     foreach (flag; ["--help", "-h"]) {
         string[2] args = ["runner", flag];
@@ -147,4 +158,12 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
     ];
     foreach (args; invalid)
         assert(parseOptions(args, options) == OptionStatus.invalid);
+}
+
+@nogc nothrow pure unittest {
+    Options options;
+    assert(parseOptions(["runner", "--workloads"], options) == OptionStatus.ok);
+    assert(options.workloads && options.comparison);
+    Options bad;
+    assert(parseOptions(["runner", "--workloads", "--mode=tree"], bad) == OptionStatus.invalid);
 }

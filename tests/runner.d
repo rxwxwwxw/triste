@@ -2,6 +2,7 @@
     Run only through scripts/build.sh, which applies a mandatory process timeout. */
 module tests.runner;
 import npegged.grammar;
+import npegged.records : RecordBuffer;
 import npegged.parser;
 import npegged.definition;
 import npegged.formatting;
@@ -175,6 +176,10 @@ GRAM";
     assert(check!(Cycle.opCall)(context, "ababa").status == Status.resourceLimit);
 }
 
+private uint everyRule(string name) @nogc nothrow pure {
+    return 0;
+}
+
 int main() nothrow {
     alarm(180);
     scope (exit)
@@ -190,6 +195,22 @@ int main() nothrow {
         assert(parsed.successful && parsed.end == definition.length);
         auto checked = check!(Pegged.opCall)(context, definition);
         assert(checked.successful && checked.end == parsed.end);
+        auto compact = parseRecords!(Pegged.opCall, everyRule)(context, definition);
+        assert(compact.successful && compact.end == parsed.end && compact.nodes.length > 0);
+        foreach (i, node; compact.nodes)
+            assert(node.parent == size_t.max || node.parent < i);
+        Arena recordWork, recordStorage;
+        RecordBuffer records;
+        records.arena = &recordStorage;
+        records.selector = &everyRule;
+        State!(true, 2) alternateRecords;
+        alternateRecords.arena = &recordWork;
+        alternateRecords.input = definition;
+        alternateRecords.context = context;
+        alternateRecords.attachRecords(records);
+        auto recorded = Pegged(alternateRecords, 0);
+        assert(recorded.successful && recorded.end == parsed.end);
+        assert(records.nodes == compact.nodes);
         Arena checkedArena;
         State!(true, true) checkedCompilerStorage;
         checkedCompilerStorage.arena = &checkedArena;

@@ -1,12 +1,14 @@
 module benchmark.json_comparison;
 
-import benchmark.json_output : OutputMode, JsonOutput, projectTree, fingerprint, handwrittenOutput, ambiguousOutput;
-import benchmark.json_npegged : NPJson = JSON;
+import benchmark.json_output : OutputMode, NodeKind, JsonOutput, projectTree, fingerprint,
+    handwrittenOutput, ambiguousOutput;
+import benchmark.json_npegged : NPJson = JSON, NPJsonTree = TreeJSON, NPJsonSpans = SpanJSON;
 import benchmark.json_pegged : PJson = JSON;
-import npegged.peg : ParseContext, check;
-import benchmark.ambiguous_npegged : NPAmbiguous = Ambiguous;
+import npegged.peg : ParseContext, check, parseRecords, CompactResult;
+import benchmark.ambiguous_npegged : NPAmbiguous = Ambiguous, NPAmbiguousRecords = AmbiguousRecords;
 import benchmark.ambiguous_pegged : PAmbiguous = Ambiguous;
 import npegged.storage : Status;
+import benchmark.json_grammar : treeTag, spanTag;
 
 public import benchmark.measurement : Observation;
 
@@ -38,6 +40,47 @@ Observation observeHandwritten(string input, OutputMode mode, bool ambiguous = f
     assert(!observeHandwritten("[", OutputMode.tree).accepted);
 }
 
+private CompactResult compactParse(ref ParseContext context, string input, OutputMode mode,
+        bool ambiguous, size_t outputLimit) @nogc nothrow {
+    if (mode == OutputMode.spans) {
+        if (ambiguous)
+            return parseRecords!(NPAmbiguousRecords.opCall, spanTag, false)(context, input, outputLimit);
+        return parseRecords!(NPJsonSpans.opCall, spanTag, false)(context, input, outputLimit);
+    }
+    if (ambiguous)
+        return parseRecords!(NPAmbiguousRecords.opCall, treeTag, false)(context, input, outputLimit);
+    return parseRecords!(NPJsonTree.opCall, treeTag, false)(context, input, outputLimit);
+}
+
+@nogc nothrow unittest {
+    ParseContext context;
+    auto output = compactParse(context, "[1]", OutputMode.tree, false, 1 << 20);
+    assert(output.successful && output.nodes.length == 2 && output.nodes[1].parent == 0);
+    auto spans = compactParse(context, "[1]", OutputMode.spans, false, 1 << 20);
+    assert(spans.nodes.length == 1 && spans.nodes[0].parent == size_t.max);
+    assert(compactParse(context, "aac", OutputMode.spans, true, 1 << 20).successful);
+    assert(compactParse(context, "aac", OutputMode.tree, true, 1 << 20).successful);
+    auto empty = compactParse(context, "{}", OutputMode.spans, false, 0);
+    assert(empty.successful && empty.nodes.length == 0 && empty.outputArena.allocationCalls == 0);
+}
+
+private Observation summarize(ref CompactResult output) @nogc nothrow {
+    return Observation(output.successful, output.successful ? fingerprint(output.nodes) : 0,
+            output.nodes.length, output.arena.allocationCalls + output.outputArena.allocationCalls,
+            output.arena.requestedBytes + output.outputArena.requestedBytes,
+            output.arena.used + output.outputArena.used, true, output.status == Status.mismatch
+            ? Status.ok : output.status);
+}
+
+@nogc nothrow unittest {
+    CompactResult output;
+    assert(summarize(output).status == Status.invalidInput);
+    output.status = Status.mismatch;
+    assert(summarize(output).status == Status.ok && !summarize(output).accepted);
+    output.successful = true;
+    assert(summarize(output).outputHash != 0);
+}
+
 Observation observeNPegged(string input, OutputMode mode, bool ambiguous = false,
         size_t memoryLimit = 256 * 1024 * 1024, size_t outputLimit = 256 * 1024 * 1024) @nogc nothrow {
     ParseContext context;
@@ -55,22 +98,8 @@ Observation observeNPegged(string input, OutputMode mode, bool ambiguous = false
             result.status = native.status;
         return result;
     }
-    auto native = ambiguous ? NPAmbiguous(context, input) : NPJson(context, input);
-    JsonOutput output;
-    output.arena.limit = outputLimit;
-    // Both benchmark grammars include eoi in their start rule.
-    output.accepted = native.successful;
-    if (output.accepted && mode != OutputMode.validation) {
-        if (!projectTree(native.tree, mode, output))
-            output.reject();
-    }
-    auto result = summarize(output);
-    result.allocationCalls += native.arena.allocationCalls;
-    result.payloadBytes += native.arena.requestedBytes;
-    result.reservedBytes += native.arena.used;
-    if (native.status != Status.ok && native.status != Status.mismatch)
-        result.status = native.status;
-    return result;
+    auto native = compactParse(context, input, mode, ambiguous, outputLimit);
+    return summarize(native);
 }
 
 @nogc nothrow unittest {
@@ -78,10 +107,15 @@ Observation observeNPegged(string input, OutputMode mode, bool ambiguous = false
         auto np = observeNPegged(` {"a":[-1.5e2,true,false,null]} `, mode);
         auto hw = observeHandwritten(` {"a":[-1.5e2,true,false,null]} `, mode);
         assert(np.accepted && hw.accepted && np.outputHash == hw.outputHash);
-        assert(np.outputNodes == hw.outputNodes && np.allocationCalls > hw.allocationCalls);
+        assert(np.outputNodes == hw.outputNodes);
+        if (mode == OutputMode.validation)
+            assert(np.allocationCalls == 0);
+        else
+            assert(np.allocationCalls == hw.allocationCalls);
         assert(!observeNPegged("{}x", mode).accepted);
         auto limited = observeNPegged("{}x", mode, false, 0);
-        assert(!limited.accepted && limited.status == Status.resourceLimit);
+        assert(!limited.accepted);
+        assert(limited.status == Status.ok);
         if (mode != OutputMode.validation) {
             auto outputLimited = observeNPegged(`"x"`, mode, false, 256 * 1024 * 1024, 0);
             assert(!outputLimited.accepted && outputLimited.status == Status.resourceLimit);
@@ -127,24 +161,34 @@ bool verifyOutputs(string input, OutputMode mode, bool expected, bool ambiguous 
     auto hw = ambiguous ? ambiguousOutput(input, mode) : handwrittenOutput(input, mode);
     ParseContext context;
     context.memoryLimit = memoryLimit;
-    auto np = ambiguous ? NPAmbiguous(context, input) : NPJson(context, input);
+    if (mode == OutputMode.validation) {
+        auto np = ambiguous ? check!(NPAmbiguous.opCall)(context, input) : check!(NPJson.opCall)(context,
+                input);
+        auto p = ambiguous ? PAmbiguous(input) : PJson(input);
+        if (np.status != Status.ok && np.status != Status.mismatch)
+            return false;
+        return (hw.accepted == expected) & ((np.successful
+                && np.end == input.length) == expected) & ((p.successful && p.end == input.length) == expected);
+    }
+    auto np = compactParse(context, input, mode, ambiguous, npOutputLimit);
     auto p = ambiguous ? PAmbiguous(input) : PJson(input);
     if (np.status != Status.ok && np.status != Status.mismatch)
         return false;
-    JsonOutput npOutput, pOutput;
-    npOutput.arena.limit = npOutputLimit;
+    JsonOutput pOutput;
     pOutput.arena.limit = pOutputLimit;
-    npOutput.accepted = np.successful & (np.end == input.length);
-    pOutput.accepted = p.successful & (p.end == input.length);
-    if (mode != OutputMode.validation) {
-        if (npOutput.accepted && !projectTree(np.tree, mode, npOutput))
-            return false;
-        if (pOutput.accepted && !projectTree(p, mode, pOutput))
+    pOutput.accepted = p.successful && p.end == input.length;
+    if (pOutput.accepted && !projectTree(p, mode, pOutput))
+        return false;
+    if (hw.accepted != expected || np.successful != expected || pOutput.accepted != expected
+            || np.nodes.length != hw.nodes.length || hw.nodes != pOutput.nodes)
+        return false;
+    foreach (i, node; np.nodes) {
+        auto common = hw.nodes[i];
+        if (node.kind != cast(uint)common.kind || node.begin != common.begin || node.end != common.end
+                || node.parent != common.parent)
             return false;
     }
-    // Evaluate all three acceptance checks and both complete record comparisons.
-    return (hw.accepted == expected) & (npOutput.accepted == expected) & (
-            pOutput.accepted == expected) & (hw.nodes == npOutput.nodes) & (hw.nodes == pOutput.nodes);
+    return true;
 }
 
 unittest {
@@ -152,7 +196,7 @@ unittest {
         assert(verifyOutputs(` {"a":[true,false,null,0,"x"],"b":{}} `, mode, true));
         assert(verifyOutputs("[1,]", mode, false));
         assert(!verifyOutputs("[]", mode, false));
-        assert(!verifyOutputs("{}x", mode, false, false, 0));
+        assert(verifyOutputs("{}x", mode, false, false, 0));
         if (mode != OutputMode.validation) {
             assert(!verifyOutputs(`"x"`, mode, true, false, 256 * 1024 * 1024, 0));
             assert(!verifyOutputs(`"x"`, mode, true, false, 256 * 1024 * 1024, 256 * 1024 * 1024, 0));

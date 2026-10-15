@@ -18,7 +18,7 @@ enum Memoization {
     selective
 }
 
-private string number(size_t value) pure nothrow {
+private string number(ulong value) pure nothrow {
     char[32] digits;
     size_t start = digits.length;
     do {
@@ -118,6 +118,8 @@ private struct Frontend {
     string name, params;
     bool memoize = true;
     bool selective;
+    uint[] recordKinds;
+    string[] parameterNames;
     private GrammarAnalysis analyzed;
     private bool hasAnalysis;
     void skip() nothrow {
@@ -176,6 +178,7 @@ private struct Frontend {
                 problem("Expected parameter name");
                 break;
             }
+            parameterNames ~= id;
             result ~= "alias " ~ id;
             if (accept('='))
                 result ~= " = " ~ expression();
@@ -837,7 +840,13 @@ private struct Frontend {
             text = text[0 .. $ - 1];
         Expression node;
         node.source = text;
-        if (graph.ruleIndex(text) != size_t.max) {
+        bool parameter;
+        foreach (name; parameterNames)
+            if (text == name)
+                parameter = true;
+        if (parameter)
+            node.kind = ExpressionKind.unknown;
+        else if (graph.ruleIndex(text) != size_t.max) {
             node.kind = ExpressionKind.reference;
             node.reference = text;
         } else if (text == "eps" || text == "eoi" || text == "endOfInput" || text == "fail") {
@@ -900,7 +909,7 @@ private struct Frontend {
                     // Unknown Unicode FIRST bytes must not imply unknown rule calls.
                     node.kind = ExpressionKind.terminal;
                     node.nullable = Nullable.no;
-                } else if (text == "spacing") {
+                } else if (text == "spacing" || text == "Spacing") {
                     node.kind = ExpressionKind.terminal;
                     node.nullable = Nullable.yes;
                     node.known = true;
@@ -1038,6 +1047,15 @@ private struct Frontend {
         return emitExpression(query, root);
     }
 
+    void configureRecords(alias Selector)() nothrow {
+        static if (!is(Selector == void)) {
+            static assert(__traits(compiles, { uint function(string) @nogc nothrow pure fn = &Selector; }),
+                    "Compact selectors must be pure @nogc nothrow uint functions");
+            foreach (rule; rules)
+                recordKinds ~= Selector(name ~ "." ~ rule.name);
+        }
+    }
+
     string emit() nothrow {
         prepareAnalysis();
         foreach (i, ref rule; rules)
@@ -1048,6 +1066,18 @@ private struct Frontend {
                 if (startsWith(rule.body[i .. $], "action!("))
                     actionGrammar = true;
         string result = "struct " ~ name ~ params ~ " {\n";
+        if (recordKinds.length) {
+            result ~= "enum string[] compactRuleNames = [";
+            foreach (i, rule; rules)
+                result ~= (i ? ", " : "") ~ quoted(name ~ "." ~ rule.name);
+            result ~= "];\nenum uint[] compactRuleKinds = [";
+            foreach (i, kind; recordKinds)
+                result ~= (i ? ", " : "") ~ number(kind);
+            result ~= "];\n";
+        }
+        bool[] recordLeaves;
+        if (recordKinds.length)
+            recordLeaves = analyzed.selectedLeaves(recordKinds);
         bool spacingDefined;
         foreach (rule; rules)
             if (rule.name == "Spacing")
@@ -1058,22 +1088,29 @@ private struct Frontend {
             bool cache = memoize && (!selective || analyzed.conservative || analyzed.leftRecursive[ruleIndex]);
             if (params.length || rule.params.length)
                 cache = memoize;
+            string recordTag;
+            if (recordKinds.length)
+                recordTag = ", " ~ (recordKinds[ruleIndex] == uint.max
+                        ? "-2" : number(cast(ulong)recordKinds[ruleIndex] | (recordLeaves[ruleIndex]
+                            ? 1UL << 32 : 0UL)) ~ "L");
             if (rule.params.length)
                 result ~= "template " ~ rule.name ~ rule.params ~ " {\n";
             string r = rule.name;
             string entryName = rule.params.length ? "_entry" : r;
-            result ~= "private static State!(CT, Check).Node _" ~ r ~ "(bool CT, bool Check = false)(ref State!(CT, Check) s, size_t p) nothrow { return defined!(" ~ rule
+            result ~= "private static State!(CT, Check).Node _" ~ r ~ "(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow { return defined!(" ~ rule
                 .body ~ ", " ~ quoted(name ~ "." ~ r) ~ ")(s,p); }\n";
             // Concrete overloads break recursive attribute-inference cycles.
-            foreach (mode; ["false, false", "true, false", "false, true", "true, true"]) {
+            foreach (mode; [
+                "false, false", "true, false", "false, true", "true, true", "false, 2", "true, 2"
+            ]) {
                 auto attributes = !startsWith(mode, "true") ? " @nogc nothrow" : " nothrow";
                 result ~= "static State!(" ~ mode ~ ").Node " ~ entryName ~ (startsWith(mode, "true")
                         ? "(CompileTime = void)" : "") ~ "(ref State!(" ~ mode ~ ") s, size_t p)" ~ attributes;
-                if (actionGrammar && (mode == "false, true" || mode == "true, true"))
+                if (actionGrammar && (mode != "false, false" && mode != "true, false"))
                     result ~= " { return s.treeFallback!(" ~ entryName ~ ")(p); }\n";
                 else
                     result ~= " { return s.rule!(_" ~ r ~ "!(" ~ mode ~ "), " ~ quoted(
-                            name ~ "." ~ r) ~ ", " ~ (cache ? "true" : "false") ~ ")(p); }\n";
+                            name ~ "." ~ r) ~ ", " ~ (cache ? "true" : "false") ~ recordTag ~ ")(p); }\n";
             }
             result ~= "static ParseResult " ~ entryName ~ "(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(" ~ entryName ~ ")(ctx,input); }\n";
             result ~= "static ParseTree " ~ entryName
@@ -1084,11 +1121,13 @@ private struct Frontend {
         }
         if (!rules[0].params.length) {
             auto first = rules[0].name;
-            foreach (mode; ["false, false", "true, false", "false, true", "true, true"]) {
+            foreach (mode; [
+                "false, false", "true, false", "false, true", "true, true", "false, 2", "true, 2"
+            ]) {
                 result ~= "static State!(" ~ mode ~ ").Node opCall" ~ (startsWith(mode, "true")
                         ? "(CompileTime = void)" : "") ~ "(ref State!(" ~ mode ~ ") s, size_t p)" ~ (
                         !startsWith(mode, "true") ? " @nogc" : "") ~ " nothrow { auto t = " ~ first
-                    ~ "(s,p); " ~ ((mode == "false, true" || mode == "true, true")
+                    ~ "(s,p); " ~ ((mode != "false, false" && mode != "true, false")
                             ? "" : "t.name = " ~ quoted(name) ~ "; ") ~ "return t; }\n";
             }
             result ~= "static ParseResult opCall(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(opCall)(ctx,input); }\n";
@@ -1304,7 +1343,7 @@ unittest {
 }
 
 /// Returns D source for mixin() or cold runtime generation. Grammar errors become static diagnostics.
-string grammar(Memoization memo = Memoization.yes)(string definition) nothrow {
+string grammar(Memoization memo = Memoization.yes, alias Selector = void)(string definition) nothrow {
     Frontend frontend;
     frontend.input = definition;
     frontend.memoize = memo != Memoization.no;
@@ -1313,6 +1352,7 @@ string grammar(Memoization memo = Memoization.yes)(string definition) nothrow {
     if (frontend.error.message.length)
         return "static assert(false, " ~ quoted(
                 frontend.error.message ~ " at byte " ~ number(frontend.error.offset)) ~ ");";
+    frontend.configureRecords!Selector();
     return frontend.emit();
 }
 
@@ -1380,6 +1420,8 @@ version (unittest) private ParseTree countAction(bool CT)(ref State!CT state, Pa
 }
 
 version (unittest) mixin(grammar(`ActionRecognition: Root <- (Root 'a' / 'a'){countAction}`));
+version (unittest) mixin(grammar(`PredicateAction: Root <- (&('a'{countAction}) 'a' / 'b') eoi`));
+version (unittest) mixin(grammar!(Memoization.selective)(`SelectiveAction: Root <- (Root 'a' / 'a'){countAction}`));
 
 @nogc nothrow unittest {
     ParseContext context;
@@ -1391,6 +1433,257 @@ version (unittest) mixin(grammar(`ActionRecognition: Root <- (Root 'a' / 'a'){co
     auto recognized = check!(ActionRecognition.opCall)(context, "aaa");
     assert(recognized.successful == tree.successful && recognized.end == tree.end);
     assert(calls == treeCalls && calls > 0);
+    calls = 0;
+    auto selected = check!(SelectiveAction.opCall)(context, "aaa");
+    assert(selected.successful && selected.end == tree.end);
+    assert(calls == treeCalls && selected.arena.allocationCalls > 0);
+}
+
+@nogc nothrow unittest {
+    ParseContext context;
+    size_t calls;
+    context.userData = &calls;
+    auto tree = PredicateAction(context, "b");
+    assert(tree.successful && calls == 1);
+    calls = 0;
+    auto recognized = check!(PredicateAction.opCall)(context, "b");
+    assert(recognized.successful && calls == 1);
+}
+
+version (unittest) mixin(grammar!(Memoization.selective)(`
+SelectiveLeft:
+    Root <- Expr eoi
+    Expr <- Expr '+' Number / Number
+    Number <~ [0-9]+
+`));
+version (unittest) mixin(grammar!(Memoization.selective)(`
+SelectiveNested:
+    Root <- '(' Root ')' / 'x'
+`));
+version (unittest) mixin(grammar!(Memoization.selective)(`
+SelectiveHidden:
+    Root <- Prefix? Root 'a' / 'a'
+    Prefix <- 'b'
+`));
+
+@nogc nothrow unittest {
+    ParseContext context;
+    foreach (input; ["1+2+3", "x", "1+"]) {
+        auto full = RuntimeTest(context, input);
+        auto selected = SelectiveLeft.Expr(context, input);
+        assert(selected.successful == full.successful && selected.end == full.end);
+        auto recognized = check!(SelectiveLeft.Expr)(context, input);
+        assert(recognized.successful == selected.successful && recognized.end == selected.end);
+    }
+    auto nested = check!(SelectiveNested.opCall)(context, "(((x)))");
+    assert(nested.successful && nested.end == 7 && nested.arena.allocationCalls == 0);
+    auto hidden = check!(SelectiveHidden.opCall)(context, "aaaa");
+    assert(hidden.successful && hidden.end == 4 && hidden.arena.allocationCalls > 0);
+}
+
+unittest {
+    Frontend graph;
+    graph.input = "Test: A <- B? C B <- 'b' C <- 'c'";
+    graph.read();
+    auto first = graph.computeFirstSet("A");
+    assert(first.known && !first.canBeEmpty && first.mask.contains('b') && first.mask.contains('c'));
+    assert(!graph.computeFirstSet("charRange!(128, 255)").known);
+    assert(graph.optimizeRule(`literal!("or!(x)")`) == `literal!("or!(x)")`);
+    auto args = Frontend.splitTemplateArgs(`literal!("\\"), literal!("a")`);
+    assert(args.length == 2);
+    auto selected = grammar!(Memoization.selective)("Nested: A <- '(' A ')' / 'x'");
+    assert(selected.length);
+}
+
+version (unittest) private uint compactTag(string name) @nogc nothrow pure {
+    if (name.length >= 5 && name[$ - 5 .. $] == ".Root")
+        return 0;
+    if (name.length >= 5 && name[$ - 5 .. $] == ".Leaf")
+        return 1;
+    if (name.length >= 8 && name[$ - 8 .. $] == ".Ignored")
+        return uint.max;
+    return 2;
+}
+
+version (unittest) mixin(grammar!(Memoization.selective)(`
+RecordNested:
+    Root <- Ignored Branch eoi
+    Ignored <: ' '?
+    Branch <- '[' Leaf (',' Leaf)* ']'
+    Leaf <~ [a-z]+
+`));
+version (unittest) mixin(grammar!(Memoization.yes, compactTag)(`
+RecordBacktrack:
+    Root <- (Branch / Leaf) eoi
+    Branch <- Leaf ':' Leaf
+    Leaf <~ [a-z]+
+`));
+version (unittest) mixin(grammar(`
+RecordPredicate:
+    Root <- &Branch Branch eoi
+    Branch <- Leaf
+    Leaf <~ [a-z]+
+`));
+version (unittest) mixin(grammar!(Memoization.selective)(`
+RecordLeft:
+    Root <- Expr eoi
+    Expr <- Expr '+' Leaf / Leaf
+    Leaf <~ [0-9]+
+`));
+version (unittest) mixin(grammar!(Memoization.yes, compactTag)(`
+RecordLongest:
+    Root <- (Short | Long) eoi
+    Short <- Leaf
+    Long <- Leaf Leaf
+    Leaf <- [a-z]
+`));
+version (unittest) mixin(grammar(`
+RecordAction:
+    Root <- Branch eoi
+    Branch <- Leaf {countAction}
+    Leaf <~ [a-z]+
+`));
+
+@nogc nothrow unittest {
+    ParseContext context;
+    auto nested = parseRecords!(RecordNested.opCall, compactTag)(context, "[a,b]");
+    assert(nested.successful && nested.nodes.length == 4);
+    assert(nested.nodes[0] == CompactNode(0, 0, 5));
+    assert(nested.nodes[1] == CompactNode(2, 0, 5, 0));
+    assert(nested.nodes[2] == CompactNode(1, 1, 2, 1));
+    assert(nested.nodes[3] == CompactNode(1, 3, 4, 1));
+    auto backtrack = parseRecords!(RecordBacktrack.opCall, compactTag)(context, "a");
+    assert(backtrack.successful && backtrack.nodes.length == 2);
+    assert(backtrack.nodes[1] == CompactNode(1, 0, 1, 0));
+    auto predicate = parseRecords!(RecordPredicate.opCall, compactTag)(context, "abc");
+    assert(predicate.successful && predicate.nodes.length == 3);
+    assert(predicate.nodes[1] == CompactNode(2, 0, 3, 0));
+    assert(predicate.nodes[2] == CompactNode(1, 0, 3, 1));
+    auto left = parseRecords!(RecordLeft.opCall, compactTag)(context, "1+2+3");
+    assert(left.successful && left.nodes.length == 7);
+    assert(left.nodes[4] == CompactNode(1, 0, 1, 3));
+    assert(left.nodes[5] == CompactNode(1, 2, 3, 2));
+    assert(left.nodes[6] == CompactNode(1, 4, 5, 1));
+    auto longest = parseRecords!(RecordLongest.opCall, compactTag)(context, "ab");
+    assert(longest.successful && longest.nodes.length == 4);
+    assert(longest.nodes[1] == CompactNode(2, 0, 2, 0));
+    assert(longest.nodes[2] == CompactNode(1, 0, 1, 1));
+    assert(longest.nodes[3] == CompactNode(1, 1, 2, 1));
+    size_t calls;
+    context.userData = &calls;
+    auto action = parseRecords!(RecordAction.opCall, compactTag)(context, "abc");
+    assert(action.successful && calls == 1 && action.nodes.length == 3);
+    assert(action.nodes[2] == CompactNode(1, 0, 3, 1));
+    auto bad = parseRecords!(RecordNested.opCall, compactTag)(context, "[a,]");
+    assert(!bad.successful && bad.status == Status.mismatch && bad.nodes.length == 0);
+    auto limited = parseRecords!(RecordNested.opCall, compactTag)(context, "[a]", 0);
+    assert(!limited.successful && limited.status == Status.resourceLimit && limited.nodes.length == 0);
+    foreach (budget; 0 .. 100) {
+        context = ParseContext.init;
+        context.stepLimit = budget;
+        auto trial = parseRecords!(RecordLeft.opCall, compactTag)(context, "1+2+3");
+        assert(trial.status == Status.ok || trial.status == Status.resourceLimit);
+        if (!trial.successful)
+            assert(trial.nodes.length == 0);
+    }
+}
+
+version (unittest) private uint wrongCompactTag(string name) @nogc nothrow pure {
+    return uint.max;
+}
+
+version (unittest) enum staticRecordDefinition = `StaticRecords:
+    Root <- Ignored &Leaf Leaf eoi
+    Ignored <: ' '?
+    Leaf <~ [a-z]+
+`;
+version (unittest) mixin(grammar!(Memoization.selective, compactTag)(staticRecordDefinition));
+
+@nogc nothrow unittest {
+    ParseContext context;
+    auto result = parseRecords!(StaticRecords.opCall, compactTag, false)(context, " abc");
+    assert(result.successful && result.nodes.length == 2 && result.input is null);
+    assert(result.nodes[0] == CompactNode(0, 0, 4));
+    assert(result.nodes[1] == CompactNode(1, 1, 4, 0));
+    auto typeEntry = parseRecords!(StaticRecords, compactTag)(context, "abc");
+    assert(typeEntry.successful && typeEntry.nodes.length == 2 && typeEntry.input == "abc");
+    static assert(!__traits(compiles, parseRecords!(StaticRecords.opCall, wrongCompactTag)(context, "abc")));
+    auto owned = parseRecords!(RecordNested.opCall, compactTag)(context, "[a,b]");
+    auto borrowed = parseRecords!(RecordNested.opCall, compactTag, false)(context, "[a,b]");
+    assert(owned.nodes == borrowed.nodes && borrowed.input is null);
+    assert(borrowed.arena.allocationCalls == 0 && owned.arena.allocationCalls == 1);
+    auto rejectedLeaf = parseRecords!(StaticRecords.Leaf, compactTag, false)(context, "!", 0);
+    assert(rejectedLeaf.status == Status.mismatch && rejectedLeaf.outputArena.allocationCalls == 0);
+    auto limitedLeaf = parseRecords!(StaticRecords.Leaf, compactTag, false)(context, "abc", 0);
+    assert(limitedLeaf.status == Status.resourceLimit && limitedLeaf.nodes.length == 0);
+    assert(limitedLeaf.end == 3);
+    foreach (budget; 0 .. 60) {
+        context.stepLimit = budget;
+        auto checked = check!(StaticRecords.opCall)(context, " abc");
+        auto captured = parseRecords!(StaticRecords.opCall, compactTag, false)(context, " abc");
+        assert(captured.status == checked.status && captured.end == checked.end);
+        assert(captured.failEnd == checked.failEnd);
+        if (!captured.successful)
+            assert(captured.nodes.length == 0);
+    }
+}
+
+nothrow unittest {
+    auto source = generate!(Memoization.selective, compactTag)(staticRecordDefinition);
+    assert(source.status == Status.ok && source.source.length > 0);
+}
+
+version (unittest) private void countRecordTrace(string name, size_t pos, bool success, void* user) @nogc nothrow {
+    ++*cast(size_t*)user;
+}
+
+version (unittest) mixin(grammar!(Memoization.selective, compactTag)(`
+RecordLookLeft:
+    Root <- Expr eoi
+    Expr <- &Expr 'a' / 'a'
+`));
+
+@nogc nothrow unittest {
+    ParseContext context;
+    size_t calls;
+    context.userData = &calls;
+    context.trace = &countRecordTrace;
+    auto checked = check!(RecordLookLeft.opCall)(context, "a");
+    const expectedCalls = calls;
+    assert(checked.successful && expectedCalls == 2);
+    calls = 0;
+    auto captured = parseRecords!(RecordLookLeft.opCall, compactTag)(context, "a");
+    assert(captured.successful && captured.nodes.length == 2 && calls == expectedCalls);
+    foreach (budget; 0 .. 24) {
+        context.stepLimit = budget;
+        calls = 0;
+        auto reference = check!(RecordLookLeft.opCall)(context, "a");
+        const referenceCalls = calls;
+        calls = 0;
+        auto candidate = parseRecords!(RecordLookLeft.opCall, compactTag)(context, "a");
+        assert(candidate.status == reference.status && candidate.end == reference.end);
+        assert(candidate.failEnd == reference.failEnd && calls == referenceCalls);
+    }
+}
+
+version (unittest) mixin(grammar!(Memoization.selective, compactTag)(`
+ShadowedBuiltin(digit = 'x'):
+    Root <- digit / 'y'
+`));
+version (unittest) mixin(grammar!(Memoization.selective, compactTag)(`
+ShadowedRule:
+    Root <- Item('x')
+    Item(digit = 'x') <- digit / 'y'
+`));
+
+@nogc nothrow unittest {
+    ParseContext context;
+    auto grammarParam = parseRecords!(ShadowedBuiltin!().opCall, compactTag)(context, "x");
+    assert(grammarParam.successful && grammarParam.nodes.length == 1);
+    auto ruleParam = parseRecords!(ShadowedRule.opCall, compactTag)(context, "x");
+    assert(ruleParam.successful && ruleParam.nodes.length == 2);
+    assert(check!(ShadowedBuiltin!().opCall)(context, "y").successful);
+    assert(!check!(ShadowedBuiltin!().opCall)(context, "1").successful);
 }
 
 /// Cold runtime generation reports errors explicitly. Output uses selective druntime GC.
@@ -1400,7 +1693,8 @@ struct GenerationResult {
     Diagnostic diagnostic;
 }
 
-GenerationResult generate(Memoization memo = Memoization.yes)(string definition, string moduleName = "") nothrow {
+GenerationResult generate(Memoization memo = Memoization.yes, alias Selector = void)(
+        string definition, string moduleName = "") nothrow {
     Frontend frontend;
     frontend.input = definition;
     frontend.memoize = memo != Memoization.no;
@@ -1408,6 +1702,7 @@ GenerationResult generate(Memoization memo = Memoization.yes)(string definition,
     frontend.read();
     if (frontend.error.message.length)
         return GenerationResult(Status.invalidInput, null, frontend.error);
+    frontend.configureRecords!Selector();
     auto source = frontend.emit();
     if (moduleName.length)
         source = "module " ~ moduleName ~ ";\npublic import npegged.peg;\n" ~ source;
@@ -1421,11 +1716,11 @@ unittest {
     assert(invalid.status == Status.invalidInput);
 }
 
-Status asModule(Memoization memo = Memoization.yes)(string moduleName, string fileName,
-        string definition, string header = "") nothrow {
+Status asModule(Memoization memo = Memoization.yes, alias Selector = void)(string moduleName,
+        string fileName, string definition, string header = "") nothrow {
     import npegged.io : File;
 
-    auto result = generate!(memo)(definition);
+    auto result = generate!(memo, Selector)(definition);
     if (result.status != Status.ok)
         return result.status;
     auto file = File.open(fileName ~ ".d", true);
@@ -1445,10 +1740,10 @@ unittest {
 }
 
 /// Generate from a successful grammar parse while its owning result remains alive.
-string grammar(Memoization memo = Memoization.yes)(scope const ref ParseTree definition) nothrow {
+string grammar(Memoization memo = Memoization.yes, alias Selector = void)(scope const ref ParseTree definition) nothrow {
     if (!definition.successful)
         return "static assert(false, `Cannot generate from a failed grammar parse`);";
-    return grammar!(memo)(definition.input);
+    return grammar!(memo, Selector)(definition.input);
 }
 
 nothrow unittest {
@@ -1464,15 +1759,15 @@ nothrow unittest {
 }
 
 /// Borrow a scoped file and generate a parser module, preserving I/O error status.
-Status asModule(Memoization memo = Memoization.yes)(string moduleName, string destination,
-        ref npegged.io.File input, string header = "") nothrow {
+Status asModule(Memoization memo = Memoization.yes, alias Selector = void)(string moduleName,
+        string destination, ref npegged.io.File input, string header = "") nothrow {
     import npegged.storage : Buffer;
 
     Buffer!char text;
     auto status = input.read(text);
     if (status != Status.ok)
         return status;
-    return asModule!(memo)(moduleName, destination, cast(string)text.data, header);
+    return asModule!(memo, Selector)(moduleName, destination, cast(string)text.data, header);
 }
 
 nothrow unittest {

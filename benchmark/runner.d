@@ -4,6 +4,7 @@ import core.memory : GC;
 import core.stdc.stdio : printf, fprintf, stderr, putchar;
 import core.time : MonoTime;
 import benchmark.measurement : consume, currentChecksum, expectedChecksum, opaqueInput;
+import benchmark.workload_grammars : observeWorkload;
 import benchmark.options : Options, OptionStatus, parseOptions;
 import npegged.peg : ParseContext, ParseResult;
 import npegged.storage : Buffer, Status;
@@ -55,10 +56,13 @@ struct BenchmarkCase {
     HandwrittenFn runHandwritten;
     ArenaPeakFn getNPeggedArenaPeak;
     bool expectedAccepted = true;
+    bool validationPair;
 }
 
 Observation observeCase(ref BenchmarkCase bc, size_t engine, bool comparison, OutputMode mode) {
     const input = opaqueInput(bc.input);
+    if (bc.validationPair)
+        return observeWorkload(bc.name, input, engine == 2);
     if (comparison) {
         if (engine == 0)
             return observePegged(input, mode, contains(bc.name, "Ambiguous."));
@@ -186,7 +190,7 @@ int main(string[] args) {
         return 2;
     }
     if (status == OptionStatus.help) {
-        printf("Usage: benchmark_runner [--iterations=N|-n N] [--samples=N] [--filter=TEXT|-f TEXT] [--json] [--memory] [--export-corpus] [--mode=validation|spans|tree]\n");
+        printf("Usage: benchmark_runner [--iterations=N|-n N] [--samples=N] [--filter=TEXT|-f TEXT] [--json] [--memory] [--export-corpus] [--target-engines] [--workloads] [--mode=validation|spans|tree]\n");
         return 0;
     }
     const customIterations = options.iterations;
@@ -454,24 +458,117 @@ int main(string[] args) {
         }
     }
 
+    if (options.workloads) {
+        struct WorkloadInput {
+            string name, input;
+            bool accepted;
+        }
+
+        static immutable extra = [
+            WorkloadInput("Arithmetic.Unary", "a_1 + -+2.3", true),
+            WorkloadInput("Arithmetic.Truncated", "1 + 2 * (3 -", false),
+            WorkloadInput("Arithmetic.Trailing", "1 + 2)", false),
+            WorkloadInput("Arithmetic.InvalidNumber", "1.", false),
+            WorkloadInput("Arithmetic.Empty", "", false), WorkloadInput("CSV.Empty", "", true),
+            WorkloadInput("CSV.EmptyQuoted", `"","a""b",`, true),
+            WorkloadInput("CSV.MultilineQuoted", "a,\"line\nbreak\"\r\n1,2\r", true),
+            WorkloadInput("CSV.Truncated", `a,"unterminated`, false),
+            WorkloadInput("CSV.InvalidSpacing", "a b,c", false),
+            WorkloadInput("CSV.Trailing", `"a"x`, false),
+            WorkloadInput("Numbers.ScientificTruncated", "123e+", false),
+            WorkloadInput("Numbers.ScientificTrailing", "123.4x", false),
+            WorkloadInput("Numbers.ScientificEmpty", "", false),
+            WorkloadInput("Numbers.Hexa", "deadBEEF0123456789", true),
+            WorkloadInput("Numbers.HexaInvalid", "0x12", false),
+            WorkloadInput("Numbers.Binary", "0b1010_0101_", true),
+            WorkloadInput("Numbers.BinaryInvalid", "0b_1", false),
+            WorkloadInput("PEGGrammar.Permissive", "G: A <-- / []**", true),
+            WorkloadInput("PEGGrammar.Truncated", "G: A <- ('a'", false),
+            WorkloadInput("PEGGrammar.Trailing", "G: A <- 'a' )", false),
+            WorkloadInput("PEGGrammar.Empty", "G:", false)
+        ];
+        foreach (entry; extra) {
+            BenchmarkCase bc;
+            bc.name = entry.name;
+            bc.input = entry.input;
+            bc.expectedAccepted = entry.accepted;
+            bc.defaultIterations = 2000;
+            benchmarks ~= bc;
+        }
+        char[] digits = new char[8192];
+        digits[] = '7';
+        const longDigits = cast(string)digits.idup;
+        string flatArithmetic = "x", flatCsv = "a", manyRules = "G:";
+        foreach (i; 0 .. 512) {
+            flatArithmetic ~= "+x";
+            flatCsv ~= ",a";
+        }
+        foreach (i; 0 .. 128)
+            manyRules ~= "\nR <- [a-z]+";
+        string nestedArithmetic = "x", nestedPeg = "'x'";
+        foreach (i; 0 .. 64) {
+            nestedArithmetic = "(" ~ nestedArithmetic ~ ")";
+            nestedPeg = "(" ~ nestedPeg ~ ")";
+        }
+        char[] bits = new char[8192];
+        bits[] = '1';
+        const longBits = cast(string)bits.idup;
+        foreach (entry; [
+            WorkloadInput("Arithmetic.Flat", flatArithmetic, true),
+            WorkloadInput("Arithmetic.Deep", nestedArithmetic, true),
+            WorkloadInput("Arithmetic.LongNumber", longDigits, true),
+            WorkloadInput("CSV.Flat", flatCsv, true), WorkloadInput("CSV.LongField", longDigits,
+                    true), WorkloadInput("CSV.LongQuoted", "\"" ~ longDigits ~ "\"", true),
+            WorkloadInput("CSV.LongTruncated", "\"" ~ longDigits, false),
+            WorkloadInput("Numbers.ScientificLong", longDigits ~ "." ~ longDigits ~ "e+123", true),
+            WorkloadInput("Numbers.HexaLong", longDigits, true),
+            WorkloadInput("Numbers.BinaryLong", "0b" ~ longBits, true),
+            WorkloadInput("PEGGrammar.ManyRules", manyRules, true),
+            WorkloadInput("PEGGrammar.Deep", "G: R <- " ~ nestedPeg, true),
+            WorkloadInput("PEGGrammar.LongLiteral", "G: R <- '" ~ longDigits ~ "'", true),
+            WorkloadInput("PEGGrammar.LongTruncated", "G: R <- '" ~ longDigits, false)
+        ]) {
+            BenchmarkCase bc;
+            bc.name = entry.name;
+            bc.input = entry.input;
+            bc.expectedAccepted = entry.accepted;
+            bc.defaultIterations = 2000;
+            benchmarks ~= bc;
+        }
+
+    }
+
+    foreach (ref bc; benchmarks)
+        bc.validationPair = options.workloads && !contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous.");
+
     if (exportCorpus) {
         putchar('[');
         size_t count;
         foreach (ref bc; benchmarks) {
-            if (!contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous."))
+            if (options.workloads ? !bc.validationPair : !contains(bc.name, "JSON.")
+                    && !contains(bc.name, "Ambiguous."))
                 continue;
             if (count++)
                 putchar(',');
-            exportJsonCase(bc.name, bc.input, bc.expectedAccepted, bc.defaultIterations, true,
-                    contains(bc.name, "Ambiguous."));
+            if (bc.validationPair) {
+                printf("{\"name\":");
+                writeJsonString(bc.name);
+                printf(",\"input\":");
+                writeJsonString(bc.input);
+                printf(",\"grammar\":\"workload\",\"output\":\"validation\",\"expectedAccepted\":%s,\"iterations\":%zu,\"timed\":true}",
+                        (bc.expectedAccepted ? "true" : "false").ptr, bc.defaultIterations);
+            } else
+                exportJsonCase(bc.name, bc.input, bc.expectedAccepted, bc.defaultIterations, true,
+                        contains(bc.name, "Ambiguous."));
         }
-        foreach (expected; 0 .. 2) {
-            foreach (input; expected ? jsonValid : jsonInvalid) {
-                if (count++)
-                    putchar(',');
-                exportJsonCase("AcceptanceGate", input, expected != 0, 1, false);
+        if (!options.workloads)
+            foreach (expected; 0 .. 2) {
+                foreach (input; expected ? jsonValid : jsonInvalid) {
+                    if (count++)
+                        putchar(',');
+                    exportJsonCase("AcceptanceGate", input, expected != 0, 1, false);
+                }
             }
-        }
         printf("]\n");
         return 0;
     }
@@ -482,18 +579,23 @@ int main(string[] args) {
     else
         printf("Times include output construction, consumption, and disposal. Execution modes identify internal tree projection.\n");
     foreach (ref bc; benchmarks) {
-        if (!contains(bc.name, filterPattern) || (comparison && !contains(bc.name, "JSON.")
-                && !contains(bc.name, "Ambiguous.")))
+        if (options.workloads && !bc.validationPair)
+            continue;
+        if (!contains(bc.name, filterPattern) || (comparison && !bc.validationPair
+                && !contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous.")))
             continue;
         size_t iterations = customIterations ? customIterations : bc.defaultIterations;
         // Checks deliberately remain outside timing and do not depend on assert.
-        if (comparison && !verifyOutputs(bc.input, mode, bc.expectedAccepted, contains(bc.name, "Ambiguous."))) {
+        if (comparison && !bc.validationPair && !verifyOutputs(bc.input, mode, bc.expectedAccepted,
+                contains(bc.name, "Ambiguous."))) {
             fprintf(stderr, "JSON output records differ: %.*s\n", cast(int)bc.name.length, bc.name
                     .ptr);
             return 1;
         }
         const reference = observeCase(bc, 2, comparison, mode);
         foreach (engine; 0 .. 3) {
+            if (bc.validationPair && engine == 0)
+                continue;
             const actual = observeCase(bc, engine, comparison, mode);
             if (actual.status != Status.ok || actual.accepted != bc.expectedAccepted || (comparison
                     && (actual.outputHash != reference.outputHash || actual.outputNodes != reference
@@ -504,6 +606,8 @@ int main(string[] args) {
             }
         }
         foreach (engine; 0 .. 3) {
+            if ((options.targetEngines || bc.validationPair) && engine == 0)
+                continue;
             // Identical iteration counts for timing and allocation normalization.
             double minimum = double.max, maximum = 0, sum = 0;
             ulong gcBytes;
@@ -552,8 +656,9 @@ int main(string[] args) {
                     observed.payloadBytes, observed.reservedBytes) : engine == 1
                 ? bc.getNPeggedArenaPeak(bc.input) : ArenaMetrics.init;
             string execution = engine == 2 ? "direct" : comparison && engine == 1
-                && mode == OutputMode.validation
-                ? "recognition" : comparison ? "native-tree-projection" : "native-tree";
+                ? (mode == OutputMode.validation
+                        ? "recognition" : "compact-records-borrowed") : comparison
+                ? "native-tree-projection" : "native-tree";
             if (jsonOutput) {
                 if (matched)
                     printf(",");

@@ -8,7 +8,7 @@ DC ?= dmd
 # Benchmark flags (e.g., BENCH_FLAGS="--iterations=500" or BENCH_FLAGS="--json")
 BENCH_FLAGS ?=
 
-.PHONY: benchmark-checks benchmark-compare all build test test-all examples examples-all benchmark bench benchmark-memory bench-memory coverage hotpaths format check-format check-phobos asan valgrind validate install-hooks clean help
+.PHONY: performance-check benchmark-checks benchmark-compare all build test test-all examples examples-all benchmark bench benchmark-memory bench-memory coverage hotpaths format check-format check-phobos asan valgrind validate validate-full install-hooks clean help
 
 # Default target: build and run tests using $(DC)
 all: build
@@ -46,6 +46,10 @@ bench: benchmark
 
 benchmark-checks:
 	python3 scripts/benchmark_checks.py
+
+# Three independent runs of the current equal-output performance matrix.
+performance-check:
+	DC=$(DC) python3 scripts/performance_gate.py $(BENCH_FLAGS)
 
 benchmark-compare:
 	DC=$(DC) python3 scripts/compare_benchmarks.py $(BENCH_FLAGS)
@@ -108,9 +112,13 @@ valgrind:
 		--error-exitcode=1 \
 		build/ldc2/tests --DRT-testmode=run-main
 
-# Run complete repository validation pipeline (all compilers, sanitizers, coverage, valgrind)
+# Run fast validation pipeline (ldc2 build, examples, hotpaths, hooks, format, phobos)
 validate:
-	scripts/validate.sh
+	scripts/validate.sh --fast
+
+# Run complete repository validation pipeline (all compilers, sanitizers, coverage, valgrind)
+validate-full:
+	scripts/validate.sh --full
 
 # Install git pre-commit hook
 install-hooks:
@@ -131,6 +139,7 @@ help:
 	@echo "  examples-all     Run examples across dmd, ldc2, and gdc"
 	@echo "  bench / benchmark Run benchmark suite against vendored Pegged"
 	@echo "  benchmark-checks Verify benchmark units, integrations, and diagnostic coverage"
+	@echo "  performance-check Run repeated paired 5x gates for the equal-output corpus"
 	@echo "  benchmark-compare Compare common outputs across D parsers and chumsky"
 	@echo "  bench-memory     Run benchmark suite with allocator accounting"
 	@echo "  coverage         Measure coverage and verify src/ >90% threshold"
@@ -140,7 +149,8 @@ help:
 	@echo "  check-phobos     Verify zero Phobos imports in maintained code"
 	@echo "  asan             Run AddressSanitizer & LeakSanitizer builds"
 	@echo "  valgrind         Run Valgrind Memcheck memory leak validation"
-	@echo "  validate         Run full validation suite (scripts/validate.sh)"
+	@echo "  validate         Run fast validation pipeline using ldc2 (scripts/validate.sh --fast)"
+	@echo "  validate-full    Run full validation suite across all compilers (scripts/validate.sh --full)"
 	@echo "  install-hooks    Install git pre-commit hooks"
 	@echo "  clean            Remove build directory and temporary files"
 	@echo ""

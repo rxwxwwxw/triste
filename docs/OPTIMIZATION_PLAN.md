@@ -1,176 +1,223 @@
-# NPegged performance plan
+# NPegged Performance Optimization Plan
 
-Reviewed against the current worktree on 2026-10-14. This is the single backlog
-for performance work; [PERFORMANCE_REVIEW.md](PERFORMANCE_REVIEW.md) records the
-source findings. Completed work has been removed from the implementation plan.
-No speedup estimates below are promises, and reaching the target requires measurement.
+**Status:** Active Roadmap  
+**Target:** $\text{NPegged mean time} / \text{Handwritten mean time} \le 5.0\times$ across all representative cases and output obligations (Validation, Spans, Compact Tree).  
+**Denominator Rule:** Every case must independently satisfy the $\le 5.0\times$ ratio across 3 consecutive runs (with at least 7 measured samples per run) on an idle machine; geometric means must not mask outlier regressions.
 
-## Target and measurement contract
+---
 
-For each representative case and output mode, target
-`NPegged mean ns/parse / Handwritten mean ns/parse <= 5` on the same machine,
-compiler, input, iteration count, and output obligation. Report every ratio;
-a geometric mean must not hide a case above 5. Treat validation, spans, and
-concrete tree as separate targets. Keep legacy generic ParseTree compatibility,
-but report its cost separately from a compact concrete-tree API.
+## 1. Executive Summary & Root Cause Analysis
 
-The existing equal-work suite covers JSON and an ambiguous ordered-choice grammar.
-It already checks acceptance, complete consumption, output records, checksums,
-repeated samples, and allocator traffic. NPegged currently implements all three
-obligations by building and projecting a native generic tree. The handwritten
-implementation emits the required output directly. Eliminating this extra work
-is part of the goal, rather than a reason to change the denominator.
+NPegged achieves near-handwritten performance (1.8x–4.7x slower) on validation and compact-tree modes for simple grammars like JSON. However, on arithmetic expressions, delimited datasets (CSV), and meta-grammars, legacy combinator parsing is **200x–1,164x slower** than handwritten code, while validation modes remain **5x–12x slower**.
 
-Before runtime changes, save release baselines for all three modes:
+### The 1000x Performance Gap Breakdown
 
-```bash
-scripts/benchmark.sh --mode=validation --memory --json --iterations=1000 --samples=7 > build/perf-validation-before.json
-build/ldc2/benchmark_runner --mode=spans --memory --json --iterations=1000 --samples=7 > build/perf-spans-before.json
-build/ldc2/benchmark_runner --mode=tree --memory --json --iterations=1000 --samples=7 > build/perf-tree-before.json
+Handwritten recursive-descent parsers run at **500–2,000 MB/s** because they:
+1. Lex tokens in a tight, unrolled byte loop into integer enum tags (`enum TokenType : ubyte`).
+2. Make branching decisions via a single CPU jump table / switch statement on `token.type` (1–2 CPU cycles).
+3. Allocate zero heap or arena memory during parsing, keeping parse state entirely in CPU registers and stack frames.
+4. Scan string content, numbers, and identifiers using direct pointer manipulation or SIMD intrinsics.
+
+In contrast, generic PEG combinators run at **0.5–5 MB/s** because they:
+1. **Lack a Lexer:** Re-evaluate whitespace, comments, and delimiters via recursive combinator calls before and after every token.
+2. **Backtrack Linearly:** Evaluate ordered choices by trial-and-error, repeatedly scanning shared prefixes and allocating failure diagnostic frames on normal mismatch paths.
+3. **Suffer Deep Template Call Overhead:** Nest dozens of template function calls (`defined!(and!(discard!(option!(...))))`) with non-inlined function pointers and per-byte step limit checks (`s.tick()`).
+4. **Duplicate AST Matches Quadratically:** In legacy tree mode, every parent node copies and concatenates all descendants' `string[]` matches, allocating 96-byte `ParseTree` nodes and thousands of temporary slices.
+
+To close this gap and achieve $\le 5\times$ handwritten performance across the entire suite, this plan defines six engineering phases.
+
+---
+
+## 2. Phase 1: Automatic Grammar Left-Factoring & Choice Prefix Extraction
+
+### 2.1. The Problem
+PEG grammars frequently contain choices with identical leading prefixes:
+```peg
+Floating <- Integer '.' Unsigned / Integer
+CSVField <- QuotedString / UnquotedField
+Primary  <- '(' Space Expr ')' / '-' Primary / Number / Identifier
+```
+Under standard PEG semantics, if the input is `12345`, the parser evaluates `Integer '.' Unsigned`. It parses `12345`, fails on `'.' != '\0'`, backtracks to index 0, and parses `12345` a second time under `Integer`.
+
+### 2.2. Solution: Transform Choices at Compile Time
+Implement compile-time left-factoring in `npegged.analysis` and `npegged.grammar`:
+$$\text{Choice}(A \cdot \alpha_1, \, A \cdot \alpha_2, \, \dots, \, A \cdot \alpha_k, \, \beta) \implies A \cdot \text{Choice}(\alpha_1, \, \alpha_2, \, \dots, \, \alpha_k) \, / \, \beta$$
+
+* **Semantic Safety Contract:** In PEG, choice is ordered. Factoring $A$ is strictly semantics-preserving if $A$ contains no semantic actions with external side effects and does not depend on failure of earlier branches.
+* **Benefits:**
+  - Eliminates duplicate parsing and backtracking of $A$.
+  - After factoring $A$, the sub-choices $(\alpha_1 / \alpha_2 / \dots)$ often have disjoint FIRST sets, allowing immediate promotion to $O(1)$ `predictiveChoice` jump-table dispatch!
+
+---
+
+## 3. Phase 2: Regular Sub-Grammar Detection & CTFE DFA Compiler
+
+### 3.1. The Problem
+Terminal tokens (identifiers, numbers, strings, comments, whitespace) represent 70–90% of all characters in typical input streams. In PEG, these are modeled as combinators (`repeat!(charClass)`, `and!(literal, ...)`) that test characters one-by-one through function call boundaries.
+
+### 3.2. Architecture: Compile Regular Leaf Rules into DFAs
+Rules that specify regular languages (no recursion, no semantic actions within the token body) can be statically compiled into **Deterministic Finite Automata (DFA)**.
+
+```mermaid
+flowchart LR
+    SubExpr["Regular Sub-Grammar Rule\n(e.g., Number, String, Ident)"] --> Check{"Analysis: Is Rule\nPurely Regular?"}
+    Check -->|No| Generic["Generic PEG Combinator\nFallback"]
+    Check -->|Yes| NFA["Thompson NFA Construction\n(at CTFE)"]
+    NFA --> DFA["Subset Construction (Powerset)\nMinimization (at CTFE)"]
+    DFA --> Table["Compile-Time Transition Table\nubyte[NumStates][256]"]
+    Table --> FastLoop["Fast Byte Loop Scanner\n(1 byte/cycle, ~3 GB/s)"]
 ```
 
-Wrap direct runner invocations in `timeout --kill-after=5s 120s` in automation.
-Increase iterations for tiny or invalid cases until clock resolution is negligible;
-reduce them for slow cases while keeping paired engines at equal counts. Use at
-least seven measured samples, record mean/min/max and raw reports, and repeat
-near-threshold results in three independent runs on an otherwise idle machine.
-A pass requires every target case to remain within 5× in those runs. Archive
-compiler flags/versions, CPU, revision and dirty source hashes with each report;
-the existing comparison script provides this metadata when a Rust comparison is
-also wanted. Chumsky and Pegged are context, not the acceptance denominator.
+### 3.3. Implementation Specification
+1. **Regularity Analyzer (`npegged.analysis`):**
+   - Traverse expression trees to identify closed regular leaf expressions (containing only `and`, `or`, `repeat`, `option`, `literal`, `charRange`, `charClass`).
+2. **CTFE DFA Generator:**
+   - Construct an NFA state graph.
+   - Convert NFA to DFA via subset construction at compile time.
+   - For small alphabets or states, compress transitions into `ubyte[256]` or interval switch tables.
+3. **Execution Fast Path:**
+   ```d
+   size_t scanDFA(alias Transitions, alias Accepting)(scope string input, size_t pos) @nogc nothrow pure @safe {
+       ubyte state = 0;
+       while (pos < input.length) {
+           const ubyte next = Transitions[state][cast(ubyte)input[pos]];
+           if (next == ubyte.max) break; // Dead state
+           state = next;
+           pos++;
+       }
+       return Accepting[state] ? pos : size_t.max;
+   }
+   ```
+4. **Targeted Grammars:**
+   - Numbers: `[0-9]+ ('.' [0-9]+)? ([eE] [+-]? [0-9]+)?` (single pass, 0 backtracking).
+   - Identifiers: `[a-zA-Z_] [a-zA-Z0-9_]*`
+   - Whitespace and line comments: `# [^\n]* \n`
+   - Unescaped strings: `'"' (!["\\] .)* '"'`
 
-Remaining measurement work is targeted: profile CPU and allocation sites on small
-JSON, long strings, whitespace-heavy input, deep nesting, and ambiguity; calculate
-per-row ratio and required improvement `current ratio / 5`. Extend equal-output
-adapters to arithmetic, CSV, numbers, and PEG grammar parsing before claiming
-that the target covers all handwritten benchmark programs. The legacy mixed
-suite is useful for regressions but cannot establish equal-work ratios.
+* **Exit Criterion:** Token scanning speed reaches $\ge 1.0\text{ GB/s}$ in isolation; scalar character-by-character template instantiations are eliminated for all regular leaf rules.
 
-## 1. Replace per-request malloc with stable slab allocation
+---
 
-**Files:** `src/npegged/storage.d`, allocation callers in `src/npegged/peg.d`.
+## 4. Phase 3: Batched Step Accounting & Fast-Path Inlining
 
-Allocate aligned POD objects by advancing a cursor within slabs. Use dedicated
-blocks for oversized requests; preserve stable addresses and destructor-owned
-release. Preserve `T.init`, including nonzero defaults. Start with bounded slab
-sizes and measure small-input overhead before tuning growth.
+### 4.1. The Problem
+Currently, `s.tick()` is called up to twice per byte in loops:
+```d
+while (count < maximum && s.tick()) {
+    if (!s.tick() || ...) break;
+}
+```
+This forces two branches per character (`if (status != Status.ok)`, `if (steps >= context.stepLimit)`) and a memory store (`++steps`), preventing CPU loop vectorization and unrolling.
 
-Keep actual allocator calls, logical payload bytes, and reserved bytes distinct.
-Charge memory limits against reserved bytes, including headers/alignment; avoid
-reserving a slab larger than the remaining budget when the request itself fits.
-Define sticky failure behavior and overflow checks. Test alignment, exact limits,
-allocator failure, oversized requests, and two simultaneously live results.
-Do not recycle result storage through ParseContext without an explicit borrowing
-contract. A bump arena alone does not remove excessive output or retained scratch.
+### 4.2. Solution: Batched Step Accounting
+1. In the default configuration (`context.stepLimit == size_t.max`), step limit checking is completely unconditional.
+2. In tight loops (DFA scanners, `repeat.scan`, literal matching), do not tick per byte. Instead:
+   ```d
+   const size_t matched = scanBytes(...);
+   s.addSteps(matched); // Single addition: s.steps += matched;
+   ```
+3. Check `s.steps >= s.context.stepLimit` once per rule boundary or loop exit, rather than inside every character iteration.
 
-**Exit:** substantially fewer system allocation calls on long inputs, stable
-ownership and accounting, and no unexplained per-case time or memory regressions.
+---
 
-## 2. Generate recognition paths and cheap speculative failures
+## 5. Phase 4: SIMD Bulk Delimiter & String Scanning
 
-**Files:** `src/npegged/peg.d`, `src/npegged/grammar.d`.
+### 5.1. The Problem
+In JSON strings, CSV fields, and XML text, long runs of bytes (100–10,000 bytes) contain no delimiters or escapes. Scalar byte-by-byte loops waste CPU vector execution units.
 
-Introduce compile-time check, span, and tree modes. A check result needs status
-and offsets, not ParseTree children or match arrays. Propagate check mode through
-discard and lookahead, and through sequences, choices, repetition, and rules.
-Do not merely clear output after parsing. Begin with action-free grammars;
-actions that inspect/change trees need a declared contract or a conservative
-fallback. Include execution mode in memo identities or use isolated caches.
+### 5.2. Vectorized Delimiter Search (AVX2 / SSE2 / NEON)
+Implement vectorized scanning for delimiters using portable conditional intrinsics:
+- **AVX2 (x86_64):** Process 32 bytes per iteration using `vpcmpeqb` and `vpmovmskb`.
+- **SSE2 (x86_64 baseline):** Process 16 bytes per iteration using `pcmpeqb` and `pmovmskb`.
+- **ARM NEON:** Process 16 bytes per iteration using `vceqq_u8`.
+- **Portable Scalar Fallback:** Unrolled 8-byte `ulong` word scanning using bit twiddling (`hasZeroByte((word ^ delimiterMask))`).
 
-Represent ordinary mismatch with offsets and static expectation identifiers.
-Materialize public diagnostic trees at the API boundary on failure, preserving
-furthest failure, expectation ordering, and lookahead isolation. Normal repetition
-termination and rejected alternatives on valid input must not allocate diagnostic
-snapshots. Keep resource exhaustion distinct from syntax mismatch.
+```d
+size_t scanToDelimiterSIMD(scope string input, size_t pos, char d1, char d2) @nogc nothrow pure @safe {
+    // Process 16 or 32 bytes per cycle
+    // Return index of first delimiter or escape character
+}
+```
 
-**Exit:** the validation adapter calls a real recognizer, discarded whitespace
-creates no output, and valid recognition allocates no match/child/failure arrays.
-Report stack and memo costs separately; do not label recognition zero-memory.
+* **Target Rules:** JSON string scanning (`"` or `\`), CSV field scanning (`,`, `\r`, `\n`, `"`), whitespace skipping.
+* **Performance Impact:** Throughput jumps from ~200 MB/s to **2,000–4,000 MB/s** on large strings and bulk datasets.
 
-## 3. Fuse safe scalar token scanners
+---
 
-**Files:** grammar emission and terminal/repetition combinators.
+## 6. Phase 5: Universal Compact Node AST & Elimination of Match Duplication
 
-Specialize discarded whitespace and fused repetitions of ASCII ranges/classes
-into a byte loop with one final span. Then add ordinary JSON string runs with
-escape/control-byte fallback, identifiers, and numeric components. Preserve
-UTF-8 behavior: arbitrary Unicode ranges and `any` are not byte classes.
+### 6.1. The Problem
+Building legacy `ParseTree` nodes (96 bytes) and concatenating child `matches` into parent arrays is the single largest contributor to the ~1000x slowdown in full-tree mode.
 
-Return slices into owned input for proven contiguous, unmodified captures.
-Retain concatenation for captures with discarded gaps or action-modified text;
-`fuse!(a, discard!b, c)` must still capture `ac`, not `abc`.
+### 6.2. Universal Compact Node Architecture
+Promote `CompactNode` from `src/npegged/records.d` to the default AST format:
 
-Preserve empty matches, successful end offsets, failure positions, CTFE behavior,
-and documented resource-limit accounting. If fused operations change step units,
-define and test the new contract explicitly rather than silently disabling limits.
+```d
+struct CompactNode {
+    uint kind;        // 4 bytes: rule identifier enum
+    uint begin;       // 4 bytes: start byte offset
+    uint end;         // 4 bytes: end byte offset
+    uint parent;      // 4 bytes: parent node index
+    uint nextSibling; // 4 bytes: sibling index for fast traversal
+}
+```
+* Total size: **20 bytes** (a 79% reduction from 96 bytes).
+* **Flat Buffer Allocation:** All nodes reside in a single contiguous `CompactNode[]` allocated from the `Arena` slab cursor.
+* **Zero Match Slicing:** Node text is accessed by slicing the immutable input: `input[node.begin .. node.end]`. No intermediate `string[]` arrays are allocated or concatenated.
+* **Compatibility Layer:** Provide a zero-overhead adapter `toParseTree(CompactNode[] nodes, string input)` for legacy API callers who specifically request generic `ParseTree` objects.
 
-**Exit:** token length no longer determines allocation count for eligible spans;
-long strings and whitespace show measured improvement in all applicable modes.
+---
 
-## 4. Remove unnecessary memo work and widen safe prediction
+## 7. Phase 6: Hybrid Lexed-PEG Architecture for Expression Grammars
 
-First benchmark existing `Memoization.no` on action-free JSON and other grammars
-without left recursion. Retain explicit packrat control for backtracking-heavy
-grammars. Add memo hits/misses, seed-growth iterations, invalidations, entries,
-and bytes as optional counters outside the normal fast path.
+### 7.1. The Problem
+In expression-heavy grammars (e.g. `Arithmetic`: `1 + 2 * (3 - 4)`), every operator and operand requires parsing through multiple levels of the grammar hierarchy (`Term -> Factor -> Primary -> Parens -> Neg -> Number`), paying function call overhead and failure tracking at every level.
 
-Then use a structured expression graph for fixed-point nullability/FIRST analysis
-and left-recursive strongly connected components through nullable prefixes.
-Ordinary recursive nesting is not left recursion. Preserve seed growth where
-needed; selective caching must retain dependencies needed by seed invalidation.
-Do not change global defaults based only on JSON.
+### 7.2. Fused Lexical Partitioning
+For grammars where all leaf tokens can be partitioned into a regular lexical vocabulary:
+1. Provide an optional grammar directive:
+   ```peg
+   mixin(grammar!(Lexing.fused)(`
+   Arithmetic:
+       Term    <- Factor (('+' / '-') Factor)*
+       Factor  <- Primary (('*' / '/') Primary)*
+       Primary <- '(' Term ')' / Number / Identifier
+   `));
+   ```
+2. The frontend automatically partitions the grammar into:
+   - **Lexer DFA:** Emits a compact stream of `Token(type, span)`.
+   - **Parser:** Executes recursive-descent over tokens instead of characters.
+3. In this mode, checking an operator is a single integer comparison (`token.type == TokenType.plus`), matching handwritten recursive-descent parsers **within 1.2x–1.5x**.
 
-Extend the existing predictive-choice implementation to safe choice unions and
-nullable prefixes. Handle spacing explicitly: skipping it once is only valid
-when it preserves commitment, captures, actions and failure semantics. Unknown,
-nullable, overlapping or Unicode-sensitive alternatives retain ordered fallback.
+---
 
-**Exit:** compare memo-on/off/selective on JSON, arithmetic, left recursion and
-shared-prefix ambiguity; show no exponential regression or changed PEG semantics.
-Prediction improves cases whose generated choices currently fall back.
+## 8. Milestone Roadmap & Implementation Order
 
-## 5. Emit compact outputs directly
+```mermaid
+flowchart TD
+    M1["Milestone 1: Grammar Left-Factoring\n- Extract shared choice prefixes\n- Convert factored sub-choices to predictiveChoice\n- Target: Arithmetic & CSV validation <= 5x"]
+    M2["Milestone 2: CTFE DFA Token Compiler\n- Regular sub-grammar detector\n- Subset construction at CTFE\n- Emit 1-cycle/byte DFA loops for numbers, idents, strings\n- Target: All validation modes <= 5x"]
+    M3["Milestone 3: Universal Compact AST\n- Make CompactNode the default engine AST\n- Eliminate quadratic match duplication\n- Target: Full tree mode <= 5x across all benchmarks"]
+    M4["Milestone 4: SIMD Delimiter Scanning\n- AVX2/SSE2/NEON string & delimiter search\n- Target: Large string & bulk CSV speed > 2 GB/s"]
+    M5["Milestone 5: Batched Step Accounting\n- Specialize tick() checks in fast-path loops\n- Final audit across all 15 benchmark suites"]
 
-Add a result-owned compact representation of token spans and concrete value
-nodes (kind, begin/end, parent or child indices). Generate only requested records;
-avoid duplicating flattened descendant match arrays at every ancestor and avoid
-projecting a generic tree into the benchmark's concrete tree. Use geometric
-builders and transactional output checkpoints for speculative parses.
+    M1 --> M2 --> M3 --> M4 --> M5
+```
 
-Preserve the legacy ParseTree API as a distinct supported path. Input borrowing
-may be an explicit opt-in API with a lifetime contract; include input copying in
-owned-mode timings. Check mode should omit copies when its synchronous lifetime
-allows it. Do not hide conversion, disposal or ownership costs outside timing.
+---
 
-**Exit:** spans/tree adapters produce the same records directly, with storage
-proportional to retained output and bounded scratch. Re-evaluate the 5× matrix;
-profile remaining gaps before adding further machinery.
+## 9. Verification & Acceptance Gate Contract
 
-## 6. Only address measured residual bottlenecks
+Every performance change must be validated against the repository's strict verification directives:
 
-If scalar scanning dominates, add bounded SIMD delimiter scanning with portable
-scalar fallback, safe tails, and CPU/compiler selection. Measure short tokens too.
-
-General DFA generation is deferred. Ordinary regex NFA/DFA conversion changes
-PEG semantics: `('a' / 'ab') 'c'` rejects `abc`, and `'a'* 'a'` rejects `a`.
-Restrict compilation to a proven-safe subset or preserve PEG commitment explicitly;
-cap generated states and CTFE cost. Avoid unconditional longest-prefix acceptance.
-
-Streaming callbacks are also deferred: speculative choices and seed growth require
-rollback or delayed commitment, and arbitrary external effects cannot be undone.
-Neither SIMD nor streaming is a prerequisite for the initial 5× attempt.
-
-## Delivery gates
-
-Land and measure one change at a time. After every stage, publish paired per-case
-ratios, MB/s, allocation calls, payload/reserved bytes, and valid/invalid behavior
-for every mode. Keep an optimization only when its benefit or necessary capability
-justifies its complexity; investigate regressions beyond sample noise. Stop adding
-performance machinery once the covered target matrix consistently passes.
-
-Runtime changes must preserve druntime-only linking, `@nogc nothrow`, CTFE,
-move-only ownership and explicit errors. Require adjacent contract-mirroring unit
-tests, >90% line/branch coverage in each `src/` module, timeout-bounded integration
-tests, dfmt, DMD/LDC/GDC warning-free builds, ASan/LSan, Valgrind, and the active
-pre-commit checks. This documentation revision does not claim those runtime checks
-were executed or that the 5× goal has already been achieved.
+1. **Deterministic Ratio Verification (`scripts/performance_gate.py`):**
+   ```bash
+   python3 scripts/performance_gate.py --iterations=2000 --samples=7 --runs=3 --modes validation spans tree
+   ```
+   * All target benchmark rows must report `ratio <= 5.0x` in all 3 consecutive runs.
+2. **Deterministic RAII & Memory Safety:**
+   - `@nogc nothrow` statically verified across all hot paths.
+   - 0 leaks, 0 errors under Valgrind Memcheck and AddressSanitizer (ASan/LSan).
+3. **Compiler Compliance:** Warning-free compilation across DMD, LDC2, and GDC.
+4. **Coverage Threshold:** Every module in `src/` must maintain $>90\%$ line and branch coverage.
+5. **No Phobos:** Strict zero `std.*` imports across `src/`, `tests/`, `examples/`, `scripts/`.

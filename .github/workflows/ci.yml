@@ -31,4 +31,4 @@ jobs:
       - name: Install hook in CI checkout
         run: scripts/install-hooks.sh
       - name: Validate compilers, examples, coverage, and memory
-        run: scripts/validate.sh
+        run: scripts/validate.sh --full

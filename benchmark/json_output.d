@@ -1,6 +1,7 @@
 module benchmark.json_output;
 
 import npegged.storage : Arena, Status, growthCapacity;
+import npegged.records : CompactNode;
 import benchmark.handwritten.json : JsonLexer, Token, TokenType, JsonParser;
 
 enum OutputMode {
@@ -89,7 +90,28 @@ ulong fingerprint(scope const(OutputNode)[] nodes) @nogc nothrow pure {
 @nogc nothrow unittest {
     OutputNode[1] nodes = [OutputNode(NodeKind.number, 0, 1)];
     const original = fingerprint(nodes);
-    assert(original != fingerprint(null));
+    assert(original != fingerprint(cast(OutputNode[])null));
+    nodes[0].parent = 0;
+    assert(original != fingerprint(nodes));
+}
+
+/// Overload for compact records to produce comparable fingerprints without templates.
+ulong fingerprint(scope const(CompactNode)[] nodes) @nogc nothrow pure {
+    ulong hash = 14695981039346656037UL;
+    foreach (node; nodes) {
+        foreach (word; [
+            cast(ulong)node.kind, cast(ulong)node.begin, cast(ulong)node.end, cast(ulong)node.parent
+        ]) {
+            hash = (hash ^ word) * 1099511628211UL;
+        }
+    }
+    return hash;
+}
+
+@nogc nothrow unittest {
+    CompactNode[1] nodes = [CompactNode(1, 0, 1)];
+    const original = fingerprint(nodes);
+    assert(original != fingerprint(cast(CompactNode[])null));
     nodes[0].parent = 0;
     assert(original != fingerprint(nodes));
 }
