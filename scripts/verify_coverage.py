@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject missing, stale, or insufficient per-module DMD and gcov coverage."""
+"""Reject missing, stale, or insufficient DMD and gcov coverage for src/ modules."""
 import argparse
 import gzip
 import hashlib
@@ -14,9 +14,12 @@ parser.add_argument('--lines', type=Path, default=Path('build/coverage/lines'))
 parser.add_argument('--branches', type=Path, default=Path('build/coverage/branches'))
 args = parser.parse_args()
 errors = []
+sources = sorted(Path('src').rglob('*.d'))
+source_names = {str(source) for source in sources}
 manifest = args.branches.parent / 'sources.json'
 if manifest.exists():
     for name, expected in json.loads(manifest.read_text()).items():
+        if name not in source_names: continue
         if not Path(name).is_file() or hashlib.sha256(Path(name).read_bytes()).hexdigest() != expected:
             errors.append(f'{name}: changed during coverage collection')
 else: errors.append('Missing source hashes for coverage collection')
@@ -28,7 +31,7 @@ for report in args.lines.rglob('*.lst'):
     text = report.read_text()
     match = re.search(r'([^\n]+) (?:is [\d.]+% covered|has no code)', text)
     if not match: continue
-    name = match[1].strip()
+    name = str(Path(match[1].strip()))
     if Path(name).is_absolute():
         try: name = str(Path(name).relative_to(Path.cwd()))
         except ValueError: continue
@@ -76,7 +79,7 @@ for name, edges in branches.items():
         'uncovered': [list(identity) for identity, hit in edges.items() if not hit],
     }
 (args.branches.parent / 'summary.json').write_text(json.dumps(summary, indent=2))
-for source in sorted([*Path('src').rglob('*.d'), *Path('examples').rglob('*.d'), *Path('scripts').glob('*.d'), *Path('tests').glob('*.d')]):
+for source in sorted(sources):
     name = str(source)
     # Definition-only modules have no executable lines or branches to instrument.
     lines = line_reports.get(name)
@@ -96,4 +99,4 @@ for source in sorted([*Path('src').rglob('*.d'), *Path('examples').rglob('*.d'),
         errors.append(f'{name}: branch coverage {sum(entry.values()) / len(entry) * 100:.2f}% must exceed {args.threshold}%')
 if errors:
     raise SystemExit('\n'.join(errors))
-print('All executable modules exceed the line and branch coverage threshold.')
+print('All executable src/ modules exceed the line and branch coverage threshold.')

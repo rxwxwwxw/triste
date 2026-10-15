@@ -95,7 +95,9 @@ to dfmt, which reads EditorConfig. Format maintained D files with:
 find src tests examples scripts -name '*.d' -exec dfmt -i {} +
 ```
 
-Coverage requires greater than 90% per executable module. Raw DMD and gcov
+Coverage requires greater than 90% line and branch coverage per executable
+module in `src/` only. Tests, examples, benchmarks, and scripts are excluded
+from this threshold; their verification still runs. Raw DMD and gcov
 reports remain in `build/coverage`. Source-branch measurement merges template
 instantiations, excludes unittest bodies and compiler-generated invariant
 checks identified by GCC's CFG, and retains ordinary error branches. The branch collector uses GDC 16 JSON block identifiers. Missing,
@@ -133,3 +135,12 @@ Memory tools must run successfully for complete validation. On restricted
 hosts, LeakSanitizer may be unable to inspect threads, and Valgrind may require
 libc debug symbols that are not installed. Those failures are reported as
 failed checks, never counted as clean memory runs.
+
+## Benchmark comparisons
+
+Run `make benchmark-compare DC=ldc2` for local NPegged, Pegged, handwritten D,
+and chumsky comparisons with matching validation, span, and tree outputs.
+The runner verifies complete consumption and output records before timing and
+reports repeated-run dispersion, MB/s, compiler/CPU metadata, and allocator
+traffic. See [benchmark instructions](benchmark/README.md) for output contracts,
+commands, and measurement limits.

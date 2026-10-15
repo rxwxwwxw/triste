@@ -2,7 +2,9 @@
 
 GCC inserts branches for D array bounds and assertions. These are invariant
 checks, not recoverable application decisions. CFG trap blocks identify them;
-raw reports are retained. Every other edge is counted, including unseen errors.
+raw reports are retained. Compiler exception-dispatch machinery is excluded just
+like gcov throw edges. Every application decision remains counted, including
+unseen errors and conditionals in exception handlers.
 """
 import re
 from pathlib import Path
@@ -17,6 +19,11 @@ class FunctionCFG:
         result = {}
         contract_locations = set()
         for number, text in self.blocks.items():
+            # GDC emits eh_dispatch for destructor cleanup, even for C calls in
+            # nothrow functions. It has no application predicate or normal edge.
+            if re.search(r'(?:^|\])\s*eh_dispatch\s+\d+\b', text, re.M):
+                result[number] = None
+                continue
             targets = [int(n) for n in re.findall(r'goto <bb (\d+)>', text)]
             locations = re.findall(r'\[([^\]\n]+):(\d+):(\d+)(?: discrim \d+)?\]', text)
             location = locations[-1] if locations else ('', '0', '0')
@@ -67,21 +74,23 @@ def read_cfg(paths):
                 locations = re.findall(r'\[[^\]\n]+:\d+:\d+(?: discrim \d+)?\]', line)
                 if locations: last_location = locations[-1]
                 if ('if (' in line or 'switch (' in line or 'goto <bb ' in line or
-                    '__builtin_trap' in line or '_d_assert' in line or '_d_arraybounds' in line):
+                    '__builtin_trap' in line or '_d_assert' in line or '_d_arraybounds' in line or
+                    re.search(r'\beh_dispatch\s+\d+\b', line)):
                     current.blocks[block] += (last_location + ' ' if not locations else '') + line
         if current is not None: functions[current_name] = current.decisions()
     return functions
 
 def unittest_lines(path):
-    """dfmt puts module-level unittest closing braces at column zero."""
+    """Match dfmt's closing brace at the unittest's indentation, including version blocks."""
     lines = Path(path).read_text().splitlines()
     result = set()
-    start = None
+    indentation = None
     for i, line in enumerate(lines, 1):
-        if re.match(r'^(?:@[\w()]+\s+|nothrow\s+|pure\s+)*unittest\b', line): start = i
-        if start is not None:
+        match = re.match(r'^(\s*)(?:@[\w()]+\s+|nothrow\s+|pure\s+)*unittest\b', line)
+        if match: indentation = match[1]
+        if indentation is not None:
             result.add(i)
-            if line == '}': start = None
+            if line == indentation + '}': indentation = None
     return result
 
 def source_edges(source, cfg, excluded):

@@ -1,0 +1,16 @@
+[package]
+name = "triste-chumsky-benchmark"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+chumsky = { version = "=0.13.0", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

@@ -39,7 +39,12 @@ struct Arena {
 
     private Block* head;
     size_t limit = 256 * 1024 * 1024;
+    /// Cumulative successful allocator bytes, including block/alignment overhead.
     size_t used;
+    /// Actual allocator invocations, including an invocation that returns null.
+    size_t allocationCalls;
+    /// Cumulative payload bytes from successful allocations (excludes overhead).
+    size_t requestedBytes;
     Status status;
     private static void* systemAllocate(size_t bytes) @nogc nothrow {
         return malloc(bytes);
@@ -73,6 +78,7 @@ struct Arena {
             status = Status.resourceLimit;
             return null;
         }
+        ++allocationCalls;
         auto block = cast(Block*)allocator(bytes);
         if (block is null) {
             status = Status.outOfMemory;
@@ -82,6 +88,7 @@ struct Arena {
         block.bytes = bytes;
         head = block;
         used += bytes;
+        requestedBytes += count * T.sizeof;
         auto address = (cast(size_t)(block + 1) + alignment - 1) & ~(alignment - 1);
         auto data = cast(T*)address;
         foreach (i; 0 .. count)
@@ -102,22 +109,29 @@ struct Arena {
     static assert(!__traits(compiles, { Buffer!Arena invalid; }));
     Arena arena;
     assert(arena.allocate!int(0).length == 0);
+    assert(arena.allocationCalls == 0 && arena.requestedBytes == 0 && arena.used == 0);
     auto first = arena.allocate!int(2);
+    assert(arena.allocationCalls == 1 && arena.requestedBytes == 2 * int.sizeof);
+    assert(arena.used > arena.requestedBytes);
     assert(first == [0, 0]);
     first[0] = 42;
     auto second = arena.copy!int(first);
     assert(second == [42, 0]);
     assert(first.ptr != second.ptr);
+    assert(arena.allocationCalls == 2 && arena.requestedBytes == 4 * int.sizeof);
     arena.limit = arena.used;
     assert(arena.allocate!int(1).length == 0);
     assert(arena.status == Status.resourceLimit);
+    assert(arena.allocationCalls == 2 && arena.requestedBytes == 4 * int.sizeof);
     Arena failed;
     failed.allocator = (size_t bytes) @nogc nothrow => cast(void*)null;
     assert(failed.allocate!int(1).length == 0 && failed.status == Status.outOfMemory);
     assert(failed.allocate!int(1).length == 0);
+    assert(failed.allocationCalls == 1 && failed.requestedBytes == 0 && failed.used == 0);
     Arena overflow;
     assert(overflow.allocate!ulong(size_t.max).length == 0);
     assert(overflow.status == Status.resourceLimit);
+    assert(overflow.allocationCalls == 0 && overflow.requestedBytes == 0 && overflow.used == 0);
 }
 
 /// A growable, move-only buffer for utilities outside the parser.

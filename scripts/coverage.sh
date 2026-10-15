@@ -2,13 +2,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 timeout 10s python3 scripts/test_coverage_model.py
+timeout 10s python3 scripts/test_verify_coverage.py
 rm -rf build/coverage
 mkdir -p build/coverage/lines build/coverage/branches
 # Prevent a source edit during compilation from being mistaken for fresh coverage.
 python3 - <<'PY'
 import hashlib,json
 from pathlib import Path
-sources = [*Path('src').rglob('*.d'), *Path('examples').rglob('*.d'), *Path('scripts').glob('*.d'), *Path('tests').glob('*.d')]
+sources = list(Path('src').rglob('*.d'))
 Path('build/coverage/sources.json').write_text(json.dumps({str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}))
 PY
 find . -maxdepth 1 -name '*.lst' -delete

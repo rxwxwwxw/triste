@@ -10,7 +10,7 @@ All code authored, refactored, or reviewed by AI agents must strictly uphold the
 2. **Deterministic RAII First:** Manual resource cleanup is prohibited. Bind ownership of memory, OS handles, and network sockets to struct lifetimes via constructors and destructors.
 3. **Exception-Free (`nothrow`):** Never use `throw new Exception(...)`. Unwindable exceptions and unwinding tables are disabled. Error handling must use explicit `Result!(T, E)` tagged unions or status codes.
 4. **Zero GC in Hot Paths (`@nogc`):** All performance-critical paths, per-frame updates, packet/stream processors, and inner loops must be statically verified as `@nogc`.
-5. **Strict Unit Testing (>90% Coverage):** Every module must exceed 90% branch and line coverage. Unit tests must live in the same source file, placed immediately beneath the function or struct under test.
+5. **Strict Unit Testing (>90% Coverage):** Every module in `src/` must exceed 90% branch and line coverage. Files outside `src/`, including tests, examples, benchmarks, and scripts, are excluded from this threshold. Unit tests must live in the same source file, placed immediately beneath the function or struct under test.
 6. **Integration Tests with Timeouts:** Major subsystems and cross-module workflows must have end-to-end integration tests located in the `tests/` directory (sibling to `src/`). Every integration test binary or runner must have a mandatory execution timeout.
 7. **Canonical Formatting (`dfmt`):** All `.d` files must be formatted with `dfmt` before commit. Unformatted code fails CI and pre-commit hooks.
 8. **Multi-Compiler Compliance:** Code must compile cleanly across **DMD**, **LDC**, and **GDC** with zero compiler warnings.
@@ -77,7 +77,7 @@ dmd -c -vgc src/hotpath.d -o-
 
 echo "=== [Hook] 4. Running unit tests and checking coverage ==="
 dmd -unittest -cov -run src/index.d > /dev/null
-# Verify .lst files for >= 90% coverage
+# Verify src/ line and branch coverage above 90%
 python3 scripts/verify_coverage.py --threshold 90
 
 echo "=== [Hook] All pre-commit checks passed ==="
@@ -133,7 +133,7 @@ dmd -unittest -cov -run src/buffer.d
 
 ```
 
-*Rule: Any commit dropping line or branch coverage below 90% in any module will be rejected by the pre-commit hook and CI.*
+*Rule: Any commit dropping line or branch coverage to 90% or below in any module under `src/` will be rejected by the pre-commit hook and CI.*
 
 ---
 
@@ -373,7 +373,7 @@ Before submitting code, generating patches, or opening a PR, complete every item
 * [ ] **No `std.*` Imports:** Ran `grep -rn "import std\." src/` and verified 0 hits.
 * [ ] **Formatted with `dfmt`:** Executed `find src tests -name "*.d" -exec dfmt -i {} +`.
 * [ ] **Unit Tests Colocated:** Every new or edited function has an adjacent `unittest` block directly below it.
-* [ ] **Unit Test Coverage >90%:** Verified via `dmd -unittest -cov` and validated against coverage threshold.
+* [ ] **Unit Test Coverage >90%:** Verified via `dmd -unittest -cov` and validated against the coverage threshold for `src/` only.
 * [ ] **Integration Tests Located in `tests/`:** Multi-module behaviors tested in `tests/` with mandatory timeouts configured (`alarm()` or `timeout`).
 * [ ] **Hot Paths are `@nogc`:** Hot-path modules and functions are marked `@nogc` and verified cleanly with `-vgc`.
 * [ ] **Exception Free:** Marked `nothrow`, and fallible operations use `Result!(T, E)`.

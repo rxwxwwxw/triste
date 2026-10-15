@@ -1,17 +1,14 @@
 module benchmark.runner;
 
 import core.memory : GC;
-import core.sys.posix.sys.resource : rusage;
-import core.sys.posix.unistd : _exit, fork, pid_t;
-import core.time : Duration, MonoTime;
-import std.algorithm.searching : canFind;
-import std.conv : to;
-import std.format : format;
-import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
-import std.stdio : stdout, write, writefln, writeln;
-import std.string : strip;
-
+import core.stdc.stdio : printf, fprintf, stderr, putchar;
+import core.time : MonoTime;
+import benchmark.measurement : consume, currentChecksum, expectedChecksum, opaqueInput;
+import benchmark.options : Options, OptionStatus, parseOptions;
 import npegged.peg : ParseContext, ParseResult;
+import npegged.storage : Buffer, Status;
+import benchmark.json_output : OutputMode, handwrittenOutput, ambiguousOutput, handwrittenAmbiguous;
+import benchmark.json_comparison : Observation, observeHandwritten, observeNPegged, observePegged, verifyOutputs;
 import pegged.peg : PeggedParseTree = ParseTree;
 
 // 1. Arithmetic
@@ -20,8 +17,8 @@ import PArith = pegged.examples.arithmetic;
 import HWArith = benchmark.handwritten.arithmetic;
 
 // 2. JSON
-import NPJson = npegged.examples.json;
-import PJson = pegged.examples.json;
+import NPJson = benchmark.json_npegged;
+import PJson = benchmark.json_pegged;
 import HWJson = benchmark.handwritten.json;
 
 // 3. CSV
@@ -39,395 +36,223 @@ import NPParser = npegged.parser;
 import PParser = pegged.parser;
 import HWPeg = benchmark.handwritten.peg;
 
-extern (C) pid_t wait4(pid_t pid, int* status, int options, rusage* rusage);
-
-struct BenchResult {
-    string name;
-    size_t inputBytes;
-    size_t iterations;
-
-    // Execution time in milliseconds (high-resolution from nanoseconds)
-    double peggedTimeMs;
-    double npeggedTimeMs;
-    double handwrittenTimeMs;
-    bool hasHandwritten;
-
-    // Allocations in bytes during the timed loop
-    ulong peggedAllocBytes;
-    ulong npeggedAllocBytes;
-    ulong handwrittenAllocBytes;
-
-    // Memory metrics (when --memory is requested)
-    bool measuredMemory;
-    long peggedPeakRssKb;
-    long npeggedPeakRssKb;
-    long handwrittenPeakRssKb;
-    size_t npeggedArenaPeakBytes;
-    size_t peggedGcPeakBytes;
-
-    double npeggedSpeedup() const pure @safe {
-        if (npeggedTimeMs <= 0.0)
-            return 0.0;
-        return peggedTimeMs / npeggedTimeMs;
-    }
-
-    double handwrittenSpeedup() const pure @safe {
-        if (!hasHandwritten || handwrittenTimeMs <= 0.0)
-            return 0.0;
-        return peggedTimeMs / handwrittenTimeMs;
-    }
-
-    double npeggedVsHandwritten() const pure @safe {
-        if (!hasHandwritten || handwrittenTimeMs <= 0.0)
-            return 0.0;
-        return npeggedTimeMs / handwrittenTimeMs;
-    }
-
-    ulong peggedBytesPerOp() const pure @safe {
-        if (iterations == 0)
-            return 0;
-        return peggedAllocBytes / iterations;
-    }
-
-    ulong npeggedBytesPerOp() const pure @safe {
-        if (iterations == 0)
-            return 0;
-        return npeggedAllocBytes / iterations;
-    }
-
-    ulong handwrittenBytesPerOp() const pure @safe {
-        if (!hasHandwritten || iterations == 0)
-            return 0;
-        return handwrittenAllocBytes / iterations;
-    }
+alias PeggedFn = bool delegate(string);
+alias NPeggedFn = bool delegate(string, ref ParseContext) @nogc nothrow;
+alias HandwrittenFn = bool delegate(string) @nogc nothrow;
+struct ArenaMetrics {
+    size_t calls;
+    size_t requestedBytes;
+    size_t reservedBytes;
 }
 
-alias PeggedFn = void delegate(string);
-alias NPeggedFn = void delegate(string, ref ParseContext);
-alias HandwrittenFn = void delegate(string);
-alias ArenaPeakFn = size_t delegate(string);
-
+alias ArenaPeakFn = ArenaMetrics delegate(string) @nogc nothrow;
 struct BenchmarkCase {
     string name;
     string input;
     size_t defaultIterations;
     PeggedFn runPegged;
     NPeggedFn runNPegged;
-    HandwrittenFn runHandwritten; // null if no handwritten version
-    ArenaPeakFn getNPeggedArenaPeak; // null if not available
+    HandwrittenFn runHandwritten;
+    ArenaPeakFn getNPeggedArenaPeak;
+    bool expectedAccepted = true;
 }
 
-long measureSubprocessRss(scope void delegate(string) workload, string input, size_t iters) {
-    pid_t pid = fork();
-    if (pid == 0) {
-        for (size_t i = 0; i < iters; ++i) {
-            workload(input);
-        }
-        _exit(0);
+Observation observeCase(ref BenchmarkCase bc, size_t engine, bool comparison, OutputMode mode) {
+    const input = opaqueInput(bc.input);
+    if (comparison) {
+        if (engine == 0)
+            return observePegged(input, mode, contains(bc.name, "Ambiguous."));
+        if (engine == 1)
+            return observeNPegged(input, mode, contains(bc.name, "Ambiguous."));
+        return observeHandwritten(input, mode, contains(bc.name, "Ambiguous."));
     }
-    int status;
-    rusage usage;
-    wait4(pid, &status, 0, &usage);
-    return usage.ru_maxrss; // in Kilobytes on Linux
+    if (contains(bc.name, "Ambiguous.")) {
+        if (engine == 0)
+            return observePegged(input, OutputMode.validation, true);
+        if (engine == 1)
+            return observeNPegged(input, OutputMode.validation, true);
+        return observeHandwritten(input, OutputMode.validation, true);
+    }
+    Observation result;
+    if (engine == 0)
+        result.accepted = bc.runPegged(input);
+    else if (engine == 1) {
+        ParseContext context;
+        result.accepted = bc.runNPegged(input, context);
+    } else
+        result.accepted = bc.runHandwritten(input);
+    return result;
 }
 
-BenchResult executeBenchmark(BenchmarkCase bc, size_t iterations, bool measureMemory) {
-    const bool hasHW = (bc.runHandwritten !is null);
-
-    // 1. Warmup & correctness verification
-    ParseContext verifyCtx;
-    bc.runPegged(bc.input);
-    bc.runNPegged(bc.input, verifyCtx);
-    if (hasHW) {
-        bc.runHandwritten(bc.input);
-    }
-
-    enum warmup = 5;
-    for (size_t i = 0; i < warmup; ++i) {
-        bc.runPegged(bc.input);
-        ParseContext wCtx;
-        bc.runNPegged(bc.input, wCtx);
-        if (hasHW) {
-            bc.runHandwritten(bc.input);
-        }
-    }
-
-    // 2. Measure Pegged
-    GC.collect();
-    GC.minimize();
-    const ulong gcStartPegged = GC.stats().allocatedInCurrentThread;
-    const MonoTime t0Pegged = MonoTime.currTime();
-    for (size_t i = 0; i < iterations; ++i) {
-        bc.runPegged(bc.input);
-    }
-    const MonoTime t1Pegged = MonoTime.currTime();
-    const ulong gcEndPegged = GC.stats().allocatedInCurrentThread;
-    const double peggedMs = (t1Pegged - t0Pegged).total!"nsecs" / 1_000_000.0;
-    const ulong peggedAlloc = (gcEndPegged >= gcStartPegged) ? (gcEndPegged - gcStartPegged) : 0;
-
-    // 3. Measure NPegged
-    GC.collect();
-    GC.minimize();
-    const ulong gcStartNPegged = GC.stats().allocatedInCurrentThread;
-    const MonoTime t0NPegged = MonoTime.currTime();
-    for (size_t i = 0; i < iterations; ++i) {
-        ParseContext ctx;
-        bc.runNPegged(bc.input, ctx);
-    }
-    const MonoTime t1NPegged = MonoTime.currTime();
-    const ulong gcEndNPegged = GC.stats().allocatedInCurrentThread;
-    const double npeggedMs = (t1NPegged - t0NPegged).total!"nsecs" / 1_000_000.0;
-    const ulong npeggedAlloc = (gcEndNPegged >= gcStartNPegged) ? (gcEndNPegged - gcStartNPegged) : 0;
-
-    // 4. Measure Handwritten (if present)
-    double hwMs = 0.0;
-    ulong hwAlloc = 0;
-    if (hasHW) {
-        GC.collect();
-        GC.minimize();
-        const ulong gcStartHW = GC.stats().allocatedInCurrentThread;
-        // Run enough iterations to get stable microsecond precision
-        const size_t hwIters = (iterations < 5000) ? 5000 : iterations;
-        const MonoTime t0HW = MonoTime.currTime();
-        for (size_t i = 0; i < hwIters; ++i) {
-            bc.runHandwritten(bc.input);
-        }
-        const MonoTime t1HW = MonoTime.currTime();
-        const ulong gcEndHW = GC.stats().allocatedInCurrentThread;
-        const double avgNsecs = (t1HW - t0HW).total!"nsecs" / cast(double)hwIters;
-        hwMs = (avgNsecs * iterations) / 1_000_000.0;
-        hwAlloc = (gcEndHW >= gcStartHW) ? (gcEndHW - gcStartHW) : 0;
-    }
-
-    // 5. Measure Peak Memory (if requested)
-    long pRss = 0;
-    long npRss = 0;
-    long hwRss = 0;
-    size_t npArenaPeak = 0;
-    size_t pGcPeak = 0;
-
-    if (measureMemory) {
-        const size_t memIters = (iterations < 100) ? iterations : 100;
-
-        pRss = measureSubprocessRss((s) { bc.runPegged(s); }, bc.input, memIters);
-        npRss = measureSubprocessRss((s) { ParseContext ctx; bc.runNPegged(s, ctx); }, bc.input, memIters);
-
-        if (hasHW) {
-            hwRss = measureSubprocessRss((s) { bc.runHandwritten(s); }, bc.input, memIters);
-        }
-
-        if (bc.getNPeggedArenaPeak !is null) {
-            npArenaPeak = bc.getNPeggedArenaPeak(bc.input);
-        }
-
-        GC.collect();
-        GC.minimize();
-        const auto gcBefore = GC.stats().usedSize;
-        bc.runPegged(bc.input);
-        const auto gcAfter = GC.stats().usedSize;
-        pGcPeak = (gcAfter > gcBefore) ? (gcAfter - gcBefore) : 0;
-    }
-
-    return BenchResult(bc.name, bc.input.length, iterations, peggedMs, npeggedMs, hwMs, hasHW,
-            peggedAlloc, npeggedAlloc, hwAlloc, measureMemory, pRss, npRss, hwRss, npArenaPeak, pGcPeak);
+unittest {
+    BenchmarkCase probe;
+    probe.name = "Probe";
+    probe.input = "input";
+    probe.runPegged = (string input) { return input == "input"; };
+    probe.runNPegged = (string input, ref ParseContext context) @nogc nothrow{
+        return input == "input";
+    };
+    probe.runHandwritten = (string input) @nogc nothrow{ return input == "input"; };
+    foreach (engine; 0 .. 3)
+        assert(observeCase(probe, engine, false, OutputMode.validation).accepted);
+    probe.input = "wrong";
+    assert(!observeCase(probe, 2, false, OutputMode.validation).accepted);
+    probe.name = "JSON.Probe";
+    probe.input = "[null]";
+    foreach (engine; 0 .. 3)
+        assert(observeCase(probe, engine, true, OutputMode.tree).outputNodes == 2);
+    probe.name = "Ambiguous.Probe";
+    probe.input = "aac";
+    foreach (engine; 0 .. 3)
+        assert(observeCase(probe, engine, false, OutputMode.validation).accepted);
 }
 
-string formatBytes(ulong bytes) pure @safe {
-    if (bytes >= 1024 * 1024)
-        return format("%.2f MB", bytes / (1024.0 * 1024.0));
-    if (bytes >= 1024)
-        return format("%.1f KB", bytes / 1024.0);
-    return format("%d B", bytes);
-}
-
-void printPerformanceTable(const BenchResult[] results) {
-    writeln();
-    writeln("===================================================================================================================================================");
-    writefln(" %-20s | %-8s | %-6s | %-11s | %-11s | %-12s | %-10s | %-10s | %-12s | %-11s",
-            "Benchmark", "Size", "Iters", "Pegged(ms)",
-            "NPegged(ms)", "Handwritten", "NPegged vs", "HW vs", "Pegged GC/op", "NPegged GC");
-    writefln(" %-20s | %-8s | %-6s | %-11s | %-11s | %-12s | %-10s | %-10s | %-12s | %-11s", "",
-            "", "", "", "", "(ms)", "Pegged", "Pegged", "", "");
-    writeln("===================================================================================================================================================");
-
-    double totalPeggedMs = 0.0;
-    double totalNPeggedMs = 0.0;
-    ulong totalPeggedAlloc = 0;
-    ulong totalNPeggedAlloc = 0;
-
-    foreach (ref r; results) {
-        totalPeggedMs += r.peggedTimeMs;
-        totalNPeggedMs += r.npeggedTimeMs;
-        totalPeggedAlloc += r.peggedAllocBytes;
-        totalNPeggedAlloc += r.npeggedAllocBytes;
-
-        string hwStr = r.hasHandwritten ? format("%10.3f", r.handwrittenTimeMs) : "       N/A";
-        string hwSpeedupStr = r.hasHandwritten ? format("%8.1fx", r.handwrittenSpeedup()) : "       N/A";
-
-        writefln(" %-20s | %-8s | %-6d | %11.2f | %11.2f | %12s | %9.2fx | %10s | %12s | %11s",
-                r.name, formatBytes(r.inputBytes),
-                r.iterations, r.peggedTimeMs, r.npeggedTimeMs, hwStr, r.npeggedSpeedup(),
-                hwSpeedupStr, formatBytes(r.peggedBytesPerOp()), formatBytes(r.npeggedBytesPerOp()));
-    }
-
-    writeln("===================================================================================================================================================");
-    const double overallSpeedup = (totalNPeggedMs > 0.0) ? (totalPeggedMs / totalNPeggedMs) : 0.0;
-    writefln(" %-20s | %-8s | %-6s | %11.2f | %11.2f | %12s | %9.2fx | %10s | %12s | %11s",
-            "TOTAL / OVERALL", "-", "-", totalPeggedMs,
-            totalNPeggedMs,
-            "-", overallSpeedup, "-", formatBytes(totalPeggedAlloc), formatBytes(totalNPeggedAlloc));
-    writeln("===================================================================================================================================================");
-    writeln();
-    writefln("Summary:");
-    writefln("  - Benchmarks evaluated: %d", results.length);
-    writefln("  - Overall Speedup:      %.2fx faster than vendored Pegged", overallSpeedup);
-    writefln("  - Pegged GC Churn:      %s", formatBytes(totalPeggedAlloc));
-    writefln("  - NPegged GC Churn:     %s (@nogc deterministic lifetime)", formatBytes(totalNPeggedAlloc));
-    writeln();
-}
-
-void printMemoryTable(const BenchResult[] results) {
-    writeln("=========================================================================================================================================");
-    writefln(" %-20s | %-8s | %-16s | %-16s | %-14s | %-16s | %-16s", "Benchmark", "Size",
-            "Pegged Peak RSS", "NPegged Peak RSS", "HW Peak RSS", "Pegged Heap Live", "NPegged Arena");
-    writeln("=========================================================================================================================================");
-
-    foreach (ref r; results) {
-        if (!r.measuredMemory)
-            continue;
-
-        string hwRssStr = r.hasHandwritten ? format("%10d KB", r.handwrittenPeakRssKb) : "           N/A";
-        string arenaStr = (r.npeggedArenaPeakBytes > 0) ? formatBytes(r.npeggedArenaPeakBytes) : "       < 1 KB";
-
-        writefln(" %-20s | %-8s | %13d KB | %13d KB | %14s | %16s | %16s", r.name,
-                formatBytes(r.inputBytes), r.peggedPeakRssKb,
-                r.npeggedPeakRssKb, hwRssStr, formatBytes(r.peggedGcPeakBytes), arenaStr);
-    }
-
-    writeln("=========================================================================================================================================");
-    writeln("Memory Measurement Notes:");
-    writeln("  - Peak RSS: Process Resident Set Size in isolated subprocesses (ru_maxrss from wait4).");
-    writeln("  - Pegged Heap Live: Garbage Collector live heap delta during single parse.");
-    writeln("  - NPegged Arena: Exact byte size allocated in RAII Arena (res.arena.used), freed instantly on parse completion.");
-    writeln();
-}
-
-void printJsonOutput(const BenchResult[] results, bool measureMemory) {
-    writeln("{");
-    writefln("  \"memoryMeasured\": %s,", measureMemory ? "true" : "false");
-    writeln("  \"benchmarks\": [");
-    foreach (i, ref r; results) {
-        writefln("    {");
-        writefln("      \"name\": \"%s\",", r.name);
-        writefln("      \"inputBytes\": %d,", r.inputBytes);
-        writefln("      \"iterations\": %d,", r.iterations);
-        writefln("      \"peggedTimeMs\": %.4f,", r.peggedTimeMs);
-        writefln("      \"npeggedTimeMs\": %.4f,", r.npeggedTimeMs);
-        writefln("      \"npeggedSpeedup\": %.4f,", r.npeggedSpeedup());
-        writefln("      \"hasHandwritten\": %s,", r.hasHandwritten ? "true" : "false");
-        if (r.hasHandwritten) {
-            writefln("      \"handwrittenTimeMs\": %.4f,", r.handwrittenTimeMs);
-            writefln("      \"handwrittenSpeedup\": %.4f,", r.handwrittenSpeedup());
-            writefln("      \"npeggedVsHandwritten\": %.4f,", r.npeggedVsHandwritten());
-        }
-        writefln("      \"peggedAllocBytes\": %d,", r.peggedAllocBytes);
-        writefln("      \"npeggedAllocBytes\": %d,", r.npeggedAllocBytes);
-        writefln("      \"peggedBytesPerOp\": %d,", r.peggedBytesPerOp());
-        writefln("      \"npeggedBytesPerOp\": %d", r.npeggedBytesPerOp());
-        if (measureMemory) {
-            writefln("      ,\"peggedPeakRssKb\": %d,", r.peggedPeakRssKb);
-            writefln("      \"npeggedPeakRssKb\": %d,", r.npeggedPeakRssKb);
-            if (r.hasHandwritten)
-                writefln("      \"handwrittenPeakRssKb\": %d,", r.handwrittenPeakRssKb);
-            writefln("      \"npeggedArenaPeakBytes\": %d,", r.npeggedArenaPeakBytes);
-            writefln("      \"peggedGcPeakBytes\": %d", r.peggedGcPeakBytes);
-        }
-        if (i + 1 < results.length)
-            writeln("    },");
+void writeJsonString(string value) @nogc nothrow {
+    putchar('"');
+    foreach (ubyte c; cast(const(ubyte)[])value) {
+        if (c == '"' || c == '\\') {
+            putchar('\\');
+            putchar(c);
+        } else if (c < 32)
+            printf("\\u%04x", cast(uint)c);
         else
-            writeln("    }");
+            putchar(c);
     }
-    writeln("  ]");
-    writeln("}");
+    putchar('"');
+}
+
+@nogc nothrow unittest {
+    import benchmark.test_output : CapturedStdout;
+
+    auto capture = CapturedStdout.open();
+    writeJsonString("\0\t\n\"\\é");
+    char[64] text;
+    auto length = capture.read(text);
+    assert(text[0 .. length] == `"\u0000\u0009\u000a\"\\é"`);
+}
+
+void exportJsonCase(string name, string input, bool expected, size_t iterations, bool timed, bool ambiguous = false) @nogc nothrow {
+    printf("{\"name\":");
+    writeJsonString(name);
+    printf(",\"input\":");
+    writeJsonString(input);
+    printf(",\"grammar\":\"%s\"", (ambiguous ? "ambiguous" : "json").ptr);
+    printf(",\"expectedAccepted\":%s,\"iterations\":%zu,\"timed\":%s", (expected ? "true" : "false")
+            .ptr, iterations, (timed ? "true" : "false").ptr);
+    foreach (mode; [OutputMode.spans, OutputMode.tree]) {
+        printf(",\"%s\":[", (mode == OutputMode.spans ? "expectedSpans" : "expectedTree").ptr);
+        auto output = ambiguous ? ambiguousOutput(input, mode) : handwrittenOutput(input, mode);
+        foreach (i, node; output.nodes) {
+            if (i)
+                putchar(',');
+            printf("[%u,%zu,%zu,%zu]", cast(uint)node.kind, node.begin, node.end, node.parent);
+        }
+        putchar(']');
+    }
+    putchar('}');
+}
+
+@nogc nothrow unittest {
+    import benchmark.test_output : CapturedStdout;
+
+    auto capture = CapturedStdout.open();
+    exportJsonCase("A", "\n", false, 1, false);
+    char[256] text;
+    auto length = capture.read(text);
+    assert(text[0 .. length] == `{"name":"A","input":"\u000a","grammar":"json","expectedAccepted":false,"iterations":1,"timed":false,"expectedSpans":[],"expectedTree":[]}`);
+}
+
+bool contains(string text, string pattern) @nogc nothrow pure {
+    if (pattern.length > text.length)
+        return false;
+    foreach (i; 0 .. text.length - pattern.length + 1)
+        if (text[i .. i + pattern.length] == pattern)
+            return true;
+    return false;
+}
+
+@nogc nothrow unittest {
+    assert(contains("JSON.Small", "Small"));
+    assert(contains("", ""));
+    assert(!contains("a", "aa"));
+    assert(!contains("abc", "z"));
 }
 
 int main(string[] args) {
-    size_t customIterations = 0;
-    string filterPattern = "";
-    bool jsonOutput = false;
-    bool measureMemory = false;
-
-    GetoptResult helpInfo;
-    try {
-        helpInfo = getopt(args, "iterations|n", "Override iteration count for all benchmarks",
-                &customIterations,
-                "filter|f", "Run only benchmarks whose name contains this substring",
-                &filterPattern,
-                "memory|m",
-                "Enable peak memory measurement (subprocess RSS & allocator high-water mark)",
-                &measureMemory, "json", "Output results in JSON format", &jsonOutput);
-    } catch (Exception e) {
-        writefln("Error: %s", e.msg);
-        return 1;
+    Options options;
+    const status = parseOptions(args, options);
+    if (status == OptionStatus.invalid) {
+        fprintf(stderr, "Invalid benchmark options; use --help\n");
+        return 2;
     }
-
-    if (helpInfo.helpWanted) {
-        defaultGetoptPrinter("Benchmark Suite: NPegged vs Vendored Pegged vs Handwritten\n\nUsage: benchmark_runner [options]",
-                helpInfo.options);
+    if (status == OptionStatus.help) {
+        printf("Usage: benchmark_runner [--iterations=N|-n N] [--samples=N] [--filter=TEXT|-f TEXT] [--json] [--memory] [--export-corpus] [--mode=validation|spans|tree]\n");
         return 0;
     }
+    const customIterations = options.iterations;
+    const samples = options.samples;
+    const filterPattern = options.filter;
+    const jsonOutput = options.json;
+    const measureMemory = options.memory;
+    const comparison = options.comparison;
+    const exportCorpus = options.exportCorpus;
+    const mode = options.mode;
 
     BenchmarkCase[] benchmarks;
 
     // 1. Arithmetic Expressions
     benchmarks ~= BenchmarkCase("Arithmetic.Small", "1 + 2 * (3 - 4)", 1000, (string s) {
         auto tree = PArith.Arithmetic(s);
-        assert(tree.successful);
+        return tree.successful & (tree.end == s.length);
     }, (string s, ref ParseContext ctx) {
         auto res = NPArith.Arithmetic(ctx, s);
-        assert(res.successful);
-    }, (string s) {
-        const ok = HWArith.ArithmeticParser.parse(s);
-        if (!ok)
-            assert(0);
-    }, (string s) { ParseContext ctx; auto res = NPArith.Arithmetic(ctx, s); return res.arena.used; });
+        return res.successful & (res.end == s.length);
+    }, (string s) { const ok = HWArith.ArithmeticParser.parse(s); return ok; }, (string s) {
+        ParseContext ctx;
+        auto res = NPArith.Arithmetic(ctx, s);
+        return ArenaMetrics(res.arena.allocationCalls, res.arena.requestedBytes, res.arena.used);
+    });
 
     benchmarks ~= BenchmarkCase("Arithmetic.Medium",
             "1 + 2 * (3 + 10 / 4) - (5 * 6 + 7) * (8 - 9 / (2 + 3))", 500, (string s) {
         auto tree = PArith.Arithmetic(s);
-        assert(tree.successful);
+        return tree.successful & (tree.end == s.length);
     }, (string s, ref ParseContext ctx) {
         auto res = NPArith.Arithmetic(ctx, s);
-        assert(res.successful);
-    }, (string s) {
-        const ok = HWArith.ArithmeticParser.parse(s);
-        if (!ok)
-            assert(0);
-    }, (string s) { ParseContext ctx; auto res = NPArith.Arithmetic(ctx, s); return res.arena.used; });
+        return res.successful & (res.end == s.length);
+    }, (string s) { const ok = HWArith.ArithmeticParser.parse(s); return ok; }, (string s) {
+        ParseContext ctx;
+        auto res = NPArith.Arithmetic(ctx, s);
+        return ArenaMetrics(res.arena.allocationCalls, res.arena.requestedBytes, res.arena.used);
+    });
 
     benchmarks ~= BenchmarkCase("Arithmetic.Nested",
             "(((1 + 2) * 3 - 4) / 5 + (6 * (7 - 8))) * (((9 + 10) * 11 - 12) / 13 + (14 * (15 - 16)))",
-            500, (string s) { auto tree = PArith.Arithmetic(s); assert(tree.successful); },
-            (string s, ref ParseContext ctx) {
+            500, (string s) {
+        auto tree = PArith.Arithmetic(s);
+        return tree.successful & (tree.end == s.length);
+    }, (string s, ref ParseContext ctx) {
         auto res = NPArith.Arithmetic(ctx, s);
-        assert(res.successful);
-    }, (string s) {
-        const ok = HWArith.ArithmeticParser.parse(s);
-        if (!ok)
-            assert(0);
-    }, (string s) { ParseContext ctx; auto res = NPArith.Arithmetic(ctx, s); return res.arena.used; });
+        return res.successful & (res.end == s.length);
+    }, (string s) { const ok = HWArith.ArithmeticParser.parse(s); return ok; }, (string s) {
+        ParseContext ctx;
+        auto res = NPArith.Arithmetic(ctx, s);
+        return ArenaMetrics(res.arena.allocationCalls, res.arena.requestedBytes, res.arena.used);
+    });
 
     // 2. JSON Documents
     benchmarks ~= BenchmarkCase("JSON.Small",
             `{"name": "test", "id": 12345, "active": true, "score": 98.6}`, 500, (string s) {
         auto tree = PJson.JSON(s);
-        assert(tree.successful);
-    }, (string s, ref ParseContext ctx) { auto res = NPJson.JSON(ctx, s); assert(res.successful); }, (
-            string s) {
-        const ok = HWJson.JsonParser.parse(s);
-        if (!ok)
-            assert(0);
-    }, (string s) { ParseContext ctx; auto res = NPJson.JSON(ctx, s); return res.arena.used; });
+        return tree.successful & (tree.end == s.length);
+    }, (string s, ref ParseContext ctx) {
+        auto res = NPJson.JSON(ctx, s);
+        return res.successful & (res.end == s.length);
+    }, (string s) { const ok = HWJson.JsonParser.parse(s); return ok; }, (string s) {
+        ParseContext ctx;
+        auto res = NPJson.JSON(ctx, s);
+        return ArenaMetrics(res.arena.allocationCalls, res.arena.requestedBytes, res.arena.used);
+    });
 
     enum mediumJson = `{
   "project": "triste",
@@ -442,24 +267,27 @@ int main(string[] args) {
 
     benchmarks ~= BenchmarkCase("JSON.Medium", mediumJson, 200, (string s) {
         auto tree = PJson.JSON(s);
-        assert(tree.successful);
-    }, (string s, ref ParseContext ctx) { auto res = NPJson.JSON(ctx, s); assert(res.successful); }, (
-            string s) {
-        const ok = HWJson.JsonParser.parse(s);
-        if (!ok)
-            assert(0);
-    }, (string s) { ParseContext ctx; auto res = NPJson.JSON(ctx, s); return res.arena.used; });
+        return tree.successful & (tree.end == s.length);
+    }, (string s, ref ParseContext ctx) {
+        auto res = NPJson.JSON(ctx, s);
+        return res.successful & (res.end == s.length);
+    }, (string s) { const ok = HWJson.JsonParser.parse(s); return ok; }, (string s) {
+        ParseContext ctx;
+        auto res = NPJson.JSON(ctx, s);
+        return ArenaMetrics(res.arena.allocationCalls, res.arena.requestedBytes, res.arena.used);
+    });
 
     // 3. CSV Datasets
     benchmarks ~= BenchmarkCase("CSV.SingleLine", `id,first_name,last_name,email,gender,ip_address`, 1000,
-            (string s) { auto tree = PCsv.CSV(s); assert(tree.successful); }, (string s, ref ParseContext ctx) {
+            (string s) { auto tree = PCsv.CSV(s); return tree.successful & (tree.end == s.length); }, (
+            string s, ref ParseContext ctx) {
         auto res = NPCsv.CSV(ctx, s);
-        assert(res.successful);
-    }, (string s) {
-        const ok = HWCsv.CsvParser.parse(s);
-        if (!ok)
-            assert(0);
-    }, (string s) { ParseContext ctx; auto res = NPCsv.CSV(ctx, s); return res.arena.used; });
+        return res.successful & (res.end == s.length);
+    }, (string s) { const ok = HWCsv.CsvParser.parse(s); return ok; }, (string s) {
+        ParseContext ctx;
+        auto res = NPCsv.CSV(ctx, s);
+        return ArenaMetrics(res.arena.allocationCalls, res.arena.requestedBytes, res.arena.used);
+    });
 
     enum multiLineCsv = "id,name,role,department,score\n"
         ~ "1,Alice_Smith,Engineer,Platform,94.5\n"
@@ -472,41 +300,42 @@ int main(string[] args) {
 
     benchmarks ~= BenchmarkCase("CSV.MultiLine", multiLineCsv, 300, (string s) {
         auto tree = PCsv.CSV(s);
-        assert(tree.successful);
-    }, (string s, ref ParseContext ctx) { auto res = NPCsv.CSV(ctx, s); assert(res.successful); }, (string s) {
-        const ok = HWCsv.CsvParser.parse(s);
-        if (!ok)
-            assert(0);
-    }, (string s) { ParseContext ctx; auto res = NPCsv.CSV(ctx, s); return res.arena.used; });
+        return tree.successful & (tree.end == s.length);
+    }, (string s, ref ParseContext ctx) {
+        auto res = NPCsv.CSV(ctx, s);
+        return res.successful & (res.end == s.length);
+    }, (string s) { const ok = HWCsv.CsvParser.parse(s); return ok; }, (string s) {
+        ParseContext ctx;
+        auto res = NPCsv.CSV(ctx, s);
+        return ArenaMetrics(res.arena.allocationCalls, res.arena.requestedBytes, res.arena.used);
+    });
 
     // 4. Numbers Literals
     benchmarks ~= BenchmarkCase("Numbers.Scientific", "123.456e+00", 1000, (string s) {
         auto tree = PNum.Numbers.Scientific(s);
-        assert(tree.successful);
+        return tree.successful & (tree.end == s.length);
     }, (string s, ref ParseContext ctx) {
         auto res = NPNum.Numbers.Scientific(ctx, s);
-        assert(res.successful);
-    }, (string s) {
-        const ok = HWNum.NumbersParser.parseScientific(s);
-        if (!ok)
-            assert(0);
-    }, (string s) {
+        return res.successful & (res.end == s.length);
+    }, (string s) { const ok = HWNum.NumbersParser.parseScientific(s); return ok; }, (string s) {
         ParseContext ctx;
         auto res = NPNum.Numbers.Scientific(ctx, s);
-        return res.arena.used;
+        return ArenaMetrics(res.arena.allocationCalls, res.arena.requestedBytes, res.arena.used);
     });
 
     // 5. PEG Meta-Grammar Parser (Self-hosting grammars)
     enum samplePegSmall = "Calc:\n  Expr <- Term ('+' Term)*\n  Term <- [0-9]+\n";
     benchmarks ~= BenchmarkCase("PEGGrammar.Small", samplePegSmall, 300, (string s) {
         auto tree = PParser.Pegged(s);
-        assert(tree.successful);
-    }, (string s, ref ParseContext ctx) { auto res = NPParser.Pegged(ctx, s); assert(res.successful); },
-            (string s) {
-        const ok = HWPeg.PegParser.parse(s);
-        if (!ok)
-            assert(0);
-    }, (string s) { ParseContext ctx; auto res = NPParser.Pegged(ctx, s); return res.arena.used; });
+        return tree.successful & (tree.end == s.length);
+    }, (string s, ref ParseContext ctx) {
+        auto res = NPParser.Pegged(ctx, s);
+        return res.successful & (res.end == s.length);
+    }, (string s) { const ok = HWPeg.PegParser.parse(s); return ok; }, (string s) {
+        ParseContext ctx;
+        auto res = NPParser.Pegged(ctx, s);
+        return ArenaMetrics(res.arena.allocationCalls, res.arena.requestedBytes, res.arena.used);
+    });
 
     enum samplePegMedium = "JSON:\n" ~ "  JSONObject < :'{' (Pair (:',' Pair)*)? :'}'\n"
         ~ "  Pair       < String :':' Value\n" ~ "  Array      < :'[' (Value (:',' Value)*)? :']'\n"
@@ -515,40 +344,255 @@ int main(string[] args) {
 
     benchmarks ~= BenchmarkCase("PEGGrammar.Medium", samplePegMedium, 150, (string s) {
         auto tree = PParser.Pegged(s);
-        assert(tree.successful);
-    }, (string s, ref ParseContext ctx) { auto res = NPParser.Pegged(ctx, s); assert(res.successful); },
-            (string s) {
-        const ok = HWPeg.PegParser.parse(s);
-        if (!ok)
-            assert(0);
-    }, (string s) { ParseContext ctx; auto res = NPParser.Pegged(ctx, s); return res.arena.used; });
+        return tree.successful & (tree.end == s.length);
+    }, (string s, ref ParseContext ctx) {
+        auto res = NPParser.Pegged(ctx, s);
+        return res.successful & (res.end == s.length);
+    }, (string s) { const ok = HWPeg.PegParser.parse(s); return ok; }, (string s) {
+        ParseContext ctx;
+        auto res = NPParser.Pegged(ctx, s);
+        return ArenaMetrics(res.arena.allocationCalls, res.arena.requestedBytes, res.arena.used);
+    });
 
-    BenchResult[] results;
+    // Reuse identical adapters for stress and rejection workloads.
+    auto jsonBase = benchmarks[3];
+    {
+        auto entry = jsonBase;
+        entry.name = "JSON.LargeString";
+        entry.input = "{\"text\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}";
+        entry.defaultIterations = 10;
+        entry.expectedAccepted = true;
+        benchmarks ~= entry;
+    }
+    {
+        auto entry = jsonBase;
+        entry.name = "JSON.EscapeHeavy";
+        entry.input = "{\"text\":\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\\n\\t\\u0041\\\"\"}";
+        entry.defaultIterations = 10;
+        entry.expectedAccepted = true;
+        benchmarks ~= entry;
+    }
+    {
+        auto entry = jsonBase;
+        entry.name = "JSON.WhitespaceHeavy";
+        entry.input = "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                {\n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \"a\"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                : 1}";
+        entry.defaultIterations = 10;
+        entry.expectedAccepted = true;
+        benchmarks ~= entry;
+    }
+    {
+        auto entry = jsonBase;
+        entry.name = "JSON.DeepNesting";
+        entry.input = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[0]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]";
+        entry.defaultIterations = 10;
+        entry.expectedAccepted = true;
+        benchmarks ~= entry;
+    }
+    {
+        auto entry = jsonBase;
+        entry.name = "JSON.InvalidEscape";
+        entry.input = "{\"a\":\"\\q\"}";
+        entry.defaultIterations = 10;
+        entry.expectedAccepted = false;
+        benchmarks ~= entry;
+    }
+    {
+        auto entry = jsonBase;
+        entry.name = "JSON.InvalidNumber";
+        entry.input = "{\"a\":01}";
+        entry.defaultIterations = 10;
+        entry.expectedAccepted = false;
+        benchmarks ~= entry;
+    }
+    {
+        auto entry = jsonBase;
+        entry.name = "JSON.InvalidTrailing";
+        entry.input = "{}garbage";
+        entry.defaultIterations = 10;
+        entry.expectedAccepted = false;
+        benchmarks ~= entry;
+    }
+    {
+        auto entry = jsonBase;
+        entry.name = "JSON.InvalidTruncated";
+        entry.input = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[0]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]";
+        entry.defaultIterations = 10;
+        entry.expectedAccepted = false;
+        benchmarks ~= entry;
+    }
+
+    foreach (ending; "bcd") {
+        auto entry = jsonBase;
+        entry.name = ending == 'b' ? "Ambiguous.First" : ending == 'c' ? "Ambiguous.Retry" : "Ambiguous.Invalid";
+        entry.input = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" ~ ending;
+        entry.defaultIterations = 100;
+        entry.expectedAccepted = ending != 'd';
+        benchmarks ~= entry;
+    }
+
+    // Differential acceptance gate, independent of the timed corpus/filter.
+    static immutable string[] jsonValid = [
+        "{}", "[]", "null", "-0.995e+2", `{"a":[true,false,null,"\u0041\n\/",-12.5E-2]}`, " \t[0]\r\n"
+    ];
+    static immutable string[] jsonInvalid = [
+        "", "01", "1.", "1e", "+1", "[1,]", `{"a":1,}`, `"\q"`, "\"raw\nnewline\"", "{}garbage", "[",
+        `"\u123"`
+    ];
+    foreach (expected; 0 .. 2) {
+        foreach (input; expected ? jsonValid : jsonInvalid) {
+            ParseContext context;
+            auto np = NPJson.JSON(context, input);
+            auto p = PJson.JSON(input);
+            const want = expected != 0;
+            if ((np.successful && np.end == input.length) != want || (p.successful
+                    && p.end == input.length) != want || HWJson.JsonParser.parse(input) != want) {
+                fprintf(stderr, "JSON differential acceptance gate failed: input=%.*s expected=%d NP=%d/%zu Pegged=%d/%zu HW=%d\n",
+                        cast(int)input.length, input.ptr, want, np.successful, np.end,
+                        p.successful, p.end, HWJson.JsonParser.parse(input));
+                return 1;
+            }
+        }
+    }
+
+    if (exportCorpus) {
+        putchar('[');
+        size_t count;
+        foreach (ref bc; benchmarks) {
+            if (!contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous."))
+                continue;
+            if (count++)
+                putchar(',');
+            exportJsonCase(bc.name, bc.input, bc.expectedAccepted, bc.defaultIterations, true,
+                    contains(bc.name, "Ambiguous."));
+        }
+        foreach (expected; 0 .. 2) {
+            foreach (input; expected ? jsonValid : jsonInvalid) {
+                if (count++)
+                    putchar(',');
+                exportJsonCase("AcceptanceGate", input, expected != 0, 1, false);
+            }
+        }
+        printf("]\n");
+        return 0;
+    }
+
+    size_t matched;
+    if (jsonOutput)
+        printf("{\"schemaVersion\":2,\"benchmarks\":[");
+    else
+        printf("Times include output construction, consumption, and disposal. Execution modes identify internal tree projection.\n");
     foreach (ref bc; benchmarks) {
-        if (filterPattern.length > 0 && !bc.name.canFind(filterPattern))
+        if (!contains(bc.name, filterPattern) || (comparison && !contains(bc.name, "JSON.")
+                && !contains(bc.name, "Ambiguous.")))
             continue;
-
-        size_t iters = (customIterations > 0) ? customIterations : bc.defaultIterations;
-        if (!jsonOutput) {
-            writefln("Running benchmark: %-20s (%d iterations%s)...", bc.name, iters, measureMemory ? ", +memory" : "");
-            stdout.flush();
+        size_t iterations = customIterations ? customIterations : bc.defaultIterations;
+        // Checks deliberately remain outside timing and do not depend on assert.
+        if (comparison && !verifyOutputs(bc.input, mode, bc.expectedAccepted, contains(bc.name, "Ambiguous."))) {
+            fprintf(stderr, "JSON output records differ: %.*s\n", cast(int)bc.name.length, bc.name
+                    .ptr);
+            return 1;
         }
-        results ~= executeBenchmark(bc, iters, measureMemory);
-    }
-
-    if (results.length == 0) {
-        writefln("No benchmarks matched filter: '%s'", filterPattern);
-        return 1;
-    }
-
-    if (jsonOutput) {
-        printJsonOutput(results, measureMemory);
-    } else {
-        printPerformanceTable(results);
-        if (measureMemory) {
-            printMemoryTable(results);
+        const reference = observeCase(bc, 2, comparison, mode);
+        foreach (engine; 0 .. 3) {
+            const actual = observeCase(bc, engine, comparison, mode);
+            if (actual.status != Status.ok || actual.accepted != bc.expectedAccepted || (comparison
+                    && (actual.outputHash != reference.outputHash || actual.outputNodes != reference
+                    .outputNodes))) {
+                fprintf(stderr, "Acceptance/output equivalence failure: %.*s engine=%zu\n",
+                        cast(int)bc.name.length, bc.name.ptr, cast(size_t)engine);
+                return 1;
+            }
+        }
+        foreach (engine; 0 .. 3) {
+            // Identical iteration counts for timing and allocation normalization.
+            double minimum = double.max, maximum = 0, sum = 0;
+            ulong gcBytes;
+            Buffer!double sampleTimes;
+            foreach (sample; 0 .. samples + 1) {
+                GC.collect();
+                GC.minimize();
+                auto before = GC.stats().allocatedInCurrentThread;
+                const seed = currentChecksum();
+                auto start = MonoTime.currTime;
+                foreach (i; 0 .. iterations) {
+                    const observation = observeCase(bc, engine, comparison, mode);
+                    consume(observation.accepted, observation.outputHash, observation.outputNodes, observation
+                            .status);
+                }
+                auto elapsed = (MonoTime.currTime - start).total!"nsecs" / 1_000_000.0;
+                auto after = GC.stats().allocatedInCurrentThread;
+                if (currentChecksum() != expectedChecksum(seed, reference, iterations)) {
+                    fprintf(stderr, "Timed result checksum differs: %.*s engine=%zu\n",
+                            cast(int)bc.name.length, bc.name.ptr, cast(size_t)engine);
+                    return 1;
+                }
+                if (sample == 0)
+                    continue; // untimed warmup sample
+                if (elapsed < minimum)
+                    minimum = elapsed;
+                if (elapsed > maximum)
+                    maximum = elapsed;
+                sum += elapsed;
+                if (!sampleTimes.put(elapsed))
+                    return 1;
+                gcBytes += after >= before ? after - before : 0;
+            }
+            const mean = sum / samples;
+            const throughput = mean > 0 ? bc.input.length * cast(double)iterations / (mean * 1000) : 0;
+            const gcPerOp = gcBytes / samples / iterations;
+            string engineName = engine == 0 ? "Pegged" : engine == 1 ? "NPegged" : "Handwritten";
+            string obligation = comparison ? (mode == OutputMode.validation
+                    ? "validation" : mode == OutputMode.spans ? "spans" : "tree") : engine == 2
+                ? "validation" : "full-tree";
+            const observed = comparison || contains(bc.name, "Ambiguous.") ? observeCase(bc, engine,
+                    comparison, mode) : Observation.init;
+            const arenaMeasured = measureMemory && (comparison ? observed.allocatorMeasured : engine == 1);
+            const arena = !measureMemory ? ArenaMetrics.init : comparison || contains(bc.name,
+                    "Ambiguous.") ? ArenaMetrics(observed.allocationCalls,
+                    observed.payloadBytes, observed.reservedBytes) : engine == 1
+                ? bc.getNPeggedArenaPeak(bc.input) : ArenaMetrics.init;
+            string execution = engine == 2 ? "direct" : comparison ? "native-tree-projection" : "native-tree";
+            if (jsonOutput) {
+                if (matched)
+                    printf(",");
+                printf("{\"name\":\"%.*s\",\"engine\":\"%.*s\",\"output\":\"%.*s\",\"inputBytes\":%zu,\"iterations\":%zu,\"samples\":%zu,\"meanMs\":%.9f,\"minMs\":%.9f,\"maxMs\":%.9f,\"MBps\":%.6f,\"gcBytesPerOp\":%llu,\"execution\":\"%.*s\",\"expectedAccepted\":%s,\"outputHash\":%llu,\"outputNodes\":%zu,\"arenaMeasured\":%s,\"allocatorCallsPerOp\":%zu,\"payloadBytesPerOp\":%zu,\"reservedBytesPerOp\":%zu,\"arenaCumulativeBytes\":%zu",
+                        cast(int)bc.name.length, bc.name.ptr, cast(int)engineName.length,
+                        engineName.ptr, cast(int)obligation.length, obligation.ptr,
+                        bc.input.length, iterations, samples, mean, minimum, maximum, throughput,
+                        gcPerOp, cast(int)execution.length, execution.ptr, (bc.expectedAccepted
+                            ? "true" : "false").ptr, observed.outputHash, observed.outputNodes,
+                        (arenaMeasured ? "true" : "false")
+                            .ptr, arena.calls, arena.requestedBytes, arena.reservedBytes, arena
+                            .reservedBytes);
+                printf(",\"allocatorMeasured\":%s,\"allocationScope\":\"%s\",\"sampleMs\":[",
+                        (arenaMeasured ? "true" : "false")
+                            .ptr, (engine == 0 ? "output-adapter" : comparison ? "parser+output" : "parser")
+                            .ptr);
+                foreach (i, elapsed; sampleTimes.data) {
+                    if (i)
+                        putchar(',');
+                    printf("%.9f", elapsed);
+                }
+                printf("]}");
+            } else
+                printf("%.*s %.*s output=%.*s mean=%.6f ms range=[%.6f,%.6f] MB/s=%.3f GC/op=%llu allocator calls=%zu payload=%zu reserved=%zu arena measured=%d\n",
+                        cast(int)bc.name.length, bc.name.ptr, cast(int)engineName.length,
+                        engineName.ptr, cast(int)obligation.length, obligation.ptr, mean, minimum,
+                        maximum, throughput, gcPerOp, arena.calls, arena.requestedBytes,
+                        arena.reservedBytes, arenaMeasured);
+            ++matched;
         }
     }
+    if (jsonOutput)
+        printf("],\"checksum\":%llu}\n", currentChecksum());
+    else
+        printf("Checksum: %llu\n", currentChecksum());
+    return matched ? 0 : 1;
+}
 
-    return 0;
+unittest {
+    string[2] args = ["benchmark_runner", "--help"];
+    assert(main(args[]) == 0);
+    args[1] = "--invalid";
+    assert(main(args[]) == 2);
 }

@@ -8,7 +8,7 @@ DC ?= dmd
 # Benchmark flags (e.g., BENCH_FLAGS="--iterations=500" or BENCH_FLAGS="--json")
 BENCH_FLAGS ?=
 
-.PHONY: all build test test-all examples examples-all benchmark bench benchmark-memory bench-memory coverage hotpaths format check-format check-phobos asan valgrind validate install-hooks clean help
+.PHONY: benchmark-checks benchmark-compare all build test test-all examples examples-all benchmark bench benchmark-memory bench-memory coverage hotpaths format check-format check-phobos asan valgrind validate install-hooks clean help
 
 # Default target: build and run tests using $(DC)
 all: build
@@ -44,13 +44,19 @@ benchmark:
 
 bench: benchmark
 
-# Run benchmarks with peak memory measurement (subprocess RSS and arena high-water mark)
+benchmark-checks:
+	python3 scripts/benchmark_checks.py
+
+benchmark-compare:
+	DC=$(DC) python3 scripts/compare_benchmarks.py $(BENCH_FLAGS)
+
+# Run benchmarks with allocator traffic measurements
 benchmark-memory:
 	DC=$(DC) scripts/benchmark.sh --memory $(BENCH_FLAGS)
 
 bench-memory: benchmark-memory
 
-# Measure and verify code coverage (>90% threshold required)
+# Measure and verify src/ coverage (>90% threshold required)
 coverage:
 	scripts/coverage.sh
 
@@ -79,11 +85,11 @@ check-format:
 
 # Enforce prohibition of Phobos imports in maintained code
 check-phobos:
-	@if rg -n --glob '*.d' 'import[[:space:]]+(std\.|[^;]*,[[:space:]]*std\.)' src tests examples scripts; then \
+	@if rg -n --glob '*.d' 'import[[:space:]]+(std\.|[^;]*,[[:space:]]*std\.)' src tests examples scripts benchmark; then \
 		echo 'ERROR: Phobos imports are forbidden in maintained D code.' >&2; \
 		exit 1; \
 	fi; \
-	echo "Zero Phobos imports verified in src/, tests/, examples/, scripts/."
+	echo "Zero Phobos imports verified in src/, tests/, examples/, scripts/, benchmark/."
 
 # Run AddressSanitizer and LeakSanitizer tests
 asan:
@@ -124,8 +130,10 @@ help:
 	@echo "  examples         Run examples with \$$(DC)"
 	@echo "  examples-all     Run examples across dmd, ldc2, and gdc"
 	@echo "  bench / benchmark Run benchmark suite against vendored Pegged"
-	@echo "  bench-memory     Run benchmark suite with peak memory profiling"
-	@echo "  coverage         Measure code coverage and verify >90% threshold"
+	@echo "  benchmark-checks Verify benchmark units, integrations, and diagnostic coverage"
+	@echo "  benchmark-compare Compare common outputs across D parsers and chumsky"
+	@echo "  bench-memory     Run benchmark suite with allocator accounting"
+	@echo "  coverage         Measure coverage and verify src/ >90% threshold"
 	@echo "  hotpaths         Verify @nogc compliance on hot paths (-vgc)"
 	@echo "  format           Format all .d files using dfmt"
 	@echo "  check-format     Verify all .d files are properly formatted"

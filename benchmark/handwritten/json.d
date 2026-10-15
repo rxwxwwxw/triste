@@ -25,12 +25,31 @@ private bool isDigit(char c) @nogc nothrow pure @safe {
     return c >= '0' && c <= '9';
 }
 
+@nogc nothrow pure @safe unittest {
+    assert(isDigit('0') && isDigit('9'));
+    assert(!isDigit('/') && !isDigit(':'));
+}
+
 private bool isHex(char c) @nogc nothrow pure @safe {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
+@nogc nothrow pure @safe unittest {
+    foreach (c; "0123456789abcdefABCDEF")
+        assert(isHex(c));
+    foreach (c; "/:@G`g")
+        assert(!isHex(c));
+}
+
 private bool isSpace(char c) @nogc nothrow pure @safe {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
+@nogc nothrow pure @safe unittest {
+    foreach (c; " \t\r\n")
+        assert(isSpace(c));
+    foreach (c; "x\v\f")
+        assert(!isSpace(c));
 }
 
 struct JsonLexer {
@@ -71,9 +90,11 @@ struct JsonLexer {
                             pos++;
                         }
                     } else {
-                        pos++;
+                        return Token(TokenType.invalid, src[start .. pos]);
                     }
                 } else {
+                    if (cast(ubyte)src[pos] < 0x20)
+                        return Token(TokenType.invalid, src[start .. pos]);
                     pos++;
                 }
             }
@@ -148,6 +169,19 @@ struct JsonLexer {
         default:
             return Token(TokenType.invalid, src[start .. pos]);
         }
+    }
+}
+
+@nogc nothrow unittest {
+    foreach (input; [`"\\\"\/\b\f\n\r\t\u0041\uabcd\uABCD"`, "-12.5E-2", "0e1", "123"]) {
+        JsonLexer lexer = JsonLexer(input, 0);
+        auto token = lexer.nextToken();
+        assert(token.type != TokenType.invalid && token.text == input);
+        assert(lexer.nextToken().type == TokenType.eof);
+    }
+    foreach (input; [`"`, `"x\`, `"\u`, `"\u123x"`, "-", "-x", "1.", "1e", "1e+", "@", "\"raw\n\""]) {
+        JsonLexer lexer = JsonLexer(input, 0);
+        assert(lexer.nextToken().type == TokenType.invalid);
     }
 }
 
@@ -264,9 +298,23 @@ struct JsonParser {
 }`;
     assert(JsonParser.parse(complexJson));
 
+    assert(JsonParser.parse(`-0.995e+2`));
+    assert(!JsonParser.parse(`"\q"`));
+    assert(!JsonParser.parse("\"raw\nnewline\""));
+    assert(!JsonParser.parse(`01`));
+    assert(!JsonParser.parse(`1.`));
     assert(!JsonParser.parse(""));
     assert(!JsonParser.parse("{"));
     assert(!JsonParser.parse(`{"missing_colon" "val"}`));
     assert(!JsonParser.parse(`{"trailing_comma": 1,}`));
     assert(!JsonParser.parse(`[1, 2,]`));
+    assert(!JsonParser.parse(`[1 2]`));
+    assert(!JsonParser.parse(`{"a":1 "b":2}`));
+    assert(!JsonParser.parse(`{"a":@}`));
+    foreach (input; [
+        `{1:2}`, `{,}`, `{"a":}`, `[1}`, `{"a":1`, `{"a":1,true}`, "truex", "falsex", "nullx"
+    ])
+        assert(!JsonParser.parse(input));
+    foreach (input; ["true", "false", "null", "0", "-0.1e-2"])
+        assert(JsonParser.parse(input));
 }
