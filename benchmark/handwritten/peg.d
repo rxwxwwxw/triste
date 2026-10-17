@@ -1,17 +1,36 @@
 module benchmark.handwritten.peg;
 
-struct PegParser {
+import npegged.storage : Arena, Status;
+import npegged.records : CompactNode, RecordBuffer;
+
+enum PegKind : uint {
+    root = 100,
+    definition,
+    expression,
+    sequence,
+    prefix,
+    primary
+}
+
+alias PegParser = PegParserImpl!false;
+
+private struct PegParserImpl(bool Capture) {
     private string input;
     private size_t pos;
-
-    static bool parse(string s) @nogc nothrow pure @safe {
-        PegParser p;
-        p.input = s;
-        p.pos = 0;
-        return p.parseGrammar();
+    static if (Capture) {
+        RecordBuffer* output;
+        bool spans;
     }
 
-    private void skipSpacing() @nogc nothrow pure @safe {
+    static if (!Capture)
+        static bool parse(string s) @nogc nothrow {
+            PegParserImpl p;
+            p.input = s;
+            p.pos = 0;
+            return p.parseGrammar();
+        }
+
+    private void skipSpacing()() @nogc nothrow {
         while (pos < input.length) {
             char c = input[pos];
             if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
@@ -26,15 +45,15 @@ struct PegParser {
         }
     }
 
-    private bool isIdentStart(char c) const @nogc nothrow pure @safe {
+    private bool isIdentStart()(char c) const @nogc nothrow {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
     }
 
-    private bool isIdentChar(char c) const @nogc nothrow pure @safe {
+    private bool isIdentChar()(char c) const @nogc nothrow {
         return isIdentStart(c) || (c >= '0' && c <= '9');
     }
 
-    private bool parseIdent(out string id) @nogc nothrow pure @safe {
+    private bool parseIdent()(out string id) @nogc nothrow {
         skipSpacing();
         if (pos >= input.length || !isIdentStart(input[pos]))
             return false;
@@ -45,11 +64,28 @@ struct PegParser {
         return true;
     }
 
-    private bool parseGrammar() @nogc nothrow pure @safe {
+    private bool parseGrammar()() @nogc nothrow {
+        bool accepted;
+        static if (Capture) {
+            const checkpoint = output.length;
+            const parent = output.parent;
+            const index = output.openKind(spans && PegKind.root != PegKind.primary ? uint.max
+                    : cast(uint)PegKind.root, pos);
+        }
+        scope (exit) {
+            static if (Capture) {
+                if (accepted)
+                    output.finish(index, pos);
+                else
+                    output.rollback(checkpoint);
+                output.parent = parent;
+            }
+        }
+
         skipSpacing();
         string name;
         if (!parseIdent(name))
-            return false;
+            return accepted = (false);
         skipSpacing();
         if (pos < input.length && input[pos] == '(') {
             pos++;
@@ -77,29 +113,46 @@ struct PegParser {
                 }
             }
             if (depth != 0)
-                return false;
+                return accepted = (false);
             skipSpacing();
         }
         if (pos >= input.length || input[pos] != ':')
-            return false;
+            return accepted = (false);
         pos++;
 
         skipSpacing();
         size_t defCount = 0;
         while (pos < input.length) {
             if (!parseDefinition())
-                return false;
+                return accepted = (false);
             defCount++;
             skipSpacing();
         }
-        return defCount > 0 && pos == input.length;
+        return accepted = (defCount > 0 && pos == input.length);
     }
 
-    private bool parseDefinition() @nogc nothrow pure @safe {
+    private bool parseDefinition()() @nogc nothrow {
+        bool accepted;
+        static if (Capture) {
+            const checkpoint = output.length;
+            const parent = output.parent;
+            const index = output.openKind(spans && PegKind.definition != PegKind.primary ? uint.max
+                    : cast(uint)PegKind.definition, pos);
+        }
+        scope (exit) {
+            static if (Capture) {
+                if (accepted)
+                    output.finish(index, pos);
+                else
+                    output.rollback(checkpoint);
+                output.parent = parent;
+            }
+        }
+
         skipSpacing();
         string id;
         if (!parseIdent(id))
-            return false;
+            return accepted = (false);
         skipSpacing();
         if (pos < input.length && input[pos] == '(') {
             pos++;
@@ -127,12 +180,12 @@ struct PegParser {
                 }
             }
             if (depth != 0)
-                return false;
+                return accepted = (false);
             skipSpacing();
         }
 
         if (pos >= input.length || input[pos] != '<')
-            return false;
+            return accepted = (false);
         pos++;
         if (pos < input.length) {
             char c = input[pos];
@@ -167,39 +220,75 @@ struct PegParser {
                     }
                 }
                 if (depth != 0)
-                    return false;
+                    return accepted = (false);
             }
         }
         skipSpacing();
 
-        return parseExpression();
+        return accepted = (parseExpression());
     }
 
-    private bool parseExpression() @nogc nothrow pure @safe {
+    private bool parseExpression()() @nogc nothrow {
+        bool accepted;
+        static if (Capture) {
+            const checkpoint = output.length;
+            const parent = output.parent;
+            const index = output.openKind(spans && PegKind.expression != PegKind.primary ? uint.max
+                    : cast(uint)PegKind.expression, pos);
+        }
+        scope (exit) {
+            static if (Capture) {
+                if (accepted)
+                    output.finish(index, pos);
+                else
+                    output.rollback(checkpoint);
+                output.parent = parent;
+            }
+        }
+
         skipSpacing();
-        if (pos < input.length && (input[pos] == '/' || input[pos] == '|'))
+        if (pos < input.length && (input[pos] == '/' || input[pos] == '|')) {
             pos++;
+            skipSpacing();
+        }
         if (!parseSequence())
-            return false;
+            return accepted = (false);
         while (true) {
             skipSpacing();
             if (pos < input.length && (input[pos] == '/' || input[pos] == '|')) {
                 pos++;
                 skipSpacing();
                 if (!parseSequence())
-                    return false;
+                    return accepted = (false);
             } else {
                 break;
             }
         }
-        return true;
+        return accepted = (true);
     }
 
-    private bool isPrefixChar(char c) const @nogc nothrow pure @safe {
+    private bool isPrefixChar()(char c) const @nogc nothrow {
         return c == '&' || c == '!' || c == '~' || c == ':' || c == '^' || c == ';' || c == '%';
     }
 
-    private bool parseSequence() @nogc nothrow pure @safe {
+    private bool parseSequence()() @nogc nothrow {
+        bool accepted;
+        static if (Capture) {
+            const checkpoint = output.length;
+            const parent = output.parent;
+            const index = output.openKind(spans && PegKind.sequence != PegKind.primary ? uint.max
+                    : cast(uint)PegKind.sequence, pos);
+        }
+        scope (exit) {
+            static if (Capture) {
+                if (accepted)
+                    output.finish(index, pos);
+                else
+                    output.rollback(checkpoint);
+                output.parent = parent;
+            }
+        }
+
         skipSpacing();
         size_t pieceCount = 0;
         while (pos < input.length) {
@@ -212,13 +301,13 @@ struct PegParser {
             if (isDefinitionAhead())
                 break;
             if (!parsePrefix())
-                return false;
+                return accepted = (false);
             pieceCount++;
         }
-        return pieceCount > 0;
+        return accepted = (pieceCount > 0);
     }
 
-    private bool isDefinitionAhead() @nogc nothrow pure @safe {
+    private bool isDefinitionAhead()() @nogc nothrow {
         size_t saved = pos;
         scope (exit)
             pos = saved;
@@ -244,14 +333,31 @@ struct PegParser {
         return pos < input.length && input[pos] == '<';
     }
 
-    private bool parsePrefix() @nogc nothrow pure @safe {
+    private bool parsePrefix()() @nogc nothrow {
+        bool accepted;
+        static if (Capture) {
+            const checkpoint = output.length;
+            const parent = output.parent;
+            const index = output.openKind(spans && PegKind.prefix != PegKind.primary ? uint.max
+                    : cast(uint)PegKind.prefix, pos);
+        }
+        scope (exit) {
+            static if (Capture) {
+                if (accepted)
+                    output.finish(index, pos);
+                else
+                    output.rollback(checkpoint);
+                output.parent = parent;
+            }
+        }
+
         skipSpacing();
         while (pos < input.length && isPrefixChar(input[pos])) {
             pos++;
             skipSpacing();
         }
         if (!parsePrimary())
-            return false;
+            return accepted = (false);
         while (pos < input.length) {
             char c = input[pos];
             if (c == '*' || c == '+' || c == '?') {
@@ -282,35 +388,52 @@ struct PegParser {
                     }
                 }
                 if (depth != 0)
-                    return false;
+                    return accepted = (false);
             } else {
                 break;
             }
         }
-        return true;
+        return accepted = (true);
     }
 
-    private bool parsePrimary() @nogc nothrow pure @safe {
+    private bool parsePrimary()() @nogc nothrow {
+        bool accepted;
+        static if (Capture) {
+            const checkpoint = output.length;
+            const parent = output.parent;
+            const index = output.openKind(spans && PegKind.primary != PegKind.primary ? uint.max
+                    : cast(uint)PegKind.primary, pos);
+        }
+        scope (exit) {
+            static if (Capture) {
+                if (accepted)
+                    output.finish(index, pos);
+                else
+                    output.rollback(checkpoint);
+                output.parent = parent;
+            }
+        }
+
         skipSpacing();
         if (pos >= input.length)
-            return false;
+            return accepted = (false);
         char c = input[pos];
 
         if (c == '(') {
             pos++;
             skipSpacing();
             if (!parseExpression())
-                return false;
+                return accepted = (false);
             skipSpacing();
             if (pos >= input.length || input[pos] != ')')
-                return false;
+                return accepted = (false);
             pos++;
-            return true;
+            return accepted = (true);
         }
 
         if (c == '.') {
             pos++;
-            return true;
+            return accepted = (true);
         }
 
         if (c == '\'' || c == '"') {
@@ -323,11 +446,11 @@ struct PegParser {
                     pos++;
             }
             if (pos >= input.length || input[pos] != quote)
-                return false;
+                return accepted = (false);
             pos++;
             if (pos < input.length && input[pos] == 'i')
                 pos++;
-            return true;
+            return accepted = (true);
         }
 
         if (c == '[') {
@@ -341,9 +464,9 @@ struct PegParser {
                     pos++;
             }
             if (pos >= input.length || input[pos] != ']')
-                return false;
+                return accepted = (false);
             pos++;
-            return true;
+            return accepted = (true);
         }
 
         string id;
@@ -374,18 +497,18 @@ struct PegParser {
                     }
                 }
                 if (depth != 0)
-                    return false;
+                    return accepted = (false);
             }
             while (pos + 1 < input.length && input[pos] == '.' && isIdentStart(input[pos + 1])) {
                 pos++;
                 string subId;
                 if (!parseIdent(subId))
-                    return false;
+                    return accepted = (false);
             }
-            return true;
+            return accepted = (true);
         }
 
-        return false;
+        return accepted = (false);
     }
 }
 
@@ -460,4 +583,41 @@ JSON:
     assert(!PegParser.parse("Calc:\n Expr <- Term { action\n"));
     assert(!PegParser.parse("Calc:\n Expr <- Term\n %"));
     assert(!PegParser.parse("Calc:\n Expr <- Term\n <"));
+}
+
+struct PegTreeResult {
+    Arena arena;
+    CompactNode[] nodes;
+    bool accepted;
+    Status status;
+    @disable this(this);
+    @disable this(ref PegTreeResult);
+}
+
+PegTreeResult parsePegTree(string input, bool spans = false, size_t limit = 256 * 1024 * 1024) @nogc nothrow {
+    PegTreeResult result;
+    result.arena.limit = limit;
+    RecordBuffer output;
+    output.arena = &result.arena;
+    PegParserImpl!true parser;
+    parser.input = input;
+    parser.output = &output;
+    parser.spans = spans;
+    result.accepted = parser.parseGrammar();
+    result.status = output.status != Status.ok ? output.status : result.accepted ? Status.ok : Status
+        .mismatch;
+    result.accepted = result.status == Status.ok;
+    if (!result.accepted)
+        output.rollback(0);
+    result.nodes = output.nodes;
+    return result;
+}
+
+@nogc nothrow unittest {
+    auto tree = parsePegTree("G: A <- ('a' / B)+");
+    assert(tree.accepted && tree.nodes.length > 6);
+    assert(tree.nodes[0].kind == PegKind.root && tree.nodes[0].parent == size_t.max);
+    assert(tree.nodes[1].kind == PegKind.definition && tree.nodes[1].parent == 0);
+    assert(!parsePegTree("G: A <- (").nodes.length);
+    assert(parsePegTree("G: A <- 'a'", false, 0).status == Status.resourceLimit);
 }

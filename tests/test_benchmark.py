@@ -29,7 +29,17 @@ class BenchmarkRunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)
         self.assertEqual(report['schemaVersion'], 2)
-        self.assertEqual(len(report['benchmarks']), 63)
+        self.assertTrue(report['benchmarks'])
+        families = {r['name'].split('.')[0] for r in report['benchmarks']}
+        self.assertEqual(families, {'Arithmetic', 'CSV', 'Numbers', 'PEGGrammar', 'JSON', 'Ambiguous'})
+        by_name = {}
+        for row in report['benchmarks']:
+            by_name.setdefault(row['name'], []).append(row)
+        for rows in by_name.values():
+            self.assertEqual(len({r['outputHash'] for r in rows}), 1)
+            self.assertEqual(len({r['outputNodes'] for r in rows}), 1)
+            if rows[0]['expectedAccepted']:
+                self.assertGreater(rows[0]['outputNodes'], 0)
         self.assertNotEqual(report['checksum'], 0)
         for row in report['benchmarks']:
             self.assertEqual(row['iterations'], 2)
@@ -41,8 +51,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
             self.assertGreaterEqual(row['MBps'], 0)
             if row['meanMs'] > 0:
                 self.assertGreater(row['MBps'], 0)
-            expected = 'validation' if row['engine'] == 'Handwritten' else 'full-tree'
-            self.assertEqual(row['output'], expected)
+            self.assertEqual(row['output'], 'tree')
 
     def test_filter_and_memory(self):
         result = self.run_runner('--filter=JSON.Small', '--iterations=1',
@@ -81,7 +90,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                         self.assertEqual(group[0]['outputNodes'], 0)
 
     def test_workload_validation(self):
-        exported = self.run_runner('--workloads', '--export-corpus')
+        exported = self.run_runner('--workloads', '--mode=validation', '--export-corpus')
         self.assertEqual(exported.returncode, 0, exported.stderr)
         corpus = json.loads(exported.stdout)
         names = {case['name'] for case in corpus}
@@ -89,7 +98,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
         self.assertEqual({name.split('.')[0] for name in names},
                          {'Arithmetic', 'CSV', 'Numbers', 'PEGGrammar'})
         self.assertTrue(any(not case['expectedAccepted'] for case in corpus))
-        result = self.run_runner('--workloads', '--json', '--memory',
+        result = self.run_runner('--workloads', '--mode=validation', '--json', '--memory',
                                  '--iterations=2', '--samples=2')
         self.assertEqual(result.returncode, 0, result.stderr)
         rows = json.loads(result.stdout)['benchmarks']
@@ -109,7 +118,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 self.assertEqual(exported.returncode, 0, exported.stderr)
                 cases = json.loads(exported.stdout)
                 self.assertTrue(cases)
-                self.assertTrue(all(c['name'].startswith(('Arithmetic.', 'CSV.')) for c in cases))
+                self.assertEqual({c['name'].split('.')[0] for c in cases}, {'Arithmetic', 'CSV', 'Numbers', 'PEGGrammar'})
                 self.assertTrue(all(c['output'] == mode and 'expectedRecords' in c for c in cases))
                 measured = self.run_runner('--workloads', '--mode=' + mode, '--json',
                                            '--memory', '--iterations=2', '--samples=2')

@@ -1,3 +1,23 @@
+`make bench` now defaults to full canonical tree output for every handwritten
+benchmark family. Trees are materialized as preorder nodes `(kind, begin, end,
+parent)`; timing includes construction, fingerprint consumption and arena disposal.
+Arithmetic, CSV, Numbers and PEG syntax compare NPegged with handwritten D using
+identical records. JSON and ambiguous-choice cases also include vendored Pegged,
+whose existing projection implements the same contract. The differing example
+parse-tree shapes are not compared as if they were equal outputs.
+
+Numeric trees retain the complete numeric token and its scientific/hex/binary
+kind. PEG syntax trees retain grammar, definitions, expressions, sequences,
+prefixes and primaries, including nested grouped expressions. Header text,
+operators, parameters and actions remain available in their containing input
+intervals; scanner helpers are not separate nodes. Both engines borrow the
+caller's immutable input and emit exactly this same tree schema.
+
+Use `--mode=validation` for the explicit JSON/ambiguity recognition cohort, or
+`--workloads --mode=validation` to include all four handwritten workload families.
+`--workloads` also defaults to trees; Numbers and PEG syntax are included in both
+span and tree modes. Output records and acceptance are checked before timing.
+
 Run `python3 scripts/compare_benchmarks.py --iterations=20 --samples=5
 --output=build/comparison.json` from the repository root to build and compare
 NPegged, vendored Pegged, handwritten D, and pinned chumsky 0.13.0 locally.
@@ -38,8 +58,8 @@ record before timing:
 The caller retains immutable input for every engine. Copies required by an
 engine are included. NPegged validation uses its synchronous borrowing recognizer
 (`execution=recognition`), with memo storage still included. Its spans/tree modes
-and all Pegged modes build native generic trees and project them to these outputs
-(`execution=native-tree-projection`). Chumsky validation uses `Parser.check`;
+emit compact records directly (`execution=compact-records-borrowed`); Pegged
+builds a native generic tree and projects it (`execution=native-tree-projection`). Chumsky validation uses `Parser.check`;
 its span/tree outputs project a native AST. The handwritten parser emits the
 common outputs directly. Equal output obligations do not imply equal internal
 work; the measurements expose the cost of each current implementation.
@@ -67,7 +87,7 @@ The NPegged comparison grammars explicitly use `Memoization.selective`.
 JSON groups ordinary string runs into a fused lexical rule with escape fallback;
 the same grammar text is used for both PEG engines. The acceptance language and
 common output records remain checked. Validation of these grammars allocates
-no parser storage; owned tree output still includes its allocation and copying.
+no parser storage; tree output still includes record allocation and copying.
 
 Use `--target-engines` on the D runner to time NPegged and handwritten D only.
 All-engine acceptance/output checks still execute before timing. This avoids

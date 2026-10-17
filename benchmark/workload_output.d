@@ -3,6 +3,7 @@ module benchmark.workload_output;
 
 import npegged.grammar;
 import npegged.records : CompactNode, RecordBuffer;
+import benchmark.scalar_output : generatedScalarOutput, handwrittenScalarOutput, verifyScalarOutput;
 import benchmark.workload_grammars : arithmeticGrammar, csvGrammar;
 import benchmark.handwritten.arithmetic : ArithmeticLexer, Token, TokenType, ArithmeticParser;
 import benchmark.handwritten.csv : CsvParser;
@@ -358,12 +359,14 @@ WorkloadOutput csvOutput(string input, OutputMode mode, size_t memoryLimit = 256
 }
 
 bool supportsWorkloadOutput(string name) @nogc nothrow pure {
-    return name.length >= 11 && name[0 .. 11] == "Arithmetic." || name.length >= 4 && name[0 .. 4] == "CSV.";
+    return name.length >= 11 && (name[0 .. 11] == "Arithmetic." || name[0 .. 11] == "PEGGrammar.")
+        || name.length >= 4 && name[0 .. 4] == "CSV." || name.length >= 8 && name[0 .. 8] == "Numbers.";
 }
 
 @nogc nothrow unittest {
     assert(supportsWorkloadOutput("Arithmetic.Small") && supportsWorkloadOutput("CSV.Empty"));
-    assert(!supportsWorkloadOutput("Numbers.Binary") && !supportsWorkloadOutput(""));
+    assert(supportsWorkloadOutput("Numbers.Binary") && supportsWorkloadOutput("PEGGrammar.Test")
+            && !supportsWorkloadOutput(""));
 }
 
 CompactResult generatedWorkloadOutput(string name, string input, OutputMode mode) @nogc nothrow {
@@ -382,7 +385,7 @@ CompactResult generatedWorkloadOutput(string name, string input, OutputMode mode
             return parseRecords!(CsvSpans.BenchCSV.opCall, csvSpanTag, false)(context, input);
         return parseRecords!(CsvTree.BenchCSV.opCall, csvTreeTag, false)(context, input);
     }
-    return CompactResult.init;
+    return generatedScalarOutput(name, input, mode);
 }
 
 @nogc nothrow unittest {
@@ -400,6 +403,8 @@ CompactResult generatedWorkloadOutput(string name, string input, OutputMode mode
 }
 
 bool verifyWorkloadOutput(string name, string input, OutputMode mode, bool expected) @nogc nothrow {
+    if (name.length >= 8 && name[0 .. 8] == "Numbers." || name.length >= 11 && name[0 .. 11] == "PEGGrammar.")
+        return verifyScalarOutput(name, input, mode, expected);
     auto generated = generatedWorkloadOutput(name, input, mode);
     auto handwritten = name.length >= 11 && name[0 .. 11] == "Arithmetic." ? arithmeticOutput(input,
             mode) : csvOutput(input, mode);
@@ -437,6 +442,14 @@ Observation observeWorkloadOutput(string name, string input, OutputMode mode, bo
                 result.arena.requestedBytes + result.outputArena.requestedBytes,
                 result.arena.used + result.outputArena.used,
                 true, result.status == Status.mismatch ? Status.ok : result.status);
+    }
+    if (name.length >= 8 && name[0 .. 8] == "Numbers." || name.length >= 11 && name[0 .. 11] == "PEGGrammar.") {
+        auto result = handwrittenScalarOutput(name, input, mode);
+        return Observation(result.successful, result.successful ? fingerprint(result.nodes) : 0,
+                result.nodes.length, result.outputArena.allocationCalls,
+                result.outputArena.requestedBytes,
+                result.outputArena.used, true, result.status == Status.mismatch ? Status.ok : result
+                    .status);
     }
     auto result = name.length >= 11 && name[0 .. 11] == "Arithmetic." ? arithmeticOutput(input,
             mode) : csvOutput(input, mode);

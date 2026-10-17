@@ -7,6 +7,7 @@ import benchmark.measurement : consume, currentChecksum, expectedChecksum, opaqu
 import benchmark.workload_grammars : observeWorkload;
 import benchmark.workload_output : observeWorkloadOutput, verifyWorkloadOutput,
     supportsWorkloadOutput, arithmeticOutput, csvOutput;
+import benchmark.scalar_output : handwrittenScalarOutput;
 import benchmark.options : Options, OptionStatus, parseOptions;
 import npegged.peg : ParseContext, ParseResult;
 import npegged.storage : Buffer, Status;
@@ -193,6 +194,7 @@ int main(string[] args) {
         return 2;
     }
     if (status == OptionStatus.help) {
+        printf("Default: canonical full trees; --mode selects an explicit comparison cohort.\n");
         printf("Usage: benchmark_runner [--iterations=N|-n N] [--samples=N] [--filter=TEXT|-f TEXT] [--json] [--memory] [--export-corpus] [--target-engines] [--workloads] [--mode=validation|spans|tree]\n");
         return 0;
     }
@@ -542,7 +544,8 @@ int main(string[] args) {
     }
 
     foreach (ref bc; benchmarks)
-        bc.workloadPair = options.workloads && !contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous.");
+        bc.workloadPair = (options.workloads || !options.explicitMode && !options.exportCorpus)
+            && !contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous.");
 
     if (exportCorpus) {
         putchar('[');
@@ -566,15 +569,26 @@ int main(string[] args) {
                         obligation.ptr, (bc.expectedAccepted ? "true" : "false").ptr, bc
                             .defaultIterations);
                 if (mode != OutputMode.validation) {
-                    auto output = contains(bc.name, "Arithmetic.") ? arithmeticOutput(bc.input, mode) : csvOutput(
-                            bc.input, mode);
-                    printf(",\"expectedRecords\":[");
-                    foreach (i, node; output.nodes) {
-                        if (i)
-                            putchar(',');
-                        printf("[%u,%zu,%zu,%zu]", node.kind, node.begin, node.end, node.parent);
+                    if (contains(bc.name, "Numbers.") || contains(bc.name, "PEGGrammar.")) {
+                        auto output = handwrittenScalarOutput(bc.name, bc.input, mode);
+                        printf(",\"expectedRecords\":[");
+                        foreach (i, node; output.nodes) {
+                            if (i)
+                                putchar(',');
+                            printf("[%u,%zu,%zu,%zu]", node.kind, node.begin, node.end, node.parent);
+                        }
+                        putchar(']');
+                    } else {
+                        auto output = contains(bc.name, "Arithmetic.") ? arithmeticOutput(bc.input, mode) : csvOutput(
+                                bc.input, mode);
+                        printf(",\"expectedRecords\":[");
+                        foreach (i, node; output.nodes) {
+                            if (i)
+                                putchar(',');
+                            printf("[%u,%zu,%zu,%zu]", node.kind, node.begin, node.end, node.parent);
+                        }
+                        putchar(']');
                     }
-                    putchar(']');
                 }
                 putchar('}');
             } else

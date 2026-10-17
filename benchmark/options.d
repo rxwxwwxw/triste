@@ -11,8 +11,9 @@ struct Options {
     size_t iterations;
     size_t samples = 5;
     string filter;
-    bool json, memory, comparison, exportCorpus, targetEngines, workloads;
-    OutputMode mode;
+    bool json, memory, exportCorpus, targetEngines, workloads, explicitMode;
+    bool comparison = true;
+    OutputMode mode = OutputMode.tree;
 }
 
 size_t positiveNumber(string value) @nogc nothrow pure {
@@ -75,6 +76,7 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
                 break;
             default:
                 options.comparison = true;
+                options.explicitMode = true;
                 switch (value) {
                 case "validation":
                     options.mode = OutputMode.validation;
