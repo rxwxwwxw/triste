@@ -75,7 +75,11 @@ struct RecognitionNode {
 version (NPeggedMetrics) {
     struct ParseMetrics {
         ulong memoCalls, memoHits, seedGrowths, invalidationVisits, invalidatedEntries;
-        ulong snapshotBytes;
+        ulong snapshotBytes, outputSnapshotCount;
+        ulong memoBucketVisits, memoUnlinkVisits, memoRehashes, memoRehashedEntries;
+        import npegged.records : RecordMetrics;
+
+        RecordMetrics output;
     }
 
     @nogc nothrow unittest {
@@ -120,6 +124,8 @@ struct State(bool CT, int Check = 0) {
         /// Non-owning backend setup; the builder and its arenas must outlive this state.
         void attachRecords(ref RecordBuffer output) @nogc nothrow {
             records = &output;
+            version (NPeggedMetrics)
+                output.metrics = context.metrics is null ? null : &context.metrics.output;
         }
     }
     private Entry* entries;
@@ -411,9 +417,11 @@ struct State(bool CT, int Check = 0) {
     private RecordSnapshot snapshotOutput(size_t checkpoint) nothrow {
         static if (Check == 2) {
             version (NPeggedMetrics)
-                if (context.metrics !is null)
+                if (context.metrics !is null) {
+                    ++context.metrics.outputSnapshotCount;
                     context.metrics.snapshotBytes += (records.length - checkpoint) * CompactNode
                         .sizeof;
+                }
             auto result = records.snapshot(*arena, checkpoint);
             if (arena.status != Status.ok)
                 status = arena.status;
@@ -428,6 +436,24 @@ struct State(bool CT, int Check = 0) {
                 records.restore(saved);
             syncOutput();
         }
+    }
+
+    version (NPeggedMetrics) @nogc nothrow unittest {
+        Arena owner, outputOwner;
+        ParseMetrics metrics;
+        RecordBuffer records;
+        records.arena = &outputOwner;
+        State!(false, 2) state;
+        state.arena = &owner;
+        state.context.metrics = &metrics;
+        state.attachRecords(records);
+        assert(records.put(CompactNode(1, 0, 1)) == 0);
+        auto saved = state.snapshotOutput(0);
+        state.rollbackOutput(0);
+        state.restoreOutput(saved);
+        assert(metrics.outputSnapshotCount == 1 && metrics.snapshotBytes == CompactNode.sizeof);
+        assert(metrics.output.restoreCalls == 1 && metrics.output.restoreNodes == 1);
+        assert(metrics.output.restoreBytes == CompactNode.sizeof && records.length == 1);
     }
 
     pragma(inline, true) private Node capturedRule(alias body, string name, bool memoize, long RecordKind)(
@@ -773,8 +799,14 @@ struct State(bool CT, int Check = 0) {
                         ++context.metrics.invalidatedEntries;
                 current.valid = false;
                 auto link = &buckets[current.hash & (buckets.length - 1)];
-                while (*link !is current)
+                while (true) {
+                    version (NPeggedMetrics)
+                        if (context.metrics !is null)
+                            ++context.metrics.memoUnlinkVisits;
+                    if (*link is current)
+                        break;
                     link = &(*link).bucketNext;
+                }
                 *link = current.bucketNext;
                 --entryCount;
                 if (previous is null)
@@ -823,8 +855,10 @@ struct State(bool CT, int Check = 0) {
         assert(state.entries is null && state.entryCount == 0 && state.buckets[0] is null);
         state.invalidateMemo(0);
         assert(state.entryCount == 0);
-        version (NPeggedMetrics)
+        version (NPeggedMetrics) {
             assert(metrics.invalidationVisits == 8 && metrics.invalidatedEntries == 5);
+            assert(metrics.memoUnlinkVisits == 10);
+        }
     }
 
     /// Seed growth, with dependent memo entries invalidated whenever a seed grows.
@@ -841,10 +875,16 @@ struct State(bool CT, int Check = 0) {
             auto replacement = allocate!(Entry*)(buckets.length ? buckets.length * 2 : 64);
             if (!replacement.length)
                 return node(pos, pos, false);
+            version (NPeggedMetrics)
+                if (context.metrics !is null)
+                    ++context.metrics.memoRehashes;
             entryCount = 0;
             for (auto existing = entries; existing !is null; existing = existing.next) {
                 if (!existing.valid)
                     continue;
+                version (NPeggedMetrics)
+                    if (context.metrics !is null)
+                        ++context.metrics.memoRehashedEntries;
                 auto slot = existing.hash & (replacement.length - 1);
                 existing.bucketNext = replacement[slot];
                 replacement[slot] = existing;
@@ -854,6 +894,9 @@ struct State(bool CT, int Check = 0) {
         }
         auto slot = hash & (buckets.length - 1);
         for (auto entry = buckets[slot]; entry !is null; entry = entry.bucketNext) {
+            version (NPeggedMetrics)
+                if (context.metrics !is null)
+                    ++context.metrics.memoBucketVisits;
             if (entry.valid && entry.identity == &body && entry.position == pos) {
                 static if (Check == 2)
                     if (!entry.active && entry.suppressed != records.suppressed)
@@ -926,6 +969,29 @@ struct State(bool CT, int Check = 0) {
         if (context.trace !is null)
             context.trace(name, pos, entry.seed.successful, context.userData);
         return entry.seed;
+    }
+
+    version (NPeggedMetrics) @nogc nothrow unittest {
+        static RecognitionNode body(ref State!(false, 1) state, size_t pos) @nogc nothrow {
+            return state.node(pos, pos + 1, true);
+        }
+
+        Arena owner;
+        ParseMetrics metrics;
+        State!(false, 1) state;
+        state.arena = &owner;
+        state.context.metrics = &metrics;
+        assert(state.memoizedRule!(body, "metric")(0).successful);
+        assert(state.memoizedRule!(body, "metric")(0).successful);
+        assert(metrics.memoCalls == 2 && metrics.memoHits == 1 && metrics.seedGrowths == 1);
+        assert(metrics.memoBucketVisits == 1 && metrics.memoRehashes == 1 && metrics
+                .memoRehashedEntries == 0);
+        state.entryCount = 49; // Force the same rehash boundary without unrelated parser work.
+        assert(state.memoizedRule!(body, "metric")(0).successful);
+        assert(metrics.memoCalls == 3 && metrics.memoHits == 2 && metrics.seedGrowths == 1);
+        assert(metrics.memoBucketVisits == 2 && metrics.memoRehashes == 2 && metrics
+                .memoRehashedEntries == 1);
+        assert(metrics.snapshotBytes == 0 && metrics.outputSnapshotCount == 0);
     }
 
 }

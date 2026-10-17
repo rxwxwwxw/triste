@@ -16,11 +16,12 @@ case ${PARSER_MEMOIZATION:-selective} in
   *) echo 'Unsupported PARSER_MEMOIZATION' >&2; exit 2;;
 esac
 if [[ ${PARSER_METRICS:-0} == 1 ]]; then flags+=(-d-version=NPeggedMetrics); fi
+if [[ ${PARSER_METRICS_TIMING:-0} == 1 ]]; then flags+=(-d-version=NPeggedMetricsTiming); fi
 python3 - "${PARSER_BACKEND:-combinators}" "${PARSER_MEMOIZATION:-selective}" "${flags[@]}" <<'META'
 import hashlib, json, platform, subprocess, sys
 from pathlib import Path
 sources = sorted(Path('src').rglob('*.d')) + [Path('benchmark/recursion_scaling.d'), Path('benchmark/measurement.d'), Path('scripts/recursion-scaling.sh')]
-metadata = dict(backend=sys.argv[1], memoization=sys.argv[2], samples=1 if '-d-version=NPeggedMetrics' in sys.argv else 7,
+metadata = dict(backend=sys.argv[1], memoization=sys.argv[2], samples=1 if '-d-version=NPeggedMetrics' in sys.argv and '-d-version=NPeggedMetricsTiming' not in sys.argv else 7,
                 compiler=subprocess.check_output(['ldc2', '--version'], text=True),
                 flags=sys.argv[3:], platform=platform.platform(), revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                 timeoutSeconds=60, memoryLimitBytes=4 * 1024**3,

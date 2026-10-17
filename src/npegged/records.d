@@ -15,9 +15,23 @@ struct RecordSnapshot {
     size_t base;
 }
 
+version (NPeggedMetrics) {
+    /// Actual output work, including appends subsequently rolled back on failure.
+    struct RecordMetrics {
+        ulong restoreCalls, restoreNodes, restoreBytes, growthCopyBytes;
+    }
+
+    @nogc nothrow unittest {
+        RecordMetrics metrics;
+        assert(metrics.restoreCalls == 0 && metrics.restoreNodes == 0);
+        assert(metrics.restoreBytes == 0 && metrics.growthCopyBytes == 0);
+    }
+}
+
 /// Non-owning builder: both live storage and snapshots belong to explicit arenas.
 struct RecordBuffer {
     Arena* arena;
+    version (NPeggedMetrics) RecordMetrics* metrics;
     uint function(string) @nogc nothrow pure selector;
     private CompactNode[] storage;
     private size_t _length;
@@ -53,6 +67,9 @@ struct RecordBuffer {
             if (!replacement.length)
                 return size_t.max;
             replacement[0 .. _length] = storage[0 .. _length];
+            version (NPeggedMetrics)
+                if (metrics !is null)
+                    metrics.growthCopyBytes += _length * CompactNode.sizeof;
             storage = replacement;
         }
         storage[_length] = node;
@@ -96,6 +113,9 @@ struct RecordBuffer {
     }
 
     bool restore(RecordSnapshot saved) @nogc nothrow {
+        version (NPeggedMetrics)
+            if (metrics !is null)
+                ++metrics.restoreCalls;
         const base = _length;
         bool complete;
         scope (exit)
@@ -116,10 +136,41 @@ struct RecordBuffer {
             }
             if (put(node) == size_t.max)
                 return false;
+            version (NPeggedMetrics)
+                if (metrics !is null) {
+                    ++metrics.restoreNodes;
+                    metrics.restoreBytes += CompactNode.sizeof;
+                }
         }
         complete = true;
         return true;
     }
+}
+
+version (NPeggedMetrics) @nogc nothrow unittest {
+    Arena owner;
+    RecordMetrics metrics;
+    RecordBuffer records;
+    records.arena = &owner;
+    records.metrics = &metrics;
+    CompactNode[33] nodes;
+    assert(records.restore(RecordSnapshot(nodes[], 0)));
+    assert(metrics.restoreCalls == 1 && metrics.restoreNodes == 33);
+    assert(metrics.restoreBytes == 33 * CompactNode.sizeof);
+    assert(metrics.growthCopyBytes == 32 * CompactNode.sizeof);
+    assert(records.restore(RecordSnapshot.init));
+    assert(metrics.restoreCalls == 2 && metrics.restoreNodes == 33);
+    CompactNode[2] corrupt = [CompactNode.init, CompactNode(0, 0, 0, 1)];
+    assert(!records.restore(RecordSnapshot(corrupt[], 0)));
+    assert(metrics.restoreCalls == 3 && metrics.restoreNodes == 34);
+    assert(metrics.restoreBytes == 34 * CompactNode.sizeof && records.length == 33);
+    Arena exhausted;
+    exhausted.limit = 0;
+    RecordBuffer failed;
+    failed.arena = &exhausted;
+    failed.metrics = &metrics;
+    assert(!failed.restore(RecordSnapshot(nodes[0 .. 1], 0)));
+    assert(metrics.restoreCalls == 4 && metrics.restoreNodes == 34);
 }
 
 @nogc nothrow unittest {

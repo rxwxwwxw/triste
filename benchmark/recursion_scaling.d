@@ -40,14 +40,18 @@ private ulong now() @nogc nothrow {
         .tv_nsec;
 }
 
-version (NPeggedMetrics)
-    private enum sampleCount = 1;
-else
-    private enum sampleCount = 7;
+version (NPeggedMetrics) {
+    version (NPeggedMetricsTiming)
+        private enum diagnosticReport = false;
+    else
+        private enum diagnosticReport = true;
+} else
+    private enum diagnosticReport = false;
+private enum sampleCount = diagnosticReport ? 1 : 7;
 
 int main() @nogc nothrow {
-    version (NPeggedMetrics)
-        printf("grammar,mode,valid,terms,memo_calls,memo_hits,seed_growths,invalidation_visits,invalidated_entries,snapshot_bytes\n");
+    static if (diagnosticReport)
+        printf("grammar,mode,valid,terms,memo_calls,memo_hits,seed_growths,invalidation_visits,invalidated_entries,snapshot_bytes,restore_calls,restore_nodes,restore_bytes,growth_copy_bytes,bucket_visits,unlink_visits,rehashes,rehashed_entries,output_snapshots\n");
     else
         printf("grammar,mode,valid,terms,sample,ns,allocation_calls,requested_bytes,reserved_bytes,output_requested_bytes,output_reserved_bytes\n");
     Arena inputOwner;
@@ -96,13 +100,19 @@ int main() @nogc nothrow {
                         const stop = now();
                         if (!start || stop <= start || status != (valid ? Status.ok : Status.mismatch) || ok != valid)
                             return 3;
-                        version (NPeggedMetrics)
-                            printf("%s,%s,%u,%u,%llu,%llu,%llu,%llu,%llu,%llu\n",
-                                    (Parser.stringof ~ "\0")
-                                        .ptr, (mode ~ "\0").ptr, cast(uint)valid, cast(uint)terms,
-                                    metrics.memoCalls, metrics.memoHits, metrics.seedGrowths,
+                        static if (diagnosticReport)
+                            printf("%s,%s,%u,%u,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu\n",
+                                    (Parser.stringof ~ "\0").ptr, (mode ~ "\0").ptr,
+                                    cast(uint)valid, cast(uint)terms, metrics.memoCalls,
+                                    metrics.memoHits, metrics.seedGrowths,
                                     metrics.invalidationVisits,
-                                    metrics.invalidatedEntries, metrics.snapshotBytes);
+                                    metrics.invalidatedEntries, metrics.snapshotBytes,
+                                    metrics.output.restoreCalls, metrics.output.restoreNodes,
+                                    metrics.output.restoreBytes,
+                                    metrics.output.growthCopyBytes, metrics.memoBucketVisits,
+                                    metrics.memoUnlinkVisits,
+                                    metrics.memoRehashes,
+                                    metrics.memoRehashedEntries, metrics.outputSnapshotCount);
                         else
                             printf("%s,%s,%u,%u,%u,%llu,%llu,%llu,%llu,%llu,%llu\n",
                                     (Parser.stringof ~ "\0")

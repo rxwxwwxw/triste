@@ -162,7 +162,9 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 
 | F02 | 39906d3 | DMD/LDC differential fixture, exact tree/action/trace comparisons, CTFE and finite limits | performance/tasks/F02.md | — | no semantic delta in runnable corpus | accepted diagnostic |
 
-| F03 | see git log | 12 complete timing CSVs, 4 diagnostic CSVs; 9408 timed samples; all source hashes verified | performance/results/F03/README.md | — | all sizes through 1024 complete | accepted diagnostic |
+| F03 | 42a26c6 | 12 complete timing CSVs, 4 diagnostic CSVs; 9408 timed samples; all source hashes verified | performance/results/F03/README.md | — | all sizes through 1024 complete | accepted diagnostic |
+
+| F04 | see git log | deterministic DMD/LDC metric deltas; differential suite; diagnostic ASan/LSan; compile-out checks | performance/results/F03/README.md | performance/results/F04/README.md | output-dominated recursion; no algorithm change | accepted diagnostic |
 
 ## 9. First two implementation sprints and explicit non-goals
 
