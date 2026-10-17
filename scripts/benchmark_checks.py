@@ -72,8 +72,9 @@ def main():
                   *sorted((ROOT / 'benchmark').glob('*.d')),
                   *sorted((ROOT / 'benchmark/handwritten').glob('*.d'))]
     maintained.remove(ROOT / 'benchmark/unit_tests.d')
-    # Standalone scaling runner has its own main and bounded matrix script.
-    maintained.remove(ROOT / 'benchmark/recursion_scaling.d')
+    # Standalone diagnostics have their own main and bounded runner scripts.
+    for name in ('recursion_scaling.d', 'dfa_scanning.d'):
+        maintained.remove(ROOT / 'benchmark' / name)
     pegged = [p for p in sorted((ROOT / 'third-party/Pegged/pegged').rglob('*.d'))
               if len(p.relative_to(ROOT / 'third-party/Pegged/pegged').parts) <= 2
               and not p.name.startswith(('tester', 'tohtml'))]

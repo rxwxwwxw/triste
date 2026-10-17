@@ -1,0 +1,82 @@
+{
+  "src/npegged/unicode.d": {
+    "hit": 14,
+    "total": 14,
+    "percent": 100.0
+  },
+  "src/npegged/tohtml.d": {
+    "hit": 36,
+    "total": 39,
+    "percent": 92.3076923076923
+  },
+  "src/npegged/tester/testerparser.d": {
+    "hit": 2,
+    "total": 2,
+    "percent": 100.0
+  },
+  "src/npegged/tester/grammartester.d": {
+    "hit": 71,
+    "total": 76,
+    "percent": 93.42105263157895
+  },
+  "src/npegged/storage.d": {
+    "hit": 39,
+    "total": 40,
+    "percent": 97.5
+  },
+  "src/npegged/records.d": {
+    "hit": 40,
+    "total": 40,
+    "percent": 100.0
+  },
+  "src/npegged/peg.d": {
+    "hit": 476,
+    "total": 526,
+    "percent": 90.49429657794677
+  },
+  "src/npegged/parser.d": {
+    "hit": 18,
+    "total": 18,
+    "percent": 100.0
+  },
+  "src/npegged/io.d": {
+    "hit": 26,
+    "total": 28,
+    "percent": 92.85714285714286
+  },
+  "src/npegged/introspection.d": {
+    "hit": 204,
+    "total": 223,
+    "percent": 91.4798206278027
+  },
+  "src/npegged/grammar.d": {
+    "hit": 1901,
+    "total": 2048,
+    "percent": 92.822265625
+  },
+  "src/npegged/formatting.d": {
+    "hit": 31,
+    "total": 32,
+    "percent": 96.875
+  },
+  "src/npegged/dfa.d": {
+    "hit": 221,
+    "total": 240,
+    "percent": 92.08333333333333
+  },
+  "src/npegged/analysis.d": {
+    "hit": 560,
+    "total": 602,
+    "percent": 93.02325581395348
+  },
+  "src/npegged/conversion.d": {
+    "hit": 28,
+    "total": 30,
+    "percent": 93.33333333333333
+  },
+  "src/npegged/meta.d": {
+    "hit": 0,
+    "total": 0,
+    "percent": 100
+  }
+}

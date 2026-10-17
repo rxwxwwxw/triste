@@ -31,6 +31,9 @@ while IFS= read -r -d '' file; do
   dfmt "$file" | cmp -s "$file" - || { echo "Run dfmt -i on $file" >&2; exit 1; }
 done < <(find src tests examples scripts benchmark -name '*.d' -print0)
 
+timeout 10s python3 tests/test_recursion_summary.py
+timeout 10s python3 tests/test_peg_probe_summary.py
+
 if [[ "$MODE" == "full" ]]; then
   for compiler in dmd ldc2; do
     DC=$compiler scripts/build.sh

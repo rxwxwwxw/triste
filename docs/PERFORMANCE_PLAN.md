@@ -159,12 +159,13 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 | Task | Commit | Checks & coverage | Baseline report | Candidate report | Outcome / regressions | Decision |
 |---|---|---|---|---|---|---|
 | F01 | ce113d9 | source hashes verified; existing equal-output gate | performance/results/F01-baseline.json | — | 380/387 paired checks; 7 ratio failures | baseline captured |
-
 | F02 | 39906d3 | DMD/LDC differential fixture, exact tree/action/trace comparisons, CTFE and finite limits | performance/tasks/F02.md | — | no semantic delta in runnable corpus | accepted diagnostic |
-
 | F03 | 42a26c6 | 12 complete timing CSVs, 4 diagnostic CSVs; 9408 timed samples; all source hashes verified | performance/results/F03/README.md | — | all sizes through 1024 complete | accepted diagnostic |
+| F04 | b1c8a71 | deterministic DMD/LDC metric deltas; differential suite; diagnostic ASan/LSan; compile-out checks | performance/results/F03/README.md | performance/results/F04/README.md | output-dominated recursion; no algorithm change | accepted diagnostic |
 
-| F04 | see git log | deterministic DMD/LDC metric deltas; differential suite; diagnostic ASan/LSan; compile-out checks | performance/results/F03/README.md | performance/results/F04/README.md | output-dominated recursion; no algorithm change | accepted diagnostic |
+| F05 | see git log | 3 runs × 7 samples; full/selective, combinator/direct; stage probes, traces, optimized-code evidence; full checks in verification report | performance/results/F01-baseline.json | performance/results/F05/README.md | four shapes diagnosed; H05 empty-Sp candidate; output-dominated measured recursion | accepted diagnostic; no optimization |
+
+Checkpoint F: see [F05 findings](../performance/results/F05/README.md) and [verification](../performance/results/verification/README.md).
 
 ## 9. First two implementation sprints and explicit non-goals
 

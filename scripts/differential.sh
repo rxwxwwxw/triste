@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 compiler=${DC:-ldc2}
 mkdir -p build/differential
 mapfile -t library < <(rg --files src -g '*.d' | sort)
-flags=(-Isrc -I. -w -checkaction=halt)
+flags=(-Isrc -I. -unittest -w -checkaction=halt)
 case $(basename "$compiler") in
   dmd) flags+=(-defaultlib=druntime -nothrow);;
   ldc2) flags+=(-defaultlib=druntime-ldc -fno-exceptions);;

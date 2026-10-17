@@ -1,0 +1,571 @@
+{
+  "combinators-selective": {
+    "assemblySha256": "20e2051b7c0404abb6b7c989d6cea79cac5256d978a903bdef1a0a5fa9b9cd7e",
+    "functions": {
+      "benchmark.diagnostics.peg_probe.BenchPEG._Definition!(false, 1)._Definition(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 4,
+        "conditionalBranches": 19,
+        "instructions": 175,
+        "callExamples": [
+          "1ca6b:\te8 c0 01 00 00       \tcall   1cc30 <benchmark.diagnostics.peg_probe.BenchPEG._DefHeader!(false, 1)._DefHeader(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1ca98:\tff d0                \tcall   *%rax",
+          "1cb05:\te8 36 20 00 00       \tcall   1eb40 <benchmark.diagnostics.peg_probe.BenchPEG._TopExpression!(false, 1)._TopExpression(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1cb2f:\tff d0                \tcall   *%rax"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 6,
+        "conditionalBranches": 52,
+        "instructions": 382,
+        "callExamples": [
+          "1f954:\te8 67 76 00 00       \tcall   26fc0 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1f996:\te8 d5 76 00 00       \tcall   27070 <npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1f9d4:\te8 97 7d 00 00       \tcall   27770 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1fa14:\te8 07 75 00 00       \tcall   26f20 <npegged.peg.literal!(\"<\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1fabc:\te8 ef a2 ff ff       \tcall   19db0 <benchmark.diagnostics.peg_probe.BenchPEG.ParamGuard(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1fb56:\te8 05 a3 ff ff       \tcall   19e60 <benchmark.diagnostics.peg_probe.BenchPEG.ParamAhead(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._SequenceBoundary!(false, 1)._SequenceBoundary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 0,
+        "conditionalBranches": 27,
+        "instructions": 157,
+        "callExamples": []
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 14,
+        "conditionalBranches": 98,
+        "instructions": 609,
+        "callExamples": [
+          "218a8:\te8 33 7f 00 00       \tcall   297e0 <npegged.peg.transform!(npegged.peg.and!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.lookahead!(npegged.peg.literal!(\"\\n\").literal, false).lookahead, npegged.peg.any).and, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "218d2:\tff d0                \tcall   *%rax",
+          "21909:\te8 12 84 00 00       \tcall   29d20 <npegged.peg.transform!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp, 0uL, false).dfaToken, npegged.peg.repeat!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat).and, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp_1, 0uL, false).dfaToken, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp_2, 0uL, false).dfaToken).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "21a43:\te8 98 7d 00 00       \tcall   297e0 <npegged.peg.transform!(npegged.peg.and!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.lookahead!(npegged.peg.literal!(\"\\n\").literal, false).lookahead, npegged.peg.any).and, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "21a6d:\tff d0                \tcall   *%rax",
+          "21a99:\te8 82 82 00 00       \tcall   29d20 <npegged.peg.transform!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp, 0uL, false).dfaToken, npegged.peg.repeat!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat).and, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp_1, 0uL, false).dfaToken, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp_2, 0uL, false).dfaToken).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "21b6a:\te8 31 06 00 00       \tcall   221a0 <benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "21b94:\tff d0                \tcall   *%rax",
+          "21cea:\te8 e1 84 ff ff       \tcall   1a1d0 <benchmark.diagnostics.peg_probe.BenchPEG.Action(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "21df9:\te8 a2 03 00 00       \tcall   221a0 <benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "21e23:\tff d0                \tcall   *%rax",
+          "21ecf:\te8 3c 66 00 00       \tcall   28510 <npegged.peg.charClass!(-9223358842715242496uL, 0uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 27,
+        "conditionalBranches": 149,
+        "instructions": 1070,
+        "callExamples": [
+          "221fe:\te8 5d 38 00 00       \tcall   25a60 <benchmark.diagnostics.peg_probe.BenchPEG._Class!(false, 1)._Class(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2222b:\tff d0                \tcall   *%rax",
+          "222f3:\te8 38 80 ff ff       \tcall   1a330 <benchmark.diagnostics.peg_probe.BenchPEG.Class(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "223bc:\te8 1f 74 00 00       \tcall   297e0 <npegged.peg.transform!(npegged.peg.and!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.lookahead!(npegged.peg.literal!(\"\\n\").literal, false).lookahead, npegged.peg.any).and, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "22484:\te8 f7 7d ff ff       \tcall   1a280 <benchmark.diagnostics.peg_probe.BenchPEG.Literal(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "224c7:\te8 a4 7b ff ff       \tcall   1a070 <benchmark.diagnostics.peg_probe.BenchPEG.Ident(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2256d:\te8 4e 60 00 00       \tcall   285c0 <npegged.peg.charClass!(71468255805440uL, 0uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "225fa:\te8 21 7b ff ff       \tcall   1a120 <benchmark.diagnostics.peg_probe.BenchPEG.Params(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "22666:\te8 15 4f 00 00       \tcall   27580 <npegged.peg.literal!(\".\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "226bb:\te8 00 49 00 00       \tcall   26fc0 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "22704:\te8 67 79 ff ff       \tcall   1a070 <benchmark.diagnostics.peg_probe.BenchPEG.Ident(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2287b:\te8 60 45 00 00       \tcall   26de0 <npegged.peg.literal!(\"(\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      }
+    }
+  },
+  "combinators-full": {
+    "assemblySha256": "46c623a36d0252cb8893bb3b502bc21eb7b81ff7189815f86533d1b8bc879d08",
+    "functions": {
+      "benchmark.diagnostics.peg_probe.BenchPEG._Definition!(false, 1)._Definition(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 2,
+        "conditionalBranches": 13,
+        "instructions": 126,
+        "callExamples": [
+          "1be22:\te8 d9 b6 00 00       \tcall   27500 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._DefHeader!(false, 1)._DefHeader(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.DefHeader\").memoizedRule(ulong)>",
+          "1be67:\te8 74 ce 00 00       \tcall   28ce0 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._TopExpression!(false, 1)._TopExpression(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.TopExpression\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 6,
+        "conditionalBranches": 52,
+        "instructions": 382,
+        "callExamples": [
+          "1e704:\te8 97 69 00 00       \tcall   250a0 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1e746:\te8 05 6a 00 00       \tcall   25150 <npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1e784:\te8 e7 75 00 00       \tcall   25d70 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1e7c4:\te8 37 68 00 00       \tcall   25000 <npegged.peg.literal!(\"<\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1e86c:\te8 cf b3 00 00       \tcall   29c40 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._ParamGuard!(false, 1)._ParamGuard(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.ParamGuard\").memoizedRule(ulong)>",
+          "1e906:\te8 85 bf 00 00       \tcall   2a890 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._ParamAhead!(false, 1)._ParamAhead(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.ParamAhead\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._SequenceBoundary!(false, 1)._SequenceBoundary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 0,
+        "conditionalBranches": 27,
+        "instructions": 157,
+        "callExamples": []
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 8,
+        "conditionalBranches": 83,
+        "instructions": 496,
+        "callExamples": [
+          "2016c:\te8 ff 06 01 00       \tcall   30870 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Sp\").memoizedRule(ulong)>",
+          "20294:\te8 d7 05 01 00       \tcall   30870 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Sp\").memoizedRule(ulong)>",
+          "20347:\te8 44 c0 00 00       \tcall   2c390 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Primary\").memoizedRule(ulong)>",
+          "204a0:\te8 eb dc 00 00       \tcall   2e190 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Action!(false, 1)._Action(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Action\").memoizedRule(ulong)>",
+          "20567:\te8 24 be 00 00       \tcall   2c390 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Primary\").memoizedRule(ulong)>",
+          "20618:\te8 f3 b6 00 00       \tcall   2bd10 <npegged.peg.charClass!(-9223358842715242496uL, 0uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2065b:\te8 00 46 00 00       \tcall   24c60 <npegged.peg.literal!(\"{\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2075e:\te8 2d da 00 00       \tcall   2e190 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Action!(false, 1)._Action(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Action\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 22,
+        "conditionalBranches": 132,
+        "instructions": 923,
+        "callExamples": [
+          "2094c:\te8 6f ea 00 00       \tcall   2f3c0 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Class!(false, 1)._Class(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Class\").memoizedRule(ulong)>",
+          "20a24:\te8 97 e9 00 00       \tcall   2f3c0 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Class!(false, 1)._Class(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Class\").memoizedRule(ulong)>",
+          "20aff:\te8 6c fd 00 00       \tcall   30870 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Sp\").memoizedRule(ulong)>",
+          "20b54:\te8 57 a2 00 00       \tcall   2adb0 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Expression!(false, 1)._Expression(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Expression\").memoizedRule(ulong)>",
+          "20bae:\te8 ad 43 00 00       \tcall   24f60 <npegged.peg.literal!(\")\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "20c06:\te8 85 e1 00 00       \tcall   2ed90 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Literal!(false, 1)._Literal(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Literal\").memoizedRule(ulong)>",
+          "20d07:\te8 a4 bb 00 00       \tcall   2c8b0 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Ident!(false, 1)._Ident(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Ident\").memoizedRule(ulong)>",
+          "20fd8:\te8 23 c5 00 00       \tcall   2d500 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Params!(false, 1)._Params(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Params\").memoizedRule(ulong)>",
+          "21061:\te8 fa 45 00 00       \tcall   25660 <npegged.peg.literal!(\".\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "210d2:\te8 c9 3f 00 00       \tcall   250a0 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "21134:\te8 77 b7 00 00       \tcall   2c8b0 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Ident!(false, 1)._Ident(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Ident\").memoizedRule(ulong)>",
+          "21261:\te8 2a db 00 00       \tcall   2ed90 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Literal!(false, 1)._Literal(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Literal\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 2,
+        "conditionalBranches": 1,
+        "instructions": 16,
+        "callExamples": [
+          "2431e:\te8 bd b5 00 00       \tcall   2f8e0 <npegged.peg.transform!(npegged.peg.and!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.lookahead!(npegged.peg.literal!(\"\\n\").literal, false).lookahead, npegged.peg.any).and, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2432b:\te8 f0 ba 00 00       \tcall   2fe20 <npegged.peg.transform!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp, 0uL, false).dfaToken, npegged.peg.repeat!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat).and, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp_1, 0uL, false).dfaToken, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp_2, 0uL, false).dfaToken).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Definition!(false, 1)._Definition(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Definition\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 45,
+        "instructions": 343,
+        "callExamples": [
+          "2704b:\te8 70 da ff ff       \tcall   24ac0 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "271c9:\te8 82 4b ff ff       \tcall   1bd50 <benchmark.diagnostics.peg_probe.BenchPEG._Definition!(false, 1)._Definition(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "272bf:\te8 8c 4a ff ff       \tcall   1bd50 <benchmark.diagnostics.peg_probe.BenchPEG._Definition!(false, 1)._Definition(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "273f4:\t41 ff d1             \tcall   *%r9",
+          "2742e:\t41 ff 57 40          \tcall   *0x40(%r15)"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.TopBoundary\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 45,
+        "instructions": 343,
+        "callExamples": [
+          "2978b:\te8 30 b3 ff ff       \tcall   24ac0 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "29909:\te8 62 4a ff ff       \tcall   1e370 <benchmark.diagnostics.peg_probe.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "299ff:\te8 6c 49 ff ff       \tcall   1e370 <benchmark.diagnostics.peg_probe.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "29b34:\t41 ff d1             \tcall   *%r9",
+          "29b6e:\t41 ff 57 40          \tcall   *0x40(%r15)"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._SequenceBoundary!(false, 1)._SequenceBoundary(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.SequenceBoundary\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 45,
+        "instructions": 342,
+        "callExamples": [
+          "2b85b:\te8 60 92 ff ff       \tcall   24ac0 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "2b9d9:\te8 d2 43 ff ff       \tcall   1fdb0 <benchmark.diagnostics.peg_probe.BenchPEG._SequenceBoundary!(false, 1)._SequenceBoundary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2bacf:\te8 dc 42 ff ff       \tcall   1fdb0 <benchmark.diagnostics.peg_probe.BenchPEG._SequenceBoundary!(false, 1)._SequenceBoundary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2bc04:\t41 ff d1             \tcall   *%r9",
+          "2bc3e:\t41 ff 57 40          \tcall   *0x40(%r15)"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Prefix\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 45,
+        "instructions": 342,
+        "callExamples": [
+          "2be2b:\te8 90 8c ff ff       \tcall   24ac0 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "2bfa9:\te8 a2 40 ff ff       \tcall   20050 <benchmark.diagnostics.peg_probe.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2c09f:\te8 ac 3f ff ff       \tcall   20050 <benchmark.diagnostics.peg_probe.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2c1d4:\t41 ff d1             \tcall   *%r9",
+          "2c20e:\t41 ff 57 40          \tcall   *0x40(%r15)"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Primary\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 45,
+        "instructions": 343,
+        "callExamples": [
+          "2c3fb:\te8 c0 86 ff ff       \tcall   24ac0 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "2c579:\te8 a2 43 ff ff       \tcall   20920 <benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2c66f:\te8 ac 42 ff ff       \tcall   20920 <benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2c7a4:\t41 ff d1             \tcall   *%r9",
+          "2c7de:\t41 ff 57 40          \tcall   *0x40(%r15)"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Sp\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 47,
+        "instructions": 338,
+        "callExamples": [
+          "308d4:\te8 e7 41 ff ff       \tcall   24ac0 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "30a5b:\te8 80 ee ff ff       \tcall   2f8e0 <npegged.peg.transform!(npegged.peg.and!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.lookahead!(npegged.peg.literal!(\"\\n\").literal, false).lookahead, npegged.peg.any).and, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "30a7a:\te8 a1 f3 ff ff       \tcall   2fe20 <npegged.peg.transform!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp, 0uL, false).dfaToken, npegged.peg.repeat!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat).and, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp_1, 0uL, false).dfaToken, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.diagnostics.peg_probe.BenchPEG._dfa_Sp_2, 0uL, false).dfaToken).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "30c4b:\tff d0                \tcall   *%rax",
+          "30cc7:\t41 ff 54 24 40       \tcall   *0x40(%r12)"
+        ]
+      }
+    }
+  },
+  "direct-selective": {
+    "assemblySha256": "0253e72d19a527cf13bd935f4299269c836af78e9ee6484f9d129f62c9f72f90",
+    "functions": {
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_Definition(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 2,
+        "conditionalBranches": 17,
+        "instructions": 139,
+        "callExamples": [
+          "1b4fb:\te8 00 01 00 00       \tcall   1b600 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_DefHeader(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "1b571:\te8 4a 19 00 00       \tcall   1cec0 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_TopExpression(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_TopBoundary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 9,
+        "conditionalBranches": 82,
+        "instructions": 631,
+        "callExamples": [
+          "1dbf8:\te8 d3 f3 00 00       \tcall   2cfd0 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1dc47:\te8 34 f4 00 00       \tcall   2d080 <npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1dc99:\te8 e2 fa 00 00       \tcall   2d780 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1dce8:\te8 43 f2 00 00       \tcall   2cf30 <npegged.peg.literal!(\"<\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1dfe9:\te8 e2 ef 00 00       \tcall   2cfd0 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1e02c:\te8 4f f0 00 00       \tcall   2d080 <npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1e13e:\te8 3d f6 00 00       \tcall   2d780 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1e17d:\te8 6e ec 00 00       \tcall   2cdf0 <npegged.peg.literal!(\"(\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1e244:\te8 47 01 00 00       \tcall   1e390 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_ParamAhead(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_SequenceBoundary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 0,
+        "conditionalBranches": 13,
+        "instructions": 77,
+        "callExamples": []
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_Prefix(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 3,
+        "conditionalBranches": 47,
+        "instructions": 286,
+        "callExamples": [
+          "1fa27:\te8 34 31 00 00       \tcall   22b60 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "1fadf:\te8 7c 03 00 00       \tcall   1fe60 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Primary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "1fc70:\te8 fb 22 00 00       \tcall   21f70 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Action(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_Primary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 15,
+        "conditionalBranches": 184,
+        "instructions": 1243,
+        "callExamples": [
+          "2010b:\te8 50 2a 00 00       \tcall   22b60 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "20194:\te8 77 ec ff ff       \tcall   1ee10 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Expression(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "2059c:\te8 0f c7 00 00       \tcall   2ccb0 <npegged.peg.literal!(\"[\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "205e8:\te8 93 ef 00 00       \tcall   2f580 <npegged.peg.repeat!(npegged.peg.literal!(\"^\").literal, 0uL, 1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "20716:\te8 95 23 00 00       \tcall   22ab0 <benchmark.diagnostics.peg_probe.BenchPEG.Quoted(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "20758:\te8 13 ed 00 00       \tcall   2f470 <npegged.peg.repeat!(npegged.peg.literal!(\"i\").literal, 0uL, 1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "20881:\te8 4a c7 00 00       \tcall   2cfd0 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "208d0:\te8 ab c7 00 00       \tcall   2d080 <npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "20d95:\te8 36 c2 00 00       \tcall   2cfd0 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "20dd4:\te8 a7 c2 00 00       \tcall   2d080 <npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "20e98:\te8 93 05 00 00       \tcall   21430 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Params(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "21163:\te8 88 c3 00 00       \tcall   2d4f0 <npegged.peg.literal!(\"\\\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 3,
+        "conditionalBranches": 92,
+        "instructions": 579,
+        "callExamples": [
+          "22dcd:\te8 ae a9 00 00       \tcall   2d780 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "231c9:\te8 72 c5 00 00       \tcall   2f740 <npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "233cb:\te8 b0 a3 00 00       \tcall   2d780 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Definition!(false, 1)._Definition(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 4,
+        "conditionalBranches": 13,
+        "instructions": 135,
+        "callExamples": [
+          "25996:\te8 55 5a ff ff       \tcall   1b3f0 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Definition(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "25a0d:\te8 1e 01 00 00       \tcall   25b30 <benchmark.diagnostics.peg_probe.BenchPEG._DefHeader!(false, 1)._DefHeader(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "25a3a:\tff d0                \tcall   *%rax",
+          "25a79:\te8 a2 78 ff ff       \tcall   1d320 <benchmark.diagnostics.peg_probe.BenchPEG.TopExpression(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 7,
+        "conditionalBranches": 53,
+        "instructions": 389,
+        "callExamples": [
+          "27692:\te8 09 62 ff ff       \tcall   1d8a0 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_TopBoundary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "27a21:\te8 aa 55 00 00       \tcall   2cfd0 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "27a61:\te8 1a 56 00 00       \tcall   2d080 <npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "27a9d:\te8 de 5c 00 00       \tcall   2d780 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "27adb:\te8 50 54 00 00       \tcall   2cf30 <npegged.peg.literal!(\"<\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "27b7b:\te8 60 67 ff ff       \tcall   1e2e0 <benchmark.diagnostics.peg_probe.BenchPEG.ParamGuard(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "27c16:\te8 45 71 ff ff       \tcall   1ed60 <benchmark.diagnostics.peg_probe.BenchPEG.ParamAhead(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._SequenceBoundary!(false, 1)._SequenceBoundary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 1,
+        "conditionalBranches": 13,
+        "instructions": 94,
+        "callExamples": [
+          "28f00:\te8 eb 68 ff ff       \tcall   1f7f0 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_SequenceBoundary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 5,
+        "conditionalBranches": 43,
+        "instructions": 288,
+        "callExamples": [
+          "290e4:\te8 a7 a3 ff ff       \tcall   23490 <benchmark.diagnostics.peg_probe.BenchPEG.Sp(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2912d:\te8 de 67 ff ff       \tcall   1f910 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Prefix(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "291f8:\te8 a3 02 00 00       \tcall   294a0 <benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "29225:\t41 ff d1             \tcall   *%r9",
+          "2937a:\te8 81 96 ff ff       \tcall   22a00 <benchmark.diagnostics.peg_probe.BenchPEG.Action(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 14,
+        "conditionalBranches": 83,
+        "instructions": 588,
+        "callExamples": [
+          "29501:\te8 6a 25 00 00       \tcall   2ba70 <benchmark.diagnostics.peg_probe.BenchPEG._Class!(false, 1)._Class(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2952e:\tff d0                \tcall   *%rax",
+          "29572:\te8 e9 68 ff ff       \tcall   1fe60 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Primary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "2962a:\te8 61 9e ff ff       \tcall   23490 <benchmark.diagnostics.peg_probe.BenchPEG.Sp(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "29679:\te8 f2 5b ff ff       \tcall   1f270 <benchmark.diagnostics.peg_probe.BenchPEG.Expression(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "296c3:\te8 c8 37 00 00       \tcall   2ce90 <npegged.peg.literal!(\")\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2974a:\te8 81 1f 00 00       \tcall   2b6d0 <benchmark.diagnostics.peg_probe.BenchPEG._Literal!(false, 1)._Literal(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "29777:\tff d0                \tcall   *%rax",
+          "29840:\te8 fb 05 00 00       \tcall   29e40 <benchmark.diagnostics.peg_probe.BenchPEG._Ident!(false, 1)._Ident(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2986f:\tff d0                \tcall   *%rax",
+          "29b14:\te8 a7 83 ff ff       \tcall   21ec0 <benchmark.diagnostics.peg_probe.BenchPEG.Params(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "29ba1:\te8 ea 39 00 00       \tcall   2d590 <npegged.peg.literal!(\".\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      }
+    }
+  },
+  "direct-full": {
+    "assemblySha256": "f52f9ca15fdd7373268b745fa58fc71a787798e1b0fc68f8eeffaf7eb93c6ff3",
+    "functions": {
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_Definition(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 2,
+        "conditionalBranches": 13,
+        "instructions": 110,
+        "callExamples": [
+          "1a9dc:\te8 ff fc 00 00       \tcall   2a6e0 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._DefHeader!(false, 1)._DefHeader(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.DefHeader\").memoizedRule(ulong)>",
+          "1aa17:\te8 a4 14 01 00       \tcall   2bec0 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._TopExpression!(false, 1)._TopExpression(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.TopExpression\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_TopBoundary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 6,
+        "conditionalBranches": 50,
+        "instructions": 382,
+        "callExamples": [
+          "1c3e6:\te8 95 be 00 00       \tcall   28280 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1c435:\te8 f6 be 00 00       \tcall   28330 <npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1c48a:\te8 c1 ca 00 00       \tcall   28f50 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1c4dc:\te8 ff bc 00 00       \tcall   281e0 <npegged.peg.literal!(\"<\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1c598:\te8 83 08 01 00       \tcall   2ce20 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._ParamGuard!(false, 1)._ParamGuard(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.ParamGuard\").memoizedRule(ulong)>",
+          "1c631:\te8 3a 14 01 00       \tcall   2da70 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._ParamAhead!(false, 1)._ParamAhead(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.ParamAhead\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_SequenceBoundary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 0,
+        "conditionalBranches": 13,
+        "instructions": 77,
+        "callExamples": []
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_Prefix(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 3,
+        "conditionalBranches": 41,
+        "instructions": 256,
+        "callExamples": [
+          "1d5c0:\te8 4b 5b 01 00       \tcall   33110 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Sp\").memoizedRule(ulong)>",
+          "1d66b:\te8 a0 1d 01 00       \tcall   2f410 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Primary\").memoizedRule(ulong)>",
+          "1d7da:\te8 31 3a 01 00       \tcall   31210 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Action!(false, 1)._Action(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Action\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_Primary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 7,
+        "conditionalBranches": 66,
+        "instructions": 474,
+        "callExamples": [
+          "1d9e4:\te8 57 4a 01 00       \tcall   32440 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Class!(false, 1)._Class(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Class\").memoizedRule(ulong)>",
+          "1da49:\te8 c2 43 01 00       \tcall   31e10 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Literal!(false, 1)._Literal(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Literal\").memoizedRule(ulong)>",
+          "1da99:\te8 92 1e 01 00       \tcall   2f930 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Ident!(false, 1)._Ident(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Ident\").memoizedRule(ulong)>",
+          "1dd0f:\te8 1c 1c 01 00       \tcall   2f930 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Ident!(false, 1)._Ident(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Ident\").memoizedRule(ulong)>",
+          "1dd5a:\te8 21 28 01 00       \tcall   30580 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Params!(false, 1)._Params(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Params\").memoizedRule(ulong)>",
+          "1dee4:\te8 27 52 01 00       \tcall   33110 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Sp\").memoizedRule(ulong)>",
+          "1df2c:\te8 5f 00 01 00       \tcall   2df90 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Expression!(false, 1)._Expression(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Expression\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)": {
+        "calls": 3,
+        "conditionalBranches": 92,
+        "instructions": 579,
+        "callExamples": [
+          "1ecbd:\te8 8e a2 00 00       \tcall   28f50 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1f0b9:\te8 a2 38 01 00       \tcall   32960 <npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "1f2bb:\te8 90 9c 00 00       \tcall   28f50 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Definition!(false, 1)._Definition(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 3,
+        "conditionalBranches": 10,
+        "instructions": 111,
+        "callExamples": [
+          "21416:\te8 e5 94 ff ff       \tcall   1a900 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Definition(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "21467:\te8 74 92 00 00       \tcall   2a6e0 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._DefHeader!(false, 1)._DefHeader(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.DefHeader\").memoizedRule(ulong)>",
+          "214aa:\te8 11 aa 00 00       \tcall   2bec0 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._TopExpression!(false, 1)._TopExpression(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.TopExpression\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 7,
+        "conditionalBranches": 53,
+        "instructions": 389,
+        "callExamples": [
+          "22e12:\te8 89 92 ff ff       \tcall   1c0a0 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_TopBoundary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "231a1:\te8 da 50 00 00       \tcall   28280 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "231e1:\te8 4a 51 00 00       \tcall   28330 <npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2321d:\te8 2e 5d 00 00       \tcall   28f50 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2325b:\te8 80 4f 00 00       \tcall   281e0 <npegged.peg.literal!(\"<\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "232fb:\te8 20 9b 00 00       \tcall   2ce20 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._ParamGuard!(false, 1)._ParamGuard(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.ParamGuard\").memoizedRule(ulong)>",
+          "23396:\te8 d5 a6 00 00       \tcall   2da70 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._ParamAhead!(false, 1)._ParamAhead(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.ParamAhead\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._SequenceBoundary!(false, 1)._SequenceBoundary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 1,
+        "conditionalBranches": 13,
+        "instructions": 94,
+        "callExamples": [
+          "244d0:\te8 db 8e ff ff       \tcall   1d3b0 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_SequenceBoundary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 4,
+        "conditionalBranches": 40,
+        "instructions": 264,
+        "callExamples": [
+          "246b4:\te8 57 ea 00 00       \tcall   33110 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Sp\").memoizedRule(ulong)>",
+          "246fd:\te8 ce 8d ff ff       \tcall   1d4d0 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Prefix(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "2479e:\te8 6d ac 00 00       \tcall   2f410 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Primary\").memoizedRule(ulong)>",
+          "248f6:\te8 15 c9 00 00       \tcall   31210 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Action!(false, 1)._Action(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Action\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 11,
+        "conditionalBranches": 70,
+        "instructions": 548,
+        "callExamples": [
+          "24a3c:\te8 ff d9 00 00       \tcall   32440 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Class!(false, 1)._Class(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Class\").memoizedRule(ulong)>",
+          "24a93:\te8 88 8e ff ff       \tcall   1d920 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Primary(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "24b91:\te8 7a e5 00 00       \tcall   33110 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Sp\").memoizedRule(ulong)>",
+          "24bec:\te8 9f 93 00 00       \tcall   2df90 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Expression!(false, 1)._Expression(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Expression\").memoizedRule(ulong)>",
+          "24c49:\te8 f2 34 00 00       \tcall   28140 <npegged.peg.literal!(\")\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "24ca6:\te8 65 d1 00 00       \tcall   31e10 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Literal!(false, 1)._Literal(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Literal\").memoizedRule(ulong)>",
+          "24d86:\te8 a5 ab 00 00       \tcall   2f930 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Ident!(false, 1)._Ident(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Ident\").memoizedRule(ulong)>",
+          "24ff6:\te8 85 b5 00 00       \tcall   30580 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Params!(false, 1)._Params(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Params\").memoizedRule(ulong)>",
+          "2507f:\te8 bc 37 00 00       \tcall   28840 <npegged.peg.literal!(\".\").literal.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "250f0:\te8 8b 31 00 00       \tcall   28280 <npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass.opCall!(false, 1).opCall(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "25155:\te8 d6 a7 00 00       \tcall   2f930 <npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Ident!(false, 1)._Ident(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Ident\").memoizedRule(ulong)>"
+        ]
+      },
+      "benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong)": {
+        "calls": 2,
+        "conditionalBranches": 1,
+        "instructions": 31,
+        "callExamples": [
+          "27564:\te8 67 b6 00 00       \tcall   32bd0 <npegged.peg.transform!(npegged.peg.and!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.lookahead!(npegged.peg.literal!(\"\\n\").literal, false).lookahead, npegged.peg.any).and, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2758b:\te8 c0 74 ff ff       \tcall   1ea50 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Definition!(false, 1)._Definition(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Definition\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 45,
+        "instructions": 343,
+        "callExamples": [
+          "2a22b:\te8 10 db ff ff       \tcall   27d40 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "2a3a9:\te8 d2 6f ff ff       \tcall   21380 <benchmark.diagnostics.peg_probe.BenchPEG._Definition!(false, 1)._Definition(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2a49f:\te8 dc 6e ff ff       \tcall   21380 <benchmark.diagnostics.peg_probe.BenchPEG._Definition!(false, 1)._Definition(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2a5d4:\t41 ff d1             \tcall   *%r9",
+          "2a60e:\t41 ff 57 40          \tcall   *0x40(%r15)"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.TopBoundary\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 45,
+        "instructions": 343,
+        "callExamples": [
+          "2c96b:\te8 d0 b3 ff ff       \tcall   27d40 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "2cae9:\te8 d2 62 ff ff       \tcall   22dc0 <benchmark.diagnostics.peg_probe.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2cbdf:\te8 dc 61 ff ff       \tcall   22dc0 <benchmark.diagnostics.peg_probe.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2cd14:\t41 ff d1             \tcall   *%r9",
+          "2cd4e:\t41 ff 57 40          \tcall   *0x40(%r15)"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._SequenceBoundary!(false, 1)._SequenceBoundary(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.SequenceBoundary\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 45,
+        "instructions": 343,
+        "callExamples": [
+          "2ea3b:\te8 00 93 ff ff       \tcall   27d40 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "2ebb9:\te8 72 58 ff ff       \tcall   24430 <benchmark.diagnostics.peg_probe.BenchPEG._SequenceBoundary!(false, 1)._SequenceBoundary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2ecaf:\te8 7c 57 ff ff       \tcall   24430 <benchmark.diagnostics.peg_probe.BenchPEG._SequenceBoundary!(false, 1)._SequenceBoundary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2ede4:\t41 ff d1             \tcall   *%r9",
+          "2ee1e:\t41 ff 57 40          \tcall   *0x40(%r15)"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Prefix\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 45,
+        "instructions": 342,
+        "callExamples": [
+          "2ef5b:\te8 e0 8d ff ff       \tcall   27d40 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "2f0d9:\te8 c2 54 ff ff       \tcall   245a0 <benchmark.diagnostics.peg_probe.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2f1cf:\te8 cc 53 ff ff       \tcall   245a0 <benchmark.diagnostics.peg_probe.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2f304:\t41 ff d1             \tcall   *%r9",
+          "2f33e:\t41 ff 57 40          \tcall   *0x40(%r15)"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Primary\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 45,
+        "instructions": 343,
+        "callExamples": [
+          "2f47b:\te8 c0 88 ff ff       \tcall   27d40 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "2f5f9:\te8 12 54 ff ff       \tcall   24a10 <benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2f6ef:\te8 1c 53 ff ff       \tcall   24a10 <benchmark.diagnostics.peg_probe.BenchPEG._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "2f824:\t41 ff d1             \tcall   *%r9",
+          "2f85e:\t41 ff 57 40          \tcall   *0x40(%r15)"
+        ]
+      },
+      "npegged.peg.State!(false, 1).State.memoizedRule!(benchmark.diagnostics.peg_probe.BenchPEG._Sp!(false, 1)._Sp(ref npegged.peg.State!(false, 1).State, ulong), \"BenchPEG.Sp\").memoizedRule(ulong)": {
+        "calls": 5,
+        "conditionalBranches": 47,
+        "instructions": 346,
+        "callExamples": [
+          "33174:\te8 c7 4b ff ff       \tcall   27d40 <npegged.storage.Arena.allocate!(npegged.peg.State!(false, 1).State.Entry*).allocate(ulong)>",
+          "332fb:\te8 d0 f8 ff ff       \tcall   32bd0 <npegged.peg.transform!(npegged.peg.and!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.lookahead!(npegged.peg.literal!(\"\\n\").literal, false).lookahead, npegged.peg.any).and, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)>",
+          "33328:\te8 23 b7 fe ff       \tcall   1ea50 <benchmark.diagnostics.peg_probe.BenchPEG._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>",
+          "3351e:\tff d0                \tcall   *%rax",
+          "3359d:\t41 ff 54 24 40       \tcall   *0x40(%r12)"
+        ]
+      }
+    }
+  }
+}

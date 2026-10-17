@@ -33,28 +33,52 @@ private struct Events {
     }
 }
 
-private bool sameTree(ref const ParseTree a, ref const ParseTree b) @nogc nothrow {
-    if (a.name != b.name || a.successful != b.successful || a.matches != b.matches
-            || a.input != b.input || a.begin != b.begin || a.end != b.end || a.failEnd != b.failEnd
-            || a.children.length != b.children.length || a.failedChild.length != b.failedChild.length)
-        return false;
-    foreach (i; 0 .. a.children.length)
-        if (!sameTree(a.children[i], b.children[i]))
-            return false;
-    foreach (i; 0 .. a.failedChild.length)
-        if (!sameTree(a.failedChild[i], b.failedChild[i]))
-            return false;
-    return true;
+private string treeDifference(ref const ParseTree a, ref const ParseTree b) @nogc nothrow {
+    static foreach (field; ["name", "successful", "matches", "input", "begin", "end", "failEnd"])
+        if (__traits(getMember, a, field) != __traits(getMember, b, field))
+            return "tree." ~ field;
+    if (a.children.length != b.children.length)
+        return "tree.children.length";
+    if (a.failedChild.length != b.failedChild.length)
+        return "tree.failedChild.length";
+    foreach (i; 0 .. a.children.length) {
+        auto difference = treeDifference(a.children[i], b.children[i]);
+        if (difference.length)
+            return difference;
+    }
+    foreach (i; 0 .. a.failedChild.length) {
+        auto difference = treeDifference(a.failedChild[i], b.failedChild[i]);
+        if (difference.length)
+            return difference;
+    }
+    return "";
+}
+
+@nogc nothrow unittest {
+    ParseTree a, b;
+    assert(treeDifference(a, b) == "");
+    b.end = 1;
+    assert(treeDifference(a, b) == "tree.end");
+    ParseTree[1] childA, childB;
+    a.children = childA[];
+    b = a;
+    b.children = childB[];
+    childB[0].failEnd = 1;
+    assert(treeDifference(a, b) == "tree.failEnd");
+    a.children = b.children = null;
+    a.failedChild = childA[];
+    b.failedChild = childB[];
+    assert(treeDifference(a, b) == "tree.failEnd");
 }
 
 private void require(bool condition, string grammarName, string input, string mode,
-        ref ParseContext context, size_t outputLimit) @nogc nothrow {
+        ref ParseContext context, size_t outputLimit, string field = "") @nogc nothrow {
     if (condition)
         return;
-    fprintf(stderr, "differential mismatch grammar=%.*s mode=%.*s steps=%llu depth=%llu memory=%llu output=%llu input(hex)=",
+    fprintf(stderr, "differential mismatch grammar=%.*s mode=%.*s field=%.*s steps=%llu depth=%llu memory=%llu output=%llu input(hex)=",
             cast(int)grammarName.length, grammarName.ptr, cast(int)mode.length, mode.ptr,
-            cast(ulong)context.stepLimit, cast(ulong)context.depthLimit,
-            cast(ulong)context.memoryLimit, cast(ulong)outputLimit);
+            cast(int)field.length, field.ptr, cast(ulong)context.stepLimit,
+            cast(ulong)context.depthLimit, cast(ulong)context.memoryLimit, cast(ulong)outputLimit);
     foreach (c; input)
         fprintf(stderr, "%02x", cast(uint)cast(ubyte)c);
     fprintf(stderr, "\n");
@@ -68,7 +92,7 @@ private ParseTree observeAction(bool CT)(ref State!CT state, ParseTree tree) @no
 
 private void assertSameParse(alias Reference, alias Candidate)(string input,
         ParseContext context = ParseContext.init, size_t outputLimit = 256 * 1024 * 1024) @nogc nothrow {
-    enum name = __traits(parent, Reference).stringof;
+    enum name = __traits(parent, __traits(parent, __traits(parent, Reference))).stringof;
     static foreach (tracing; [false, true]) {
         {
             static foreach (mode; ["recognition", "borrowed records", "owned records", "full tree"]) {
@@ -91,14 +115,16 @@ private void assertSameParse(alias Reference, alias Candidate)(string input,
                     else
                         auto b = parseRecords!(Candidate, selected, mode == "owned records")(
                                 context, input, outputLimit);
-                    require(a.status == b.status && a.successful == b.successful && a.end == b.end
-                            && a.failEnd == b.failEnd, name, input,
-                            mode ~ ": status/success/end/failEnd", context, outputLimit);
-                    static if (mode == "full tree")
-                        require(sameTree(a.tree, b.tree), name, input, mode ~ ": fields", context, outputLimit);
-                    else static if (mode != "recognition")
-                        require(a.nodes == b.nodes && a.input == b.input, name, input,
-                                mode ~ ": nodes/input", context, outputLimit);
+                    static foreach (field; ["status", "successful", "end", "failEnd"])
+                        require(__traits(getMember, a, field) == __traits(getMember, b, field),
+                                name, input, mode, context, outputLimit, field);
+                    static if (mode == "full tree") {
+                        auto difference = treeDifference(a.tree, b.tree);
+                        require(!difference.length, name, input, mode, context, outputLimit, difference);
+                    } else static if (mode != "recognition") {
+                        require(a.nodes == b.nodes, name, input, mode, context, outputLimit, "nodes");
+                        require(a.input == b.input, name, input, mode, context, outputLimit, "input");
+                    }
                     require(
                             eventsA.values[0 .. eventsA.length] == eventsB.values[0 .. eventsB.length],
                             name, input, mode ~ ": actions/trace sequence", context, outputLimit);
