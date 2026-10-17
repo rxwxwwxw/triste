@@ -33,6 +33,7 @@ done < <(find src tests examples scripts benchmark -name '*.d' -print0)
 
 timeout 10s python3 tests/test_recursion_summary.py
 timeout 10s python3 tests/test_peg_probe_summary.py
+timeout 10s python3 tests/test_memo_dependencies.py
 
 if [[ "$MODE" == "full" ]]; then
   for compiler in dmd ldc2; do

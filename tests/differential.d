@@ -92,6 +92,11 @@ private ParseTree observeAction(bool CT)(ref State!CT state, ParseTree tree) @no
 
 private void assertSameParse(alias Reference, alias Candidate)(string input,
         ParseContext context = ParseContext.init, size_t outputLimit = 256 * 1024 * 1024) @nogc nothrow {
+    version (NPeggedDependencyTrace) {
+        MemoTraceEvent[64] dependencyStorage;
+        MemoTrace dependencyTrace = MemoTrace(dependencyStorage[]);
+        context.memoTrace = &dependencyTrace;
+    }
     enum name = __traits(parent, __traits(parent, __traits(parent, Reference))).stringof;
     static foreach (tracing; [false, true]) {
         {

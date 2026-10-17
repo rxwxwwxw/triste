@@ -11,5 +11,5 @@ case $(basename "$compiler") in
   *) echo 'Unsupported compiler' >&2; exit 2;;
 esac
 ulimit -v 4194304
-"$compiler" "${flags[@]}" "${library[@]}" tests/differential.d -of=build/differential/runner
+"$compiler" "${flags[@]}" "$@" "${library[@]}" tests/differential.d -of=build/differential/runner
 timeout --preserve-status --kill-after=2s 60s build/differential/runner

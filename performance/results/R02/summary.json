@@ -1,0 +1,30 @@
+{
+  "combinators-full": {
+    "cases": 112,
+    "events": 2149,
+    "broadRetirements": 101,
+    "dependentRetirements": 33,
+    "directOnlyMisses": 14
+  },
+  "combinators-selective": {
+    "cases": 112,
+    "events": 1377,
+    "broadRetirements": 49,
+    "dependentRetirements": 33,
+    "directOnlyMisses": 14
+  },
+  "direct-full": {
+    "cases": 112,
+    "events": 2149,
+    "broadRetirements": 101,
+    "dependentRetirements": 33,
+    "directOnlyMisses": 14
+  },
+  "direct-selective": {
+    "cases": 112,
+    "events": 1377,
+    "broadRetirements": 49,
+    "dependentRetirements": 33,
+    "directOnlyMisses": 14
+  }
+}

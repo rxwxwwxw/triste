@@ -88,7 +88,79 @@ version (NPeggedMetrics) {
     }
 }
 
+version (NPeggedDependencyTrace) {
+    /// Diagnostic events only; IDs are monotonically assigned within one trace.
+    enum MemoTraceKind {
+        created,
+        iteration,
+        activeHit,
+        cachedHit,
+        growth,
+        retired,
+        completed
+    }
+
+    struct MemoTraceEvent {
+        MemoTraceKind kind;
+        size_t caller, entry, position, end;
+        bool successful;
+        string rule;
+    }
+
+    /// Non-owning bounded sink. Its caller must retain storage for the entire parse.
+    /// Truncation never changes parser status and invalidates dependency conclusions.
+    struct MemoTrace {
+        private MemoTraceEvent[] storage;
+        private size_t length;
+        private size_t nextID = 1;
+        bool truncated;
+
+        this(MemoTraceEvent[] storage) @nogc nothrow {
+            this.storage = storage;
+        }
+
+        const(MemoTraceEvent)[] events() const return @nogc nothrow {
+            return storage[0 .. length];
+        }
+
+        private size_t issueID() @nogc nothrow {
+            if (truncated)
+                return 0;
+            if (nextID == size_t.max) {
+                truncated = true;
+                return 0;
+            }
+            return nextID++;
+        }
+
+        private void record(MemoTraceEvent event) @nogc nothrow {
+            if (truncated)
+                return;
+            if (length == storage.length) {
+                truncated = true;
+                return;
+            }
+            storage[length++] = event;
+        }
+    }
+
+    @nogc nothrow unittest {
+        MemoTraceEvent[2] storage;
+        MemoTrace trace = MemoTrace(storage[]);
+        assert(trace.issueID() == 1 && trace.issueID() == 2);
+        trace.record(MemoTraceEvent(MemoTraceKind.created, 0, 1, 0, 0, false, "test"));
+        trace.record(MemoTraceEvent(MemoTraceKind.completed, 0, 1));
+        assert(trace.events.length == 2 && !trace.truncated);
+        trace.record(MemoTraceEvent.init);
+        assert(trace.events.length == 2 && trace.truncated && trace.issueID() == 0);
+        MemoTrace overflow = MemoTrace(storage[]);
+        overflow.nextID = size_t.max;
+        assert(overflow.issueID() == 0 && overflow.truncated);
+    }
+}
+
 struct ParseContext {
+    version (NPeggedDependencyTrace) MemoTrace* memoTrace;
     version (NPeggedMetrics) ParseMetrics* metrics;
     size_t memoryLimit = 256 * 1024 * 1024;
     size_t stepLimit = 10_000_000;
@@ -128,6 +200,7 @@ struct State(bool CT, int Check = 0) {
                 output.metrics = context.metrics is null ? null : &context.metrics.output;
         }
     }
+    version (NPeggedDependencyTrace) private Entry* currentMemo;
     private Entry* entries;
     private Entry*[] buckets;
     private size_t entryCount;
@@ -146,6 +219,7 @@ struct State(bool CT, int Check = 0) {
     private bool hasFailure;
     private alias ParserIdentity = Node function(ref State!(CT, Check), size_t) nothrow;
     private struct Entry {
+        version (NPeggedDependencyTrace) size_t traceID;
         ParserIdentity identity;
         size_t position, hash;
         Node seed;
@@ -783,6 +857,39 @@ struct State(bool CT, int Check = 0) {
         }
     }
 
+    version (NPeggedDependencyTrace) private void traceMemo(MemoTraceKind kind, Entry* entry, string rule = "") @nogc nothrow {
+        auto trace = context.memoTrace;
+        if (trace is null)
+            return;
+        if (entry.traceID == 0) {
+            trace.truncated = true; // Tracing enabled after entries were already created.
+            return;
+        }
+        trace.record(MemoTraceEvent(kind, currentMemo is null ? 0 : currentMemo.traceID, entry.traceID,
+                entry.position, entry.seed.end, entry.seed.successful, rule));
+    }
+
+    version (NPeggedDependencyTrace) @nogc nothrow unittest {
+        State!(false, 1) state;
+        typeof(state).Entry entry, caller;
+        state.traceMemo(MemoTraceKind.created, &entry);
+        MemoTraceEvent[4] storage;
+        MemoTrace trace = MemoTrace(storage[]);
+        state.context.memoTrace = &trace;
+        state.traceMemo(MemoTraceKind.created, &entry);
+        assert(trace.truncated && trace.events.length == 0);
+        MemoTrace valid = MemoTrace(storage[]);
+        state.context.memoTrace = &valid;
+        entry.traceID = 7;
+        entry.position = 3;
+        caller.traceID = 5;
+        state.currentMemo = &caller;
+        state.traceMemo(MemoTraceKind.activeHit, &entry, "leaf");
+        assert(!valid.truncated && valid.events.length == 1);
+        auto event = valid.events[0];
+        assert(event.caller == 5 && event.entry == 7 && event.position == 3 && event.rule == "leaf");
+    }
+
     // Retired entries stay arena-owned, but must not be revisited by later
     // seed growth or hash lookup. Active seeds remain reachable.
     private void invalidateMemo(size_t pos) nothrow {
@@ -794,6 +901,8 @@ struct State(bool CT, int Check = 0) {
                 if (context.metrics !is null)
                     ++context.metrics.invalidationVisits;
             if (!current.active && current.position >= pos) {
+                version (NPeggedDependencyTrace)
+                    traceMemo(MemoTraceKind.retired, current);
                 version (NPeggedMetrics)
                     if (context.metrics !is null)
                         ++context.metrics.invalidatedEntries;
@@ -908,6 +1017,8 @@ struct State(bool CT, int Check = 0) {
                 version (NPeggedMetrics)
                     if (context.metrics !is null)
                         ++context.metrics.memoHits;
+                version (NPeggedDependencyTrace)
+                    traceMemo(entry.active ? MemoTraceKind.activeHit : MemoTraceKind.cachedHit, entry);
                 if (entry.active)
                     entry.recursive = true;
                 else if (!entry.seed.successful)
@@ -938,10 +1049,23 @@ struct State(bool CT, int Check = 0) {
         entry.active = true;
         entry.next = entries;
         entries = entry;
+        version (NPeggedDependencyTrace) {
+            auto previousMemo = currentMemo;
+            if (context.memoTrace !is null) {
+                entry.traceID = context.memoTrace.issueID();
+                traceMemo(MemoTraceKind.created, entry, name);
+            }
+            currentMemo = entry;
+        }
+        version (NPeggedDependencyTrace)
+            scope (exit)
+                currentMemo = previousMemo;
         ++depth;
         scope (exit)
             --depth;
         do {
+            version (NPeggedDependencyTrace)
+                traceMemo(MemoTraceKind.iteration, entry);
             rollbackOutput(outputBase);
             auto candidate = body(this, pos);
             static if (!Check)
@@ -955,6 +1079,8 @@ struct State(bool CT, int Check = 0) {
                 if (context.metrics !is null)
                     ++context.metrics.seedGrowths;
             entry.seed = candidate;
+            version (NPeggedDependencyTrace)
+                traceMemo(MemoTraceKind.growth, entry);
             static if (Check == 2)
                 entry.output = snapshotOutput(outputBase);
             if (!entry.recursive)
@@ -966,9 +1092,47 @@ struct State(bool CT, int Check = 0) {
         static if (Check == 2)
             restoreOutput(entry.output);
         entry.active = false;
+        version (NPeggedDependencyTrace) {
+            traceMemo(MemoTraceKind.completed, entry);
+            currentMemo = previousMemo;
+        }
         if (context.trace !is null)
             context.trace(name, pos, entry.seed.successful, context.userData);
         return entry.seed;
+    }
+
+    version (NPeggedDependencyTrace) @nogc nothrow unittest {
+        static RecognitionNode body(ref State!(false, 1) state, size_t pos) @nogc nothrow {
+            return state.node(pos, pos + 1, true);
+        }
+
+        MemoTraceEvent[32] events;
+        MemoTrace trace = MemoTrace(events[]);
+        Arena owner;
+        State!(false, 1) state;
+        state.arena = &owner;
+        state.context.memoTrace = &trace;
+        assert(state.memoizedRule!(body, "leaf")(0).successful);
+        assert(state.memoizedRule!(body, "leaf")(0).successful);
+        assert(trace.events.length == 5 && !trace.truncated);
+        assert(trace.events[0].kind == MemoTraceKind.created && trace.events[0].entry == 1);
+        assert(trace.events[0].caller == 0 && trace.events[0].rule == "leaf");
+        assert(trace.events[1].kind == MemoTraceKind.iteration);
+        assert(trace.events[2].kind == MemoTraceKind.growth);
+        assert(trace.events[3].kind == MemoTraceKind.completed);
+        assert(trace.events[4].kind == MemoTraceKind.cachedHit && trace.events[4].entry == 1);
+        assert(state.currentMemo is null);
+        MemoTraceEvent[1] shortStorage;
+        MemoTrace shortTrace = MemoTrace(shortStorage[]);
+        State!(false, 1) limited;
+        limited.arena = &owner;
+        limited.context.memoTrace = &shortTrace;
+        assert(limited.memoizedRule!(body, "leaf")(0).successful);
+        assert(shortTrace.truncated && shortTrace.events.length == 1 && limited.status == Status.ok);
+        state.context.memoTrace = &shortTrace;
+        assert(state.memoizedRule!(body, "leaf")(0).successful);
+        state.context.memoTrace = null;
+        assert(state.memoizedRule!(body, "leaf")(0).successful);
     }
 
     version (NPeggedMetrics) @nogc nothrow unittest {
