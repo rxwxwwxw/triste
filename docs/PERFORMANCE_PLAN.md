@@ -158,7 +158,7 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 
 | Task | Commit | Checks & coverage | Baseline report | Candidate report | Outcome / regressions | Decision |
 |---|---|---|---|---|---|---|
-| F01 | — | — | — | — | — | unstarted |
+| F01 | see git log | source hashes verified; existing equal-output gate | performance/results/F01-baseline.json | — | 380/387 paired checks; 7 ratio failures | baseline captured |
 
 ## 9. First two implementation sprints and explicit non-goals
 
