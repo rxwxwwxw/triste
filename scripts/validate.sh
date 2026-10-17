@@ -36,6 +36,7 @@ timeout 10s python3 tests/test_peg_probe_summary.py
 timeout 10s python3 tests/test_memo_dependencies.py
 
 if [[ "$MODE" == "full" ]]; then
+  COMPILERS="dmd ldc2" bash scripts/shared-records-check.sh
   for compiler in dmd ldc2; do
     DC=$compiler scripts/build.sh
     DC=$compiler bash scripts/differential.sh
@@ -50,6 +51,7 @@ if [[ "$MODE" == "full" ]]; then
   python3 scripts/benchmark_checks.py
   echo "Full validation passed (multi-compiler, coverage, ASan/LSan, Valgrind, benchmarks)."
 else
+  COMPILERS=ldc2 bash scripts/shared-records-check.sh
   DC=ldc2 scripts/build.sh
   DC=ldc2 bash scripts/differential.sh
   DC=ldc2 scripts/examples.sh

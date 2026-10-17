@@ -1,0 +1,49 @@
+==134764== Memcheck, a memory error detector
+==134764== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
+==134764== Using Valgrind-3.25.1 and LibVEX; rerun with -h for copyright info
+==134764== Command: build/R05/oracle-debug --DRT-testmode=run-main --DRT-gcopt=disable:1\ parallel:0\ cleanup:none
+==134764== 
+depth,flat_snapshot_bytes,shared_frozen_bytes,shared_replay_bytes,flat_peak,shared_peak,scratch_peak
+16,4352,512,512,8192,4096,4096
+32,16896,1024,1024,20480,8192,4096
+64,66560,2048,2048,77824,12288,4096
+128,264192,4096,4096,339991,20480,4096
+256,1052672,8192,8192,1131415,40960,6167
+512,4202496,16384,16384,4287127,77824,12311
+1024,16793600,32768,32768,16890007,151552,24599
+2048,67141632,65536,65536,67261591,303104,49175
+==134764== 
+==134764== HEAP SUMMARY:
+==134764==     in use at exit: 120 bytes in 2 blocks
+==134764==   total heap usage: 21,991 allocs, 21,989 frees, 334,152,574 bytes allocated
+==134764== 
+==134764== 24 bytes in 1 blocks are still reachable in loss record 1 of 2
+==134764==    at 0x4902250: realloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==134764==    by 0x4039B9D: core.internal.container.common.xrealloc(void*, ulong) (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x403956B: core.internal.container.array.Array!(core.gc.gcinterface.Range).Array.length(ulong) (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x4039999: core.internal.container.array.Array!(core.gc.gcinterface.Range).Array.insertBack!().insertBack(core.gc.gcinterface.Range) (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x4045BFC: _DThn16_4core8internal2gc4impl5protoQo7ProtoGC8addRangeMFNbNiPvmxC8TypeInfoZv (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x402D2FD: rt.memory.initStaticDataGC().__foreachbody_L21_C5(ref rt.sections_elf_shared.DSO) (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x402EA68: rt.sections_elf_shared.DSO.opApply(scope int(ref rt.sections_elf_shared.DSO) delegate) (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x402B8A3: rt_init (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x402BD4C: rt.dmain2._d_run_main2(char[][], ulong, extern(C) int(char[][]) function).runAll() (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x402BC91: _d_run_main2 (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x402BAFC: _d_run_main (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x401D061: main (entrypoint.d:42)
+==134764== 
+==134764== 96 bytes in 1 blocks are still reachable in loss record 2 of 2
+==134764==    at 0x4902250: realloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==134764==    by 0x4036310: core.gc.registry.registerGCFactory(immutable(char)[], core.gc.gcinterface.GC() function, void(core.thread.threadbase.ThreadBase) nothrow @nogc function) (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764==    by 0x4A88EBE: call_init (libc-start.c:144)
+==134764==    by 0x4A88EBE: __libc_start_main@@GLIBC_2.34 (libc-start.c:359)
+==134764==    by 0x4019C24: (below main) (in /home/alex-work/repos/triste/build/R05/oracle-debug)
+==134764== 
+==134764== LEAK SUMMARY:
+==134764==    definitely lost: 0 bytes in 0 blocks
+==134764==    indirectly lost: 0 bytes in 0 blocks
+==134764==      possibly lost: 0 bytes in 0 blocks
+==134764==    still reachable: 120 bytes in 2 blocks
+==134764==         suppressed: 0 bytes in 0 blocks
+==134764== 
+==134764== For lists of detected and suppressed errors, rerun with: -s
+==134764== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)

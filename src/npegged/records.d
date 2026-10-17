@@ -252,3 +252,334 @@ version (NPeggedMetrics) @nogc nothrow unittest {
     assert(badParent.put(CompactNode(0, 0, 1, 0)) == size_t.max);
     assert(badParent.status == Status.invalidInput && badParent.length == 0);
 }
+
+/// Experimental immutable record composition. Handles borrow their component arenas.
+/// Only explicit fragment composition shares storage; arbitrary flat input is copied.
+struct SharedRecordSnapshot {
+    private const(RecordFragment)* root;
+    @property size_t length() const @nogc nothrow {
+        return root is null ? 0 : root.length;
+    }
+}
+
+@nogc nothrow unittest {
+    SharedRecordSnapshot empty;
+    assert(empty.length == 0);
+}
+
+private struct RecordFragment {
+    const(RecordFragment)* left, right;
+    const(CompactNode)[] nodes;
+    size_t length, height;
+    size_t attachment = size_t.max;
+}
+
+/// Non-owning experimental store. Every component arena must outlive its handles and replay.
+/// No parser uses this API; callers must prove composition or import a full flat copy.
+struct SharedRecordStore {
+    Arena* arena;
+    private Status failure;
+    /// Cumulative diagnostic work; linking existing fragments never increases frozenBytes.
+    version (NPeggedMetrics) ulong frozenBytes, replayBytes, fragmentCount;
+
+    @property Status status() const @nogc nothrow {
+        return failure != Status.ok ? failure : arena is null ? Status.invalidInput : arena.status;
+    }
+
+    /// Conservative fallback: validate, copy and normalize all parent indices.
+    SharedRecordSnapshot freeze(RecordSnapshot saved) @nogc nothrow {
+        if (status != Status.ok || !saved.nodes.length)
+            return SharedRecordSnapshot.init;
+        foreach (i, node; saved.nodes)
+            if (node.parent != size_t.max && node.parent >= saved.base && node.parent - saved.base >= i) {
+                failure = Status.invalidInput;
+                return SharedRecordSnapshot.init;
+            }
+        auto fragment = arena.allocate!RecordFragment(1);
+        if (!fragment.length)
+            return SharedRecordSnapshot.init;
+        auto copy = arena.copy!CompactNode(saved.nodes);
+        if (!copy.length)
+            return SharedRecordSnapshot.init;
+        foreach (ref node; copy)
+            node.parent = node.parent == size_t.max || node.parent < saved.base ? size_t.max : node
+                .parent - saved.base;
+        fragment[0].nodes = copy;
+        fragment[0].length = copy.length;
+        fragment[0].height = 1;
+        version (NPeggedMetrics) {
+            frozenBytes += copy.length * CompactNode.sizeof;
+            ++fragmentCount;
+        }
+        return SharedRecordSnapshot(&fragment[0]);
+    }
+
+    /// Right external roots attach to an earlier left node or to the replay parent.
+    /// Internal parent references in both operands remain unchanged.
+    SharedRecordSnapshot join(SharedRecordSnapshot left, SharedRecordSnapshot right, size_t attachment = size_t
+            .max) @nogc nothrow {
+        if (status != Status.ok)
+            return SharedRecordSnapshot.init;
+        if (attachment != size_t.max && attachment >= left.length) {
+            failure = Status.invalidInput;
+            return SharedRecordSnapshot.init;
+        }
+        if (left.length > size_t.max - right.length) {
+            failure = Status.resourceLimit;
+            return SharedRecordSnapshot.init;
+        }
+        if (!right.length)
+            return left;
+        if (!left.length)
+            return right;
+        auto height = left.root.height > right.root.height ? left.root.height : right.root.height;
+        if (height == size_t.max) {
+            failure = Status.resourceLimit;
+            return SharedRecordSnapshot.init;
+        }
+        auto fragment = arena.allocate!RecordFragment(1);
+        if (!fragment.length)
+            return SharedRecordSnapshot.init;
+        fragment[0].left = left.root;
+        fragment[0].right = right.root;
+        fragment[0].attachment = attachment;
+        fragment[0].length = left.length + right.length;
+        fragment[0].height = height + 1;
+        version (NPeggedMetrics)
+            ++fragmentCount;
+        return SharedRecordSnapshot(&fragment[0]);
+    }
+
+    /// Iterative replay uses bounded scratch arena space; failure rolls output length back.
+    bool restore(ref RecordBuffer output, SharedRecordSnapshot saved, ref Arena scratch) @nogc nothrow {
+        if (output.status != Status.ok)
+            return false;
+        if (status != Status.ok) {
+            output.failure = status;
+            return false;
+        }
+        if (!saved.length)
+            return true;
+        const checkpoint = output.length;
+        if (saved.length > size_t.max - checkpoint) {
+            output.failure = Status.resourceLimit;
+            return false;
+        }
+        struct Frame {
+            const(RecordFragment)* fragment;
+            size_t base, parent;
+        }
+        // DFS retains at most one pending right fragment per nesting level.
+        auto stack = scratch.allocate!Frame(saved.root.height);
+        if (!stack.length) {
+            output.failure = scratch.status;
+            return false;
+        }
+        bool complete;
+        scope (exit)
+            if (!complete)
+                output.rollback(checkpoint);
+        size_t count = 1;
+        stack[0] = Frame(saved.root, checkpoint, output.parent);
+        // The checked total length bounds every descendant base/parent addition.
+        while (count) {
+            auto frame = stack[--count];
+            auto fragment = frame.fragment;
+            if (fragment.left !is null) {
+                stack[count++] = Frame(fragment.right, frame.base + fragment.left.length,
+                        fragment.attachment == size_t.max ? frame.parent : frame.base + fragment
+                            .attachment);
+                stack[count++] = Frame(fragment.left, frame.base, frame.parent);
+            } else {
+                foreach (original; fragment.nodes) {
+                    CompactNode node = original;
+                    node.parent = node.parent == size_t.max ? frame.parent : frame.base + node.parent;
+                    if (output.put(node) == size_t.max)
+                        return false;
+                    version (NPeggedMetrics)
+                        replayBytes += CompactNode.sizeof;
+                }
+            }
+        }
+        complete = true;
+        return true;
+    }
+}
+
+@nogc nothrow unittest {
+    version (NPeggedMetrics) {
+    } else {
+        static assert(!__traits(hasMember, SharedRecordStore, "frozenBytes"));
+        static assert(!__traits(hasMember, SharedRecordStore, "replayBytes"));
+        static assert(!__traits(hasMember, SharedRecordStore, "fragmentCount"));
+    }
+    Arena owner, live, scratch;
+    SharedRecordStore store;
+    store.arena = &owner;
+    assert(store.status == Status.ok);
+    assert(!store.freeze(RecordSnapshot.init).length && owner.used == 0);
+    CompactNode[2] input = [CompactNode(1, 3, 8, 5), CompactNode(2, 4, 6, 7)];
+    auto leaf = store.freeze(RecordSnapshot(input[], 7));
+    assert(leaf.length == 2);
+    version (NPeggedMetrics)
+        assert(store.frozenBytes == 2 * CompactNode.sizeof);
+    input[0].kind = 99;
+    CompactNode[1] root = [CompactNode(3, 0, 9)];
+    auto outer = store.freeze(RecordSnapshot(root[], 0));
+    auto nested = store.join(outer, leaf, 0);
+    auto sibling = store.join(nested, leaf);
+    assert(sibling.length == 5);
+    version (NPeggedMetrics)
+        assert(store.frozenBytes == 3 * CompactNode.sizeof && store.fragmentCount == 4);
+    assert(store.join(SharedRecordSnapshot.init, leaf).length == 2);
+    assert(store.join(leaf, SharedRecordSnapshot.init).length == 2);
+    RecordBuffer output;
+    output.arena = &live;
+    assert(output.put(CompactNode(9, 0, 10)) == 0);
+    output.parent = 0;
+    assert(store.restore(output, sibling, scratch));
+    assert(output.nodes[1] == CompactNode(3, 0, 9, 0));
+    assert(output.nodes[2] == CompactNode(1, 3, 8, 1));
+    assert(output.nodes[3] == CompactNode(2, 4, 6, 2));
+    assert(output.nodes[4] == CompactNode(1, 3, 8, 0));
+    assert(output.nodes[5] == CompactNode(2, 4, 6, 4));
+    output.rollback(1);
+    assert(store.restore(output, leaf, scratch));
+    assert(output.nodes[1] == CompactNode(1, 3, 8, 0));
+    assert(output.nodes[2] == CompactNode(2, 4, 6, 1));
+    assert(store.restore(output, SharedRecordSnapshot.init, scratch));
+    version (NPeggedMetrics)
+        assert(store.replayBytes == 7 * CompactNode.sizeof);
+}
+
+@nogc nothrow unittest {
+    SharedRecordStore missing;
+    assert(missing.status == Status.invalidInput);
+    assert(!missing.freeze(RecordSnapshot.init).length);
+    assert(!missing.join(SharedRecordSnapshot.init, SharedRecordSnapshot.init).length);
+    Arena memory, live, scratch;
+    RecordBuffer output;
+    output.arena = &live;
+    assert(!missing.restore(output, SharedRecordSnapshot.init, scratch));
+    assert(output.status == Status.invalidInput);
+    SharedRecordStore invalid;
+    invalid.arena = &memory;
+    CompactNode[1] corrupt = [CompactNode(0, 0, 1, 0)];
+    assert(!invalid.freeze(RecordSnapshot(corrupt[], 0)).length);
+    assert(invalid.status == Status.invalidInput && memory.used == 0);
+    assert(!invalid.freeze(RecordSnapshot.init).length);
+    SharedRecordStore attachment;
+    attachment.arena = &memory;
+    assert(!attachment.join(SharedRecordSnapshot.init, SharedRecordSnapshot.init, 0).length);
+    assert(attachment.status == Status.invalidInput);
+    SharedRecordStore overflow;
+    overflow.arena = &memory;
+    RecordFragment huge, small;
+    huge.length = size_t.max;
+    small.length = 1;
+    assert(!overflow.join(SharedRecordSnapshot(&huge), SharedRecordSnapshot(&small)).length);
+    assert(overflow.status == Status.resourceLimit);
+    SharedRecordStore depth;
+    depth.arena = &memory;
+    huge.length = 1;
+    huge.height = size_t.max;
+    assert(!depth.join(SharedRecordSnapshot(&huge), SharedRecordSnapshot(&small)).length);
+    assert(depth.status == Status.resourceLimit);
+}
+
+@nogc nothrow unittest {
+    CompactNode[1] node;
+    Arena frozen;
+    SharedRecordStore store;
+    store.arena = &frozen;
+    auto saved = store.freeze(RecordSnapshot(node[], 0));
+    assert(saved.length == 1);
+    Arena unavailable, live;
+    unavailable.limit = 0;
+    RecordBuffer output;
+    output.arena = &live;
+    assert(!store.restore(output, saved, unavailable));
+    assert(output.length == 0 && output.status == Status.resourceLimit);
+    RecordBuffer noOutput;
+    assert(!store.restore(noOutput, saved, live));
+    Arena limited, scratch;
+    limited.limit = 0;
+    RecordBuffer failed;
+    failed.arena = &limited;
+    assert(!store.restore(failed, saved, scratch));
+    assert(failed.length == 0 && failed.status == Status.resourceLimit);
+    Arena empty;
+    empty.limit = 0;
+    SharedRecordStore cannotFreeze;
+    cannotFreeze.arena = &empty;
+    assert(!cannotFreeze.freeze(RecordSnapshot(node[], 0)).length);
+    assert(cannotFreeze.status == Status.resourceLimit);
+    // Fragment allocation fits, but the larger leaf copy must fail.
+    Arena tight;
+    tight.limit = 4096;
+    SharedRecordStore partial;
+    partial.arena = &tight;
+    CompactNode[200] many;
+    assert(!partial.freeze(RecordSnapshot(many[], 0)).length);
+    assert(partial.status == Status.resourceLimit);
+    version (NPeggedMetrics)
+        assert(partial.frozenBytes == 0);
+}
+
+@nogc nothrow unittest {
+    Arena owner;
+    SharedRecordStore store;
+    store.arena = &owner;
+    CompactNode[100] many;
+    auto saved = store.freeze(RecordSnapshot(many[], 0));
+    Arena limited, scratch;
+    limited.limit = 4096;
+    RecordBuffer output;
+    output.arena = &limited;
+    assert(output.put(CompactNode(9, 0, 1)) == 0);
+    output.parent = 0;
+    assert(!store.restore(output, saved, scratch));
+    assert(output.length == 1 && output.nodes[0].kind == 9);
+    assert(output.status == Status.resourceLimit);
+    version (NPeggedMetrics)
+        assert(store.replayBytes > 0);
+    Arena unavailable;
+    unavailable.limit = 0;
+    SharedRecordStore cannotJoin;
+    cannotJoin.arena = &unavailable;
+    assert(!cannotJoin.join(saved, saved).length);
+    assert(cannotJoin.status == Status.resourceLimit);
+    // Replay size overflow is checked before appending.
+    RecordFragment huge;
+    huge.length = size_t.max;
+    huge.height = 1;
+    Arena live, work;
+    RecordBuffer overflow;
+    overflow.arena = &live;
+    assert(overflow.put(CompactNode.init) == 0);
+    assert(!store.restore(overflow, SharedRecordSnapshot(&huge), work));
+    assert(overflow.length == 1 && overflow.status == Status.resourceLimit && work.used == 0);
+}
+
+@nogc nothrow unittest {
+    Arena memory, live, scratch;
+    SharedRecordStore store;
+    store.arena = &memory;
+    CompactNode[1] node;
+    auto saved = store.freeze(RecordSnapshot(node[], 0));
+    RecordBuffer output;
+    output.arena = &live;
+    output.parent = 0; // No preceding parent exists in the destination.
+    assert(!store.restore(output, saved, scratch));
+    assert(output.length == 0 && output.status == Status.invalidInput);
+}
+
+@nogc nothrow unittest {
+    Arena live, scratch;
+    RecordBuffer output;
+    output.arena = &live;
+    output.failure = Status.resourceLimit;
+    SharedRecordStore missing;
+    assert(!missing.restore(output, SharedRecordSnapshot.init, scratch));
+    assert(output.status == Status.resourceLimit);
+}

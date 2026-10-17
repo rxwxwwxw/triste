@@ -23,7 +23,7 @@ private void deep(size_t depth) @nogc nothrow {
     store.arena = &sharedArena;
     RecordSnapshot baseline;
     SharedRecordSnapshot candidate;
-    ulong baselineFrozen;
+    version (NPeggedMetrics) ulong baselineFrozen;
     foreach (i; 0 .. depth) {
         // Each growth replaces the root. Only its immutable child is shared.
         Arena live;
@@ -33,7 +33,8 @@ private void deep(size_t depth) @nogc nothrow {
         flat.parent = 0;
         assert(flat.restore(baseline));
         baseline = flat.snapshot(legacyArena, 0);
-        baselineFrozen += baseline.nodes.length * CompactNode.sizeof;
+        version (NPeggedMetrics)
+            baselineFrozen += baseline.nodes.length * CompactNode.sizeof;
         auto head = store.freeze(RecordSnapshot(flat.nodes[0 .. 1], 0));
         candidate = store.join(head, candidate, 0);
         assert(candidate.length == baseline.nodes.length);
@@ -43,11 +44,14 @@ private void deep(size_t depth) @nogc nothrow {
     output.arena = &destination;
     assert(store.restore(output, candidate, scratch));
     equal(baseline.nodes, output.nodes);
-    assert(store.frozenBytes == depth * CompactNode.sizeof);
-    assert(store.replayBytes == depth * CompactNode.sizeof);
-    printf("%llu,%llu,%llu,%llu,%llu,%llu,%llu\n", cast(ulong)depth, baselineFrozen,
-            store.frozenBytes, store.replayBytes, cast(ulong)legacyArena.used,
-            cast(ulong)sharedArena.used, cast(ulong)scratch.used);
+    version (NPeggedMetrics) {
+        assert(store.frozenBytes == depth * CompactNode.sizeof);
+        assert(store.replayBytes == depth * CompactNode.sizeof);
+        printf("%llu,%llu,%llu,%llu,%llu,%llu,%llu\n", cast(ulong)depth, baselineFrozen,
+                store.frozenBytes,
+                store.replayBytes, cast(ulong)legacyArena.used, cast(ulong)sharedArena.used, cast(ulong)scratch
+                    .used);
+    }
 }
 
 private void versions() @nogc nothrow {
@@ -135,7 +139,8 @@ int main() @nogc nothrow {
     alarm(45);
     versions();
     combinations();
-    printf("depth,flat_snapshot_bytes,shared_frozen_bytes,shared_replay_bytes,flat_peak,shared_peak,scratch_peak\n");
+    version (NPeggedMetrics)
+        printf("depth,flat_snapshot_bytes,shared_frozen_bytes,shared_replay_bytes,flat_peak,shared_peak,scratch_peak\n");
     foreach (depth; [16, 32, 64, 128, 256, 512, 1024, 2048])
         deep(depth);
     return 0;
