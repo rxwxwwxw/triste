@@ -478,3 +478,16 @@ RawNoteBlock <- ( !BlankLine OptionallyIndentedLine )+ BlankLine*
 `;
 
 mixin(grammar(MarkdownGrammar));
+
+extern (C) string npegged_MarkdownGrammar() @nogc nothrow pure {
+    return MarkdownGrammar;
+}
+
+extern (C) bool npegged_checkMarkdown() @nogc nothrow {
+    ParseContext context;
+    return Markdown(context, "Hello world\n\n").successful;
+}
+
+@nogc nothrow unittest {
+    assert(npegged_MarkdownGrammar().length && npegged_checkMarkdown());
+}

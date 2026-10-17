@@ -14,6 +14,7 @@ jobs:
       - uses: dlang-community/setup-dlang@v2
         with:
           compiler: ldc
+      # Required by the source-branch coverage collector, not compiler compliance.
       - uses: dlang-community/setup-dlang@v2
         with:
           compiler: gdc-16

@@ -103,7 +103,23 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 self.assertEqual(np[key], hand[key])
             self.assertEqual(np['output'], 'validation')
             self.assertTrue(np['arenaMeasured'] and hand['arenaMeasured'])
-        self.assertEqual(self.run_runner('--workloads', '--mode=tree').returncode, 2)
+        for mode in ('spans', 'tree'):
+            with self.subTest(mode=mode):
+                exported = self.run_runner('--workloads', '--export-corpus', '--mode=' + mode)
+                self.assertEqual(exported.returncode, 0, exported.stderr)
+                cases = json.loads(exported.stdout)
+                self.assertTrue(cases)
+                self.assertTrue(all(c['name'].startswith(('Arithmetic.', 'CSV.')) for c in cases))
+                self.assertTrue(all(c['output'] == mode and 'expectedRecords' in c for c in cases))
+                measured = self.run_runner('--workloads', '--mode=' + mode, '--json',
+                                           '--memory', '--iterations=2', '--samples=2')
+                self.assertEqual(measured.returncode, 0, measured.stderr)
+                rows = json.loads(measured.stdout)['benchmarks']
+                self.assertEqual(len(rows), 2 * len(cases))
+                for actual, expected in zip(rows[::2], rows[1::2]):
+                    for key in ('name', 'output', 'outputHash', 'outputNodes', 'expectedAccepted'):
+                        self.assertEqual(actual[key], expected[key])
+                    self.assertEqual(actual['output'], mode)
 
     def test_target_engines(self):
         result = self.run_runner('--mode=validation', '--target-engines', '--json',

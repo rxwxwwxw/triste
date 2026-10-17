@@ -1,0 +1,112 @@
+%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+
+\section{Checking the grammar\label{Checking}}
+
+%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+
+Before generating the parser, \Mouse\ performs a number of checks on the grammar,
+and issues messages about its findings.
+Using the \Mouse\ tool \tx{TestPEG},
+you can perform the same checking and obtain the same diagnostics
+without generating the parser.
+By specifying option \tx{-D} to the tool, you can also display the grammar.
+
+As an example, below is the result of
+\tx{TestPEG} for the grammar:
+\small
+\begin{Verbatim}[frame=single,framesep=2mm,samepage=true,xleftmargin=15mm,xrightmargin=15mm,baselinestretch=0.8]
+  A = (!"a")* !_ / A "b"? ;
+  B = B "a" ;
+\end{Verbatim}
+\normalsize
+
+\medskip
+\small
+\begin{Verbatim}[samepage=true,xleftmargin=15mm,baselinestretch=0.8]
+C:\Users\Giraf\Work>java mouse.TestPEG -G bad.peg -DL
+Error: B is void.
+Error: B "a" is void.
+Error: the grammar has cycle inolving A.
+Info: recursion class of B is not used.
+Error: argument of (!"a")* is nullable.
+
+  2 rules
+  6 unnamed
+  4 terminals
+  4 left-recursive expressions in 2 classes
+
+Rules
+  A = (!"a")* !_ / A "b"? ;   //  1 rec class A
+  B = B "a" ;   //  v rec class B
+
+Inner
+  (!"a")* !_   //  1ef
+  (!"a")*   //  0
+  !"a"   //  0f
+  A "b"?   //  1 rec class A
+  "b"?   //  01
+  B "a"   //  v rec class B
+
+Terminals
+  "a"   //  1f
+  !_   //  1ef
+  "b"   //  1f
+  "a"   //  1f
+\end{Verbatim}
+\normalsize
+
+An expression being \emph{void} means that it does not generate any string, in the EBNF sense.
+\newline
+Thus,  \tx{B = B "a"} is void because it can only produce an infinite chain of replacements.
+\newline
+The notion  of \emph{cycle} was explained in Section~\ref{LeftRec}.
+\newline
+The symbols appearing as comments on the right have these meanings:
+\ul
+\item[] \tx{0} = may consume null string;
+\item[] \tx{1} = may consume non-null string;
+\item[] \tx{f} = may fail;
+\item[] \tx{e} = ends processing;
+\item[] \tx{v} = void.
+\eul
+
+
+Comment "\tx{rec class A}"  means that expression belongs to the \emph{recursion class} containing \tx{A}.
+Recursion classes are sets of left-recursive expressions 
+that interact only among themselves.
+\tx{TestPEG} with option \tx{-L} displays information about recursion classes:
+
+\small
+\begin{Verbatim}[samepage=true,xleftmargin=15mm,baselinestretch=0.8]
+java mouse.TestPEG -G bad.peg -L
+Recursion class A
+  members:
+    A (entry) (exit)
+    A "b"?
+  seeds:
+    (!"a")* !_ (in A)
+
+Recursion class B
+  members:
+    B
+    B "a"
+  seeds:
+\end{Verbatim}
+\normalsize
+
+An \emph{exit} of recursion class is 
+a Choice expression with at least one alternative outside the class.
+This alternative is a \emph{seed} that terminates the recursion.
+An \emph{entry} to the class is the expression that starts left recursion.
+
+\medskip
+You may also want to find out how your grammar is affected by limited backtracking.
+\newline
+An interactive tool, the \textsl{PEG Explorer} assists you in checking the condition (*)
+stated in Section~\ref{back}.
+It is described in \url{http://mousepeg.sourceforge.net/explorer.htm}\,,
+and is invoked as \tx{mouse.ExplorePEG}.
+
+
+
+

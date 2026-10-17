@@ -1049,3 +1049,16 @@ Sign <- ("-" / "+")?
 `;
 
 mixin(grammar(Dgrammar));
+
+extern (C) string npegged_Dgrammar() @nogc nothrow pure {
+    return Dgrammar;
+}
+
+extern (C) bool npegged_checkD() @nogc nothrow {
+    ParseContext context;
+    return D(context, "module example;\n").successful;
+}
+
+@nogc nothrow unittest {
+    assert(npegged_Dgrammar().length && npegged_checkD());
+}

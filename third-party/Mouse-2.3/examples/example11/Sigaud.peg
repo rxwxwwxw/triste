@@ -1,0 +1,12 @@
+
+// This sample grammar comes from P. Sigaud 'Left Recursion',
+// https://github.com/PhilippeSigaud/Pegged/wiki/Left-Recursion,
+// with sample input 'nlm-n+(aaa)n'.
+
+S = E !_ ;
+E = F "n" / "n" ;
+F = E "+" I* / G "-" ;
+G = H "m" / E ;
+H = G "l" ;
+I = "(" A+ ")" ;
+A = "a" ;

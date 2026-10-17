@@ -2,11 +2,21 @@
 
 SHELL := /bin/bash
 
-# Default compiler: dmd, ldc2, or gdc
+# Required compilers: dmd and ldc2; DC=gdc remains an optional compatibility path
 DC ?= dmd
+
+# Memory bound for test and build executions (default: 4G)
+MEMORY_LIMIT ?= 4G
 
 # Benchmark flags (e.g., BENCH_FLAGS="--iterations=500" or BENCH_FLAGS="--json")
 BENCH_FLAGS ?=
+
+HAVE_SYSTEMD_RUN := $(shell if command -v systemd-run >/dev/null 2>&1 && systemd-run --user --scope -q --unit="npegged-probe-$$$$-$$RANDOM" true >/dev/null 2>&1; then echo 1; else echo 0; fi)
+ifeq ($(HAVE_SYSTEMD_RUN),1)
+RUN_BOUNDED = systemd-run --user --scope -q --unit="npegged-make-$$$$-$$RANDOM" -p "MemoryMax=$(MEMORY_LIMIT)" -p MemorySwapMax=0 env MEMORY_LIMIT="$(MEMORY_LIMIT)"
+else
+RUN_BOUNDED = env MEMORY_LIMIT="$(MEMORY_LIMIT)"
+endif
 
 .PHONY: performance-check benchmark-checks benchmark-compare all build test test-all examples examples-all benchmark bench benchmark-memory bench-memory coverage hotpaths format check-format check-phobos asan valgrind validate validate-full install-hooks clean help
 
@@ -15,58 +25,58 @@ all: build
 
 # Compile library and run unit/integration tests with $(DC)
 build:
-	DC=$(DC) scripts/build.sh
+	$(RUN_BOUNDED) DC=$(DC) scripts/build.sh
 
 # Alias for build (runs unit + integration tests)
 test: build
 
 # Run unit and integration tests across all supported compilers
 test-all:
-	@for compiler in dmd ldc2 gdc; do \
+	@for compiler in dmd ldc2; do \
 		echo "=== Testing with $$compiler ==="; \
-		DC=$$compiler scripts/build.sh; \
+		$(RUN_BOUNDED) DC=$$compiler scripts/build.sh; \
 	done
 
 # Compile and run all example grammars with $(DC)
 examples:
-	DC=$(DC) scripts/examples.sh
+	$(RUN_BOUNDED) DC=$(DC) scripts/examples.sh
 
 # Compile and run examples across all compilers
 examples-all:
-	@for compiler in dmd ldc2 gdc; do \
+	@for compiler in dmd ldc2; do \
 		echo "=== Running examples with $$compiler ==="; \
-		DC=$$compiler scripts/examples.sh; \
+		$(RUN_BOUNDED) DC=$$compiler scripts/examples.sh; \
 	done
 
 # Run benchmarks against vendored Pegged
 benchmark:
-	DC=$(DC) scripts/benchmark.sh $(BENCH_FLAGS)
+	$(RUN_BOUNDED) DC=$(DC) scripts/benchmark.sh $(BENCH_FLAGS)
 
 bench: benchmark
 
 benchmark-checks:
-	python3 scripts/benchmark_checks.py
+	$(RUN_BOUNDED) python3 scripts/benchmark_checks.py
 
 # Three independent runs of the current equal-output performance matrix.
 performance-check:
-	DC=$(DC) python3 scripts/performance_gate.py $(BENCH_FLAGS)
+	$(RUN_BOUNDED) DC=$(DC) python3 scripts/performance_gate.py $(BENCH_FLAGS)
 
 benchmark-compare:
-	DC=$(DC) python3 scripts/compare_benchmarks.py $(BENCH_FLAGS)
+	$(RUN_BOUNDED) DC=$(DC) python3 scripts/compare_benchmarks.py $(BENCH_FLAGS)
 
 # Run benchmarks with allocator traffic measurements
 benchmark-memory:
-	DC=$(DC) scripts/benchmark.sh --memory $(BENCH_FLAGS)
+	$(RUN_BOUNDED) DC=$(DC) scripts/benchmark.sh --memory $(BENCH_FLAGS)
 
 bench-memory: benchmark-memory
 
-# Measure and verify src/ coverage (>90% threshold required)
+# Measure and verify src/ coverage (>90%; current branch collector needs GDC 16/gcov)
 coverage:
-	scripts/coverage.sh
+	$(RUN_BOUNDED) scripts/coverage.sh
 
 # Verify @nogc compliance on hot paths (-vgc diagnostics)
 hotpaths:
-	scripts/hotpaths.sh
+	$(RUN_BOUNDED) scripts/hotpaths.sh
 
 # Format all D source and test files using dfmt
 format:
@@ -97,13 +107,12 @@ check-phobos:
 
 # Run AddressSanitizer and LeakSanitizer tests
 asan:
-	DC=ldc2 ASAN_OPTIONS=detect_leaks=1 scripts/build.sh -fsanitize=address -g
-	DC=gdc ASAN_OPTIONS=detect_leaks=1 scripts/build.sh -fsanitize=address,leak -g
+	$(RUN_BOUNDED) DC=ldc2 ASAN_OPTIONS=detect_leaks=1 scripts/build.sh -fsanitize=address -g
 
 # Run Valgrind Memcheck leak verification
 valgrind:
-	DC=ldc2 scripts/build.sh -g -O0
-	timeout --preserve-status --kill-after=2s 120s valgrind \
+	$(RUN_BOUNDED) DC=ldc2 scripts/build.sh -g -O0
+	$(RUN_BOUNDED) timeout --preserve-status --kill-after=2s 120s valgrind \
 		--tool=memcheck \
 		--leak-check=full \
 		--show-leak-kinds=all \
@@ -114,11 +123,11 @@ valgrind:
 
 # Run fast validation pipeline (ldc2 build, examples, hotpaths, hooks, format, phobos)
 validate:
-	scripts/validate.sh --fast
+	$(RUN_BOUNDED) scripts/validate.sh --fast
 
 # Run complete repository validation pipeline (all compilers, sanitizers, coverage, valgrind)
 validate-full:
-	scripts/validate.sh --full
+	$(RUN_BOUNDED) scripts/validate.sh --full
 
 # Install git pre-commit hook
 install-hooks:
@@ -134,9 +143,9 @@ help:
 	@echo "npegged Makefile targets:"
 	@echo "  all              Build library and run tests with \$$(DC) (default: dmd)"
 	@echo "  build / test     Compile and run unit/integration tests with \$$(DC)"
-	@echo "  test-all         Run unit/integration tests on dmd, ldc2, and gdc"
+	@echo "  test-all         Run unit/integration tests on dmd and ldc2"
 	@echo "  examples         Run examples with \$$(DC)"
-	@echo "  examples-all     Run examples across dmd, ldc2, and gdc"
+	@echo "  examples-all     Run examples across dmd and ldc2"
 	@echo "  bench / benchmark Run benchmark suite against vendored Pegged"
 	@echo "  benchmark-checks Verify benchmark units, integrations, and diagnostic coverage"
 	@echo "  performance-check Run repeated paired 5x gates for the equal-output corpus"
@@ -156,4 +165,5 @@ help:
 	@echo ""
 	@echo "Variables:"
 	@echo "  DC               D compiler executable (default: dmd; e.g. DC=ldc2 or DC=gdc)"
+	@echo "  MEMORY_LIMIT     Memory cap per test run when systemd-run is available (default: 4G)"
 	@echo "  BENCH_FLAGS      Additional flags for benchmark runner (e.g. BENCH_FLAGS='--iterations=100 --json')"

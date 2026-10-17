@@ -1,6 +1,7 @@
 // Generated from Pegged-derived npegged grammar. Boost 1.0.
 module npegged.parser;
 public import npegged.peg;
+public import npegged.dfa;
 
 struct Pegged {
     private static State!(CT, Check).Node _Grammar(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow {
@@ -158,6 +159,10 @@ struct Pegged {
 
     private static State!(CT, Check).Node _LongestExpression(bool CT, int Check = 0)(ref State!(CT,
             Check) s, size_t p) nothrow {
+        if (s.context.trace !is null)
+            return defined!(and!(discard!(option!(or!(OR, LONGEST_OR))), Sequence,
+                    zeroOrMore!(and!(discard!(LONGEST_OR), Sequence))), "Pegged.LongestExpression")(s,
+                    p);
         return defined!(and!(discard!(option!(predictiveChoice!(branch!(OR, 0x800000000000UL,
                 0x0UL, 0x0UL, 0x0UL), branch!(LONGEST_OR, 0x0UL, 0x1000000000000000UL, 0x0UL, 0x0UL)))),
                 Sequence, zeroOrMore!(and!(discard!(LONGEST_OR), Sequence))), "Pegged.LongestExpression")(
@@ -235,6 +240,9 @@ struct Pegged {
     }
 
     private static State!(CT, Check).Node _Prefix(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow {
+        if (s.context.trace !is null)
+            return defined!(and!(zeroOrMore!(or!(POS, NEG, FUSE, DISCARD, KEEP, DROP,
+                    PROPAGATE)), Suffix), "Pegged.Prefix")(s, p);
         return defined!(and!(zeroOrMore!(predictiveChoice!(branch!(POS, 0x4000000000UL, 0x0UL,
                 0x0UL, 0x0UL), branch!(NEG, 0x200000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(FUSE,
                 0x0UL, 0x4000000000000000UL, 0x0UL, 0x0UL), branch!(DISCARD, 0x400000000000000UL,
@@ -278,6 +286,9 @@ struct Pegged {
     }
 
     private static State!(CT, Check).Node _Suffix(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow {
+        if (s.context.trace !is null)
+            return defined!(and!(Primary, zeroOrMore!(or!(OPTION, ZEROORMORE, ONEORMORE, Action))), "Pegged.Suffix")(
+                    s, p);
         return defined!(and!(Primary, zeroOrMore!(predictiveChoice!(branch!(OPTION,
                 0x8000000000000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(ZEROORMORE, 0x40000000000UL,
                 0x0UL, 0x0UL,
@@ -700,6 +711,12 @@ struct Pegged {
     }
 
     private static State!(CT, Check).Node _Literal(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow {
+        if (s.context.trace !is null)
+            return defined!(or!(and!(quote, fuse!(zeroOrMore!(and!(negLookahead!(quote),
+                    Char))), quote, negLookahead!(literal!("i")), Spacing), and!(doublequote,
+                    fuse!(zeroOrMore!(and!(negLookahead!(doublequote),
+                    Char))), doublequote, negLookahead!(literal!("i")), Spacing)), "Pegged.Literal")(
+                    s, p);
         return defined!(predictiveChoice!(branch!(and!(quote,
                 fuse!(zeroOrMore!(and!(negLookahead!(quote), Char))), quote, negLookahead!(literal!("i")),
                 Spacing), 0x8000000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(and!(doublequote,
@@ -742,6 +759,11 @@ struct Pegged {
     }
 
     private static State!(CT, Check).Node _CILiteral(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow {
+        if (s.context.trace !is null)
+            return defined!(or!(and!(quote, fuse!(zeroOrMore!(and!(negLookahead!(quote),
+                    Char))), quote, discard!(literal!("i")), Spacing), and!(doublequote,
+                    fuse!(zeroOrMore!(and!(negLookahead!(doublequote),
+                    Char))), doublequote, discard!(literal!("i")), Spacing)), "Pegged.CILiteral")(s, p);
         return defined!(predictiveChoice!(branch!(and!(quote,
                 fuse!(zeroOrMore!(and!(negLookahead!(quote), Char))), quote, discard!(literal!("i")), Spacing),
                 0x8000000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(and!(doublequote,
@@ -823,7 +845,11 @@ struct Pegged {
     }
 
     private static State!(CT, Check).Node _CharRange(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow {
-        return defined!(or!(and!(Char, literal!("-"), Char), Char), "Pegged.CharRange")(s, p);
+        if (s.context.trace !is null)
+            return defined!(or!(and!(Char, literal!("-"), Char), Char), "Pegged.CharRange")(s, p);
+        return defined!(and!(Char, predictiveChoice!(branch!(and!(literal!("-"), Char),
+                0x200000000000UL, 0x0UL, 0x0UL, 0x0UL), branch!(discard!(eps), 0x0UL, 0x0UL, 0x0UL, 0x0UL,
+                true))), "Pegged.CharRange")(s, p);
     }
 
     static State!(false, false).Node CharRange(ref State!(false, false) s, size_t p) @nogc nothrow {
@@ -1986,6 +2012,8 @@ struct Pegged {
     }
 
     private static State!(CT, Check).Node _Spacing(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow {
+        if (s.context.trace !is null)
+            return defined!(discard!(zeroOrMore!(or!(blank, Comment))), "Pegged.Spacing")(s, p);
         return defined!(discard!(zeroOrMore!(predictiveChoice!(branch!(blank, 0x100002e00UL,
                 0x0UL, 0x0UL, 0x0UL), branch!(Comment, 0x800000000UL, 0x0UL, 0x0UL, 0x0UL)))), "Pegged.Spacing")(
                 s, p);
@@ -2140,6 +2168,10 @@ struct Pegged {
     }
 
     private static State!(CT, Check).Node _Lambda(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow {
+        if (s.context.trace !is null)
+            return defined!(fuse!(zeroOrMore!(and!(negLookahead!(or!(ACTIONCLOSE, SEPARATOR)),
+                    or!(LambdaItems, NestedList!(literal!("{"), LambdaItems, literal!("}")), any)))), "Pegged.Lambda")(
+                    s, p);
         return defined!(
                 fuse!(zeroOrMore!(and!(negLookahead!(predictiveChoice!(branch!(ACTIONCLOSE,
                 0x0UL, 0x2000000000000000UL, 0x0UL, 0x0UL), branch!(SEPARATOR, 0x100000000000UL,
@@ -2256,12 +2288,52 @@ struct Pegged {
         return parseCT!(DString)(input);
     }
 
+    struct _dfa_WYSString {
+        enum automaton = compileDFA([
+            regularByte(0x0UL, 0x4000000000000UL, 0x0UL, 0x0UL), // node 0
+            regularNode(RegularKind.sequence,
+                    [0]), // node 1
+            regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 2
+            regularByte(0xfffffffbffffffffUL,
+                    0xffffffffffffffffUL, 0xffffffffffffffffUL,
+                    0xffffffffffffffffUL), // node 3
+            regularNode(RegularKind.repetition, [3]), // node 4
+            regularByte(0x400000000UL, 0x0UL, 0x0UL,
+                    0x0UL), // node 5
+            regularNode(RegularKind.sequence, [1, 2, 4, 5]), // node 6
+            regularNode(RegularKind.sequence,
+                    [6]), // node 7
+            regularByte(0x0UL, 0x100000000UL, 0x0UL, 0x0UL), // node 8
+            regularByte(0xffffffffffffffffUL,
+                    0xfffffffeffffffffUL, 0xffffffffffffffffUL,
+                    0xffffffffffffffffUL), // node 9
+            regularNode(RegularKind.repetition, [9]), // node 10
+            regularByte(0x0UL, 0x100000000UL, 0x0UL,
+                    0x0UL), // node 11
+            regularNode(RegularKind.sequence, [8, 10, 11]), // node 12
+            regularNode(RegularKind.sequence,
+                    [12]), // node 13
+            regularNode(RegularKind.choice, [7, 13]), // node 14
+        ], 14, false);
+        enum valid = automaton.valid;
+        enum requireEnd = automaton.requireEnd;
+    }
+
     private static State!(CT, Check).Node _WYSString(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow {
-        return defined!(predictiveChoice!(branch!(and!(literal!("r"), doublequote,
-                zeroOrMore!(and!(negLookahead!(doublequote), any)), doublequote), 0x0UL,
-                0x4000000000000UL, 0x0UL, 0x0UL), branch!(and!(backquote,
-                zeroOrMore!(and!(negLookahead!(backquote),
-                any)), backquote), 0x0UL, 0x100000000UL, 0x0UL, 0x0UL)), "Pegged.WYSString")(s, p);
+        if (s.context.trace !is null)
+            return defined!(or!(and!(literal!("r"), doublequote,
+                    zeroOrMore!(and!(negLookahead!(doublequote), any)), doublequote),
+                    and!(backquote,
+                    zeroOrMore!(and!(negLookahead!(backquote), any)), backquote)), "Pegged.WYSString")(
+                    s, p);
+        return defined!(dfaToken!(predictiveChoice!(branch!(and!(literal!("r"), doublequote,
+                zeroOrMore!(charClass!(0xfffffffbffffffffUL,
+                0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), doublequote),
+                0x0UL, 0x4000000000000UL, 0x0UL, 0x0UL), branch!(and!(backquote,
+                zeroOrMore!(charClass!(0xffffffffffffffffUL,
+                0xfffffffeffffffffUL,
+                0xffffffffffffffffUL, 0xffffffffffffffffUL)), backquote), 0x0UL, 0x100000000UL, 0x0UL,
+                0x0UL)), _dfa_WYSString, 0, false), "Pegged.WYSString")(s, p);
     }
 
     static State!(false, false).Node WYSString(ref State!(false, false) s, size_t p) @nogc nothrow {

@@ -1,5 +1,7 @@
 # AGENTS.md
 
+Prime Directive: 1. Make it work. 2. Make it correct. 3. Make it fast.  Those are the constant priorities. Always ensure properly working, correct code.  Accept slow when you can't make it faster correctly.
+
 ## Repository Architecture & Core Directives
 
 This project uses **druntime-only D**. It retains access to core runtime primitives (`object.d`, `core.*`, slices, delegates, associative arrays, and selective GC), but **completely excludes Phobos (`std.*`)**.
@@ -7,13 +9,13 @@ This project uses **druntime-only D**. It retains access to core runtime primiti
 All code authored, refactored, or reviewed by AI agents must strictly uphold these non-negotiable architectural constraints:
 
 1. **Zero Phobos (`std.*` is banned):** Never import `std.*`. Rely solely on `core.*` modules, runtime primitives, or repository-internal utilities.
-2. **Deterministic RAII First:** Manual resource cleanup is prohibited. Bind ownership of memory, OS handles, and network sockets to struct lifetimes via constructors and destructors.
+2. **Deterministic RAII First:** Manual resource cleanup is prohibited. Bind ownership of OS handles, and network sockets to struct lifetimes via constructors and destructors.
 3. **Exception-Free (`nothrow`):** Never use `throw new Exception(...)`. Unwindable exceptions and unwinding tables are disabled. Error handling must use explicit `Result!(T, E)` tagged unions or status codes.
 4. **Zero GC in Hot Paths (`@nogc`):** All performance-critical paths, per-frame updates, packet/stream processors, and inner loops must be statically verified as `@nogc`.
 5. **Strict Unit Testing (>90% Coverage):** Every module in `src/` must exceed 90% branch and line coverage. Files outside `src/`, including tests, examples, benchmarks, and scripts, are excluded from this threshold. Unit tests must live in the same source file, placed immediately beneath the function or struct under test.
-6. **Integration Tests with Timeouts:** Major subsystems and cross-module workflows must have end-to-end integration tests located in the `tests/` directory (sibling to `src/`). Every integration test binary or runner must have a mandatory execution timeout.
+6. **Integration Tests with Timeouts:** Major subsystems and cross-module workflows must have end-to-end integration tests located in the `tests/` directory (sibling to `src/`). Every integration test binary or runner must have a mandatory execution timeout and memory thresholds(usually 4GB).
 7. **Canonical Formatting (`dfmt`):** All `.d` files must be formatted with `dfmt` before commit. Unformatted code fails CI and pre-commit hooks.
-8. **Multi-Compiler Compliance:** Code must compile cleanly across **DMD**, **LDC**, and **GDC** with zero compiler warnings.
+8. **Multi-Compiler Compliance:** Code must compile cleanly across **DMD** and **LDC** with zero compiler warnings.
 9. **Leak & Memory Safety Enforcement:** Code must run clean under AddressSanitizer (ASan), LeakSanitizer (LSan), and Valgrind (Memcheck) with zero leaks or invalid accesses.
 
 ---
@@ -209,7 +211,7 @@ void testEndToEndPipeline() {
 
 ## 4. RAII & Ownership Rules
 
-Every heap or system resource must be owned by an explicit scope or an RAII wrapper struct.
+Every system resource must be owned by an explicit scope or an RAII wrapper struct.
 
 ### 4.1. Explicit Move Semantics & Copy Disabling
 
@@ -307,7 +309,6 @@ Verify that modules intended to be GC-free emit zero allocations during compilat
 ```bash
 dmd -c -vgc src/hotpath.d
 ldc2 -c -vgc src/hotpath.d
-gdc -c -fd-vgc src/hotpath.d
 
 ```
 
@@ -319,9 +320,6 @@ gdc -c -fd-vgc src/hotpath.d
 # LDC (Preferred for release / optimized builds)
 ldc2 -defaultlib=druntime-ldc -fno-exceptions -O3 app.d
 
-# GDC
-gdc -nophoboslib -fno-exceptions -O3 app.d
-
 # DMD (Development / Fast debug)
 dmd -defaultlib=druntime app.d
 
@@ -331,16 +329,13 @@ dmd -defaultlib=druntime app.d
 
 ## 7. Sanitizers & Leak Detection Protocol
 
-### 7.1. AddressSanitizer & LeakSanitizer (LDC / GDC)
+### 7.1. AddressSanitizer & LeakSanitizer (LDC)
 
 Run test binaries built with ASan and LSan:
 
 ```bash
 # Build and run with Address and Leak Sanitizers
 ldc2 -fsanitize=address -g -unittest -run tests/runner.d
-
-# GDC alternative
-gdc -fsanitize=address -fsanitize=leak -funittest tests/runner.d -o test_runner && ./test_runner
 
 ```
 

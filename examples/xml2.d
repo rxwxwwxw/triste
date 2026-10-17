@@ -511,7 +511,12 @@ enum example2 = `<?xml version="1.0"?>
 </catalog>
 `;
 
+extern (C) string npegged_XMLgrammar() @nogc nothrow pure {
+    return XMLgrammar;
+}
+
 @nogc nothrow unittest {
+    assert(npegged_XMLgrammar().length);
     ParseContext context;
     assert(XML(context, example1).successful);
     assert(XML(context, example2).successful);

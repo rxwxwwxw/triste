@@ -1,13 +1,18 @@
 module benchmark.workload_grammars;
 
 import npegged.grammar;
+
+version (NPeggedDirect)
+    private enum backend = ParserBackend.direct;
+else
+    private enum backend = ParserBackend.combinators;
 import benchmark.handwritten.arithmetic : ArithmeticParser;
 import benchmark.handwritten.csv : CsvParser;
 import benchmark.handwritten.numbers : NumbersParser;
 
 // These validation grammars follow the handwritten interfaces, rather than the
 // example grammars' capture shapes. Every entry requires complete consumption.
-mixin(grammar!(Memoization.selective)(`
+enum arithmeticGrammar = `
 BenchArithmetic:
     Root <- Space Term eoi
     Term <- Factor (('+' / '-') Space Factor)*
@@ -16,7 +21,8 @@ BenchArithmetic:
     Number <- [0-9]+ ('.' [0-9]+)?
     Identifier <- [a-zA-Z_] [a-zA-Z_0-9]*
     Space <: [ \t\r\n]*
-`));
+`;
+mixin(grammar!(Memoization.selective, void, backend)(arithmeticGrammar));
 
 @nogc nothrow unittest {
     static immutable inputs = [
@@ -32,17 +38,21 @@ BenchArithmetic:
     }
 }
 
-mixin(grammar!(Memoization.selective)(`
+enum csvGrammar = `
 BenchCSV:
-    Root <- [ \t]* Item ((',' / '\r' '\n'? / '\n') [ \t]* Item)* eoi
-    Item <- ('"' ('""' / (!'"' .)+)* '"' / (![," \t\r\n] .)*) [ \t]*
-`));
+    Root <- Field (Sep Field)* eoi
+    Sep <- ',' / '\r' '\n'? / '\n'
+    Field <- [ \t]* (('"' ('""' / !'"' .)* '"' / (![," \t\r\n] .)+) [ \t]*)?
+`;
+mixin(grammar!(Memoization.selective, void, backend)(csvGrammar));
 
 @nogc nothrow unittest {
     static immutable inputs = [
         "", "a,b,c", "1,2\r\n3,4\n", " , , ", `"","a""b","line
 break"`, "a b", `"unterminated`, `"closed"x`, "a\"b", "\r\n"
     ];
+    static assert(BenchCSV._dfa_Root.valid);
+    static assert(BenchCSV._dfa_Root.requireEnd);
     foreach (input; inputs) {
         ParseContext context;
         auto result = check!(BenchCSV.opCall)(context, input);
@@ -50,14 +60,31 @@ break"`, "a b", `"unterminated`, `"closed"x`, "a\"b", "\r\n"
         if (result.successful)
             assert(result.end == input.length);
     }
+    char[6] bytes;
+    enum alphabet = "a,\" \r\n";
+    size_t combinations = 1;
+    foreach (length; 0 .. bytes.length + 1) {
+        foreach (encoded; 0 .. combinations) {
+            size_t value = encoded;
+            foreach (ref c; bytes[0 .. length]) {
+                c = alphabet[value % alphabet.length];
+                value /= alphabet.length;
+            }
+            ParseContext context;
+            const input = cast(string)bytes[0 .. length];
+            assert(check!(BenchCSV.opCall)(context, input).successful == CsvParser.parse(input));
+        }
+        combinations *= alphabet.length;
+    }
 }
 
-mixin(grammar!(Memoization.selective)(`
+enum numbersGrammar = `
 BenchNumbers:
     Scientific <- [+-]? [0-9]+ ('.' [0-9]+)? ([eE] [+-]? [0-9]+)? eoi
     Hexa <- [0-9a-fA-F]+ eoi
     Binary <- '0b' [01] [01_]* eoi
-`));
+`;
+mixin(grammar!(Memoization.selective, void, backend)(numbersGrammar));
 
 @nogc nothrow unittest {
     static immutable inputs = [
@@ -113,27 +140,40 @@ import benchmark.handwritten.peg : PegParser;
 // The handwritten PEG parser is a syntax recognizer, not the NPegged bootstrap
 // language. In particular it accepts repeated suffixes, arbitrary balanced
 // parameter text, empty character classes, and a bare '<' rule arrow.
-mixin(grammar!(Memoization.selective)(`
+enum pegGrammar = `
 BenchPEG:
-    Root <- Ident Space (Params Space)? ':' Definition+ eoi
-    Definition <- Ident Space (Params Space)? '<' ('-'+ / [~:^;%] / Action)? Expression
-    Expression <- Space [\/|]? Sequence (Space [\/|] Space Sequence)*
-    Sequence <- (Space !Boundary Prefix)+ Space
-    Boundary <- eoi / [\/|)] / Ahead
-    Ahead <- Ident Space (RawParams Space)? '<'
-    RawParams <- '(' (RawParams / (!')' .))* ')'
-    Prefix <- ([&!~:^;%] Space)* Primary Suffix*
-    Suffix <- [*+?] / Action
-    Primary <- '(' Space Expression Space ')' / '.' / Literal / Class / Reference
-    Reference <- Ident Params? ('.' &[a-zA-Z_] Ident)*
-    Ident <- Space [a-zA-Z_] [a-zA-Z_0-9]*
-    Params <- '(' (Quoted / Params / (![()'\"] .))* ')'
-    Action <- '{' (Quoted / Action / (![{}'\"] .))* '}'
+    Root <- (SimpleGrammarHeader / &GrammarHeaderGuard FullGrammarHeader) Definition+ eoi
+    GrammarHeaderGuard <- [ \t\r\n]* ('#' / [a-zA-Z_] [a-zA-Z0-9_]* [ \t\r\n]* [(#])
+    SimpleGrammarHeader <- [ \t\r\n]* [a-zA-Z_] [a-zA-Z0-9_]* [ \t\r\n]* ':' Sp
+    FullGrammarHeader <- Sp Ident Sp (&'(' Params Sp)? ':' Sp
+
+    Definition <- !eoi DefHeader TopExpression
+    DefHeader <- SimpleHeader / &DefHeaderGuard FullHeader
+    DefHeaderGuard <- [ \t\r\n]* [a-zA-Z_] [a-zA-Z0-9_]* [ \t\r\n]* [({#]
+    SimpleHeader <- [ \t\r\n]* [a-zA-Z_] [a-zA-Z0-9_]* [ \t\r\n]* '<' ('-'+ / [~:^;%])? Sp
+    FullHeader <- Sp Ident Sp (&'(' Params Sp)? '<' ('-'+ / [~:^;%] / Action)? Sp
+
+    TopExpression <- ([\/|] Sp)? TopSequence ([\/|] Sp TopSequence)*
+    TopSequence <- Prefix Sp (!TopBoundary Prefix Sp)*
+    TopBoundary <- eoi / [)/|] / &[a-zA-Z_] ([a-zA-Z_] [a-zA-Z0-9_]* [ \t\r\n]* '<' / (&ParamGuard ParamAhead))
+    ParamGuard <- [a-zA-Z_] [a-zA-Z0-9_]* [ \t\r\n]* '('
+    ParamAhead <- Ident Sp '(' ((![()] .)+ / ParamAhead)* ')' Sp '<'
+
+    Expression <- ([\/|] Sp)? Sequence ([\/|] Sp Sequence)*
+    Sequence <- Prefix Sp (!SequenceBoundary Prefix Sp)*
+    SequenceBoundary <- [)/|] / eoi
+
+    Prefix <- ([&!~:^;%] Sp)* Primary ([*+?] / &'{' Action)*
+    Primary <- (Class / '(' Sp Expression ')' / Literal / Ident (&([.(]) (Params / ('.' &[a-zA-Z_] Ident)+))?) / '.'
+    Ident <- [a-zA-Z_] [a-zA-Z0-9_]*
+    Params <- '(' (Quoted / Params / (![()'\"] .)+)* ')'
+    Action <- '{' (Quoted / Action / (![{}'\"] .)+)* '}'
     Quoted <- '\'' ('\\' . / (!'\'' .))* '\'' / '"' ('\\' . / (!'"' .))* '"'
     Literal <- Quoted 'i'?
     Class <- '[' '^'? ('\\' . / (!']' .))* ']'
-    Space <: [ \t\r\n]* ('#' (!'\n' .)* [ \t\r\n]*)*
-`));
+    Sp <: [ \t\r\n]* ('#' (!'\n' .)* [ \t\r\n]*)*
+`;
+mixin(grammar!(Memoization.selective, void, backend)(pegGrammar));
 
 @nogc nothrow unittest {
     static immutable inputs = [
@@ -178,7 +218,7 @@ BenchPEG:
 
 import benchmark.measurement : Observation;
 
-private Observation recognize(alias parser)(string input) @nogc nothrow {
+pragma(inline, true) private Observation recognize(alias parser)(string input) @nogc nothrow {
     ParseContext context;
     auto result = check!parser(context, input);
     return Observation(result.successful && result.end == input.length, 0, 0,

@@ -119,8 +119,6 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
             }
         }
     }
-    if (options.workloads && options.mode != OutputMode.validation)
-        return OptionStatus.invalid;
     return OptionStatus.ok;
 }
 
@@ -164,6 +162,7 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
     Options options;
     assert(parseOptions(["runner", "--workloads"], options) == OptionStatus.ok);
     assert(options.workloads && options.comparison);
-    Options bad;
-    assert(parseOptions(["runner", "--workloads", "--mode=tree"], bad) == OptionStatus.invalid);
+    Options records;
+    assert(parseOptions(["runner", "--workloads", "--mode=tree"], records) == OptionStatus.ok);
+    assert(records.mode == OutputMode.tree && records.workloads && records.comparison);
 }

@@ -1,0 +1,110 @@
+\newpage
+%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+
+\section{Extensions to PEG\label{Extensions}}
+
+%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+
+\Mouse\ accepts the following four forms of expression 
+that are not part of the standard PEG:
+
+\medskip
+\begin{tabular}{|c|p{0.85\linewidth}|}
+\hline
+\ \ $e_1\tx{*+}\,e_2$\ \ \upsp
+   & Shorthand for \tx{(!}$e_2\,e_1$\tx{)*}\,$e_2$:
+     iterate $e_1$ until $e_2$.\dnsp\\
+\hline
+$e_1\tx{++}\,e_2$\upsp\newline
+   & Shorthand for \tx{(!}$e_2\,e_1$\tx{)+}\,$e_2$:
+     iterate $e_1$ at least once until $e_2$.\dnsp\\
+\hline
+\ \ $e_1\tx{:}\,e_2$\ \ \upsp
+   & Invoke $e_1$.
+     If it succeeds, invoke $e_2$ on the string consumed by~$e_1$.
+     Indicate succes if it consumes exactly that string.
+     Otherwise reset input as it was before the invocation of $e_1$
+     (do not consume anything) and indicate failure.\dnsp\\
+\hline
+\ \ $e_1\tx{:!}\,e_2$\ \ \upsp
+   & Invoke $e_1$.
+     If it succeeds, invoke $e_2$ on the string consumed by~$e_1$.
+     Indicate succes if does not consume exactly that string.
+     Otherwise reset input as it was before the invocation of $e_1$
+     (do not consume anything) and indicate failure.\dnsp\\
+\hline
+\end{tabular}
+
+\bigskip
+Using "\tx{*+}" and "\tx{++}", the definitions
+
+\small
+\begin{Verbatim}[samepage=true,xleftmargin=15mm,baselinestretch=0.8]
+Comment = "/*" (!"*/" _)* "*/" ;
+Input   = (!EOF Line)+ EOF ;
+String  = ["] (!["] Char)+ ["] ;
+\end{Verbatim}
+\normalsize
+
+are rewritten as 
+
+\small
+\begin{Verbatim}[samepage=true,xleftmargin=15mm,baselinestretch=0.8]
+Comment = "/*" _*+ "*/" ;
+Input   = Line++ EOF ;
+String  = ["] Char++ ["] ;
+\end{Verbatim}
+\normalsize
+
+which is not only easier to read, but also has a better implementation.
+
+\medskip
+The operators "\tx{:}" and "\tx{:!}" are intended to simplify definition of reserved words.
+
+Suppose you want to define \tx{Identifier} as any sequence 
+of letters other than \tx{"int"} or \tx{"float"}.
+Using pure PEG, you can do it as follows, 
+with \tx{INT} and \tx{FLOAT} used to denote these keywords in your syntax:
+
+\small
+\begin{Verbatim}[samepage=true,xleftmargin=15mm,xrightmargin=15mm,baselinestretch=0.8]
+Identifier = !Keyword Letter+ ;
+Keyword = ("int"/"float") !Letter ;
+INT   = "int" !Letter ;
+FLOAT = "float" !Letter ;
+\end{Verbatim}
+\normalsize
+
+The predicate \tx{!Letter} is needed because
+\tx{!("int"/"float")} fails on strings like \tx{internal} or \tx{floater},
+which are thus not recognized as identifiers,
+while their prefixes are falsely recognized as keywords.
+
+Using the "colon" operators you define the same like this:
+
+\small
+\begin{Verbatim}[samepage=true,xleftmargin=15mm,xrightmargin=15mm,baselinestretch=0.8]
+Word = Letter+ ;
+Identifier = Word:!("int"/"float") ;
+INT   = Word:"int" ;
+FLOAT = Word:"float" ;
+\end{Verbatim}
+\normalsize
+
+It is more clear and, more important, facilitates the inspection by \textsl{PEG Explorer}.
+
+\medskip
+All four operators have precedence 4 (cf. table in Section \ref{PEG}).
+
+To obtain the "right-hand side" described in Section \ref{RHS},
+replace \tx{*+} and \tx{++} by, respectively, \tx{*} and \tx{+} 
+in the construction outlined there.
+
+The second expression of  $e_1$\tx{:}$e_2$ and $e_1\tx{:!}e_2$ does not appear in the "right-hand side".
+The expression together with the preceding operator should be removed in the desctibed construction.
+
+Note: reserved words can also be defined with the help of Boolean actions, described under \ref{BoolAct}, 
+but their definition is not visible in the syntax and is beyond the reach of \textsl{PEG Explorer}.
+This is, however, the only way if the keywords depend on the preceding context like in,
+for example, languages C and C++.
+

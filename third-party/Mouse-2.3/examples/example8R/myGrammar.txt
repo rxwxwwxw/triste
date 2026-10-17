@@ -1,0 +1,24 @@
+    
+   // Example 8R
+
+   Input   = Space (Store / Print) ;
+   Store   = Name Space Equ Sum !_ {store} ;
+   Print   = Sum !_ {print} ;
+   Sum     = Sum AddOp Product {sum} 
+           / Sign Product {signed} ;
+   Product = Product MultOp Factor {product} 
+           / Factor {pass} ;
+   Factor  = Digits? "." Digits Space {fraction}
+           / Digits Space {integer}
+           / Lparen Sum Rparen {unwrap} 
+           / Name Space {retrieve} ; 
+   Sign    = ("-" Space)? ;
+   AddOp   = [-+] Space <+ or -> ;
+   MultOp  = MulDiv? ;
+   MulDiv  = [*/] Space <* or /> ;
+   Lparen  = "("  Space <(> ;
+   Rparen  = ")"  Space <)> ;
+   Equ     = "="  Space <=> ;   
+   Digits  = [0-9]+ ;
+   Name    = [a-z]+ ;
+   Space   = " "* {space} ;

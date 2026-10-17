@@ -1,0 +1,151 @@
+%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+
+\section{Introduction}
+
+%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+
+Parsing Expression Grammar (PEG),
+introduced by Ford in \cite{Ford:2004},
+is a way to define the syntax of a programming language.
+It encodes a recursive-descent parser for that language.
+\Mouse\ is a tool to transcribe PEG into an executable parser.
+Both \Mouse\ and the resulting parser are written in Java,
+which makes them operating-system independent.
+An integral feature of \Mouse\ is the mechanism for specifying
+semantics (also in Java).
+
+%---------------------------------------------------------------------- 
+\subsubsection*{Recursive-descent parsing with backtracking}
+%---------------------------------------------------------------------- 
+
+Recursive-descent parsers consist of procedures that correspond to syntax rules.
+The procedures call each other recursively, each being responsible for recognizing
+input strings defined by its rule.
+The syntax definition and its parser can be then viewed as the same thing,
+presented in two different ways.
+This design is very transparent and easy to modify when the language evolves.
+The idea can be traced back to Lucas \cite{Lucas:1961}
+who suggested it for grammars that later became known as the
+Extended Backus-Naur Form (EBNF).
+
+The problem is that procedures corresponding to certain types of syntax rules must decide
+which procedure to call next.
+It is easily solved for a class of languages that have the so-called LL(1) property:
+the decision can be made by looking at the next input symbol.
+Some syntax defintions can be transformed to satisfy this property.
+However, forcing the language into the LL(1) mold
+can make the grammar -- and the parser -- unreadable.
+
+One can always use brute force: trial and error.
+It means trying the alternatives one after another and backtracking after a failure.
+But, an exhaustive search
+may require exponential time,
+so a possible option is \emph{limited} backtracking: never return after a partial success.
+This approach has been used in actual parsers \cite{Brooker:Morris:1962,McClure:1965} 
+and is described in \cite{Birman:1970,Birman:Ullman:1973,Hopgood:1969,Aho:Ullman:1972}.
+It has been eventually formalized by Ford \cite{Ford:2004} under the name of Parsing Expression Grammar (PEG).
+
+Wikipedia has an article on PEG \cite{Wiki:PEG},
+and a dedicated Web site \cite{PEG} contains 
+list of publications about PEGs and a link to discussion forum.
+
+%---------------------------------------------------------------------- 
+\subsubsection*{PEG programming}
+%---------------------------------------------------------------------- 
+
+Parsers defined by PEG
+do not require a separate "lexer" or "scanner".
+Together with lifting of the LL(1) restriction,
+this gives a very convenient tool when you need
+an ad-hoc parser for some application.
+However, the limitation of backtracking may have unexpected effects
+that give an impression of PEG being unpredictable.
+
+In its external appearance, PEG is very like an EBNF grammar.
+For some grammars, the limited backtracking is "efficient",
+in the sense that it finds everything that would be found by full backtracking.
+Parsing Expresion Grammar with efficient backtracking 
+defines exactly the same language as its EBNF look-alike.
+It agrees well with intuition
+and is therefore easier to understand.
+Some conditions for efficient backtracking have been identified 
+in \cite{Redz:2014:FI}.
+The \Mouse\ package includes a tool, the \textsl{PEG Explorer},
+that assists you in checking whether your PEG has efficient backtracking.
+You find its documentation at \url{mousepeg.sourceforge.net/explorer.htm}.
+
+PEG has a feature that does not have an EBNF counterpart:
+the syntactic predicates \tx{!e} and \tx{\&e}.
+Not being part of EBNF, they have to be understood on their own.
+
+%---------------------------------------------------------------------- 
+\subsubsection*{Mouse - not a pack rat}
+%---------------------------------------------------------------------- 
+
+Even the limited backtracking may require a lot of time.
+In \cite{Ford:2002}, PEG was introduced together with
+a technique called \emph{packrat parsing}.
+Packrat parsing handles backtracking
+by extensive \emph{memoization}: storing all results
+of parsing procedures.
+It guarantees linear parsing time at a large memory cost.
+(The name "packrat" comes from \emph{pack rat} -- a small rodent \emph{Neotoma cinerea}  
+known for hoarding unnecessary items.)
+
+Wikipedia \cite{Wiki:Rats} lists a number of generators  
+producing packrat parsers from PEG.
+
+The amount of backtracking does not matter 
+in small interactive applications
+where the input is short and performance not critical.
+Moreover, the usual programming languages
+do not require much backtracking.
+%
+Experiments reported in \cite{Redz:2007:FI,Redz:2008:FI}
+demonstrated a moderate backtracking activity  
+in PEG parsers for programming languages Java and~C.
+
+\newpage
+In view of these facts,
+it is useful to construct PEG parsers
+where the complexity of packrat technology is abandoned in favor
+of simple and transparent design.
+This is the idea of \Mouse:
+a parser generator that transcribes
+PEG into a set of recursive procedures that closely follow the grammar.
+The name \Mouse\ was chosen in contrast to \textsl{Rats!}, 
+one of the first generators producing packrat parsers \cite{Grimm:2004}.
+Optionally, \Mouse\ can offer a small amount of memoization using the technique
+described in \cite{Redz:2007:FI}.
+
+%---------------------------------------------------------------------- 
+\subsubsection*{Left recursion}
+%---------------------------------------------------------------------- 
+
+The recursive-descent process used by PEG parsers can not be applied to a grammar
+that contains left recursion, because rule such as \tx{A = A"a"/"a"}
+would result in an infinite descent.
+But, for many reasons, this pattern is often used for defining the syntax
+of programming languages.
+
+Converting left recursion to iteration is possible, but is tedious, error-prone, 
+and obscures the spirit of the grammar. 
+Several ways of extending PEG to handle left recursion have been suggested 
+\cite{Orlando:2010,Warth:2008,Tratt:2010,Medeiros:2014:LR}.
+
+Version 2.0, \Mouse\ supports left recursion
+using an experimental method of \emph{recursive ascent},
+which continues the idea from \cite{Orlando:2010}.
+It boils down to constructing behind the scenes an alternative PEG
+that takes care of left-recursive portions.
+It is explained in \url{mousepeg.sourceforge.net/Documents/RecursiveAscent.pdf}.
+The support is limited to the Choice and Sequence expressions,
+and imposes some restrictions on expressions and semantic actions. 
+
+\bigskip
+After a short presentation of PEG in the following section,
+sections \ref{GetStarted} through \ref{LeftRec}
+have the form of a tutorial,
+introducing the reader to \Mouse\ by hands-on experience.
+They are followed by descriptions of some extensions
+and details not covered in the tutorial.

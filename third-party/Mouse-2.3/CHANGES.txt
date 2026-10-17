@@ -1,0 +1,31 @@
+
+Changes from distribution 2.2 to 2.3:
+---------------------------------------
+PEG is extended with two operators, ":" and ":!".
+They simplify definition of keywords, and they enable Explorer 
+to distinguish between kwywords and identifiers.
+They are described in Chapter 18 of the manual.
+Added grammar for Java 16 that uses this feature in addition 
+to left recursion.
+
+
+Changes from distribution 2.1 to 2.2:
+---------------------------------------
+Central parts of Explorer rewritten to construct the dual grammar 
+that is the subject of exploration. 
+Manual updated.
+
+
+Changes from distribution 2.0 to 2.1:
+---------------------------------------
+Simplified logic for handling semantics of left-recursion.
+
+
+Changes from distribution 1.9.3 to 2.0:
+---------------------------------------
+Added support for left-recursion, with total redesign of some components.
+Added examples 6R and 8R that are copies of examples 6 and 8
+with grammar and semantics converted to use left-recursion.
+Added grammar for Java 12 with left-recursive definition of Primary.
+Manual and Explorer are not updated.
+

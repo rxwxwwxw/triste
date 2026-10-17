@@ -1,0 +1,71 @@
+\newpage
+%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+
+\section{Appendix: The grammar of \Mouse\ PEG}
+
+%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+
+\small 
+\begin{Verbatim}[frame=single,framesep=2mm,samepage=true,xleftmargin=10mm,xrightmargin=10mm,baselinestretch=0.8]
+
+  Grammar   = Space (Rule/Skip)*+ EOT {Grammar} ;
+  Rule      = Name EQUAL RuleRhs DiagName? SEMI {Rule} ~{Error} ;
+  Skip      = SEMI             
+            / _++ (SEMI/EOT) ; 
+  RuleRhs   = Sequence Actions (SLASH Sequence Actions)* {} <right-hand side> ;
+  Choice    = Sequence (SLASH Sequence)* {} ;
+  Sequence  = Prefixed+ {} ;
+  Prefixed  = (AND / NOT) Suffixed {Prefix}
+            / Suffixed {Pass} ;
+  Suffixed  = Primary (STARPLUS / PLUSPLUS / IS / ISNOT) Primary {Infix}
+            / Primary (QUERY / STAR / PLUS) {Suffix}
+            / Primary {Pass} ;
+  Primary   = Name      {Resolve}
+            / LPAREN Choice RPAREN {Pass2}
+            / ANY       {Any}
+            / StringLit {Pass}
+            / Range     {Pass}
+            / CharClass {Pass} ;
+  Actions   = OnSucc OnFail {} ;
+  OnSucc    = (LWING AND? Name? RWING)? {} ;
+  OnFail    = (TILDA LWING Name? RWING)? {} ;
+  Name      = Letter (Letter / Digit)* Space {} ;
+  DiagName  = "<" Char++ ">" Space {} ;
+  StringLit = ["] Char++ ["] Space {} ;
+  CharClass = ("[" / "^[") Char++ "]" Space {} ;
+  Range     = "[" Char "-" Char "]" Space {} ;
+  Char      = Escape    {Pass}
+            / ^[\r\n\\] {Char} ;
+  Escape    = "\\u" HexDigit HexDigit HexDigit HexDigit {Unicode}
+            / "\\t" {Tab}
+            / "\\n" {Newline}
+            / "\\r" {CarRet}
+            / !"\\u""\\"_ {Escape} ;
+  Letter    = [a-z] / [A-Z] ;
+  Digit     = [0-9] ;
+  HexDigit  = [0-9] / [a-f] / [A-F] ;
+  AND       = [&]     Space  <&> ;
+  NOT       = [!]     Space  <!> ;
+  QUERY     = [?]     Space  <?> ;
+  STAR      = [*]![+] Space  <*> ;
+  PLUS      = [+]![+] Space  <+> ;
+  STARPLUS  = "*+"    Space <*+> ;
+  PLUSPLUS  = "++"    Space <++> ;
+  IS        = [:]![!] Space  <:> ;
+  ISNOT     = ":!"    Space <:!> ;
+  EQUAL     = [=]     Space  <=> ;
+  LPAREN    = [(]     Space  <(> ;
+  RPAREN    = [)]     Space  <)> ;
+  LWING     = [{]     Space  <{> ;
+  RWING     = [}]     Space  <}> ;
+  SEMI      = [;]     Space  <;> ;
+  SLASH     = [/]     Space  </> ;
+  TILDA     = [~]     Space  <~> ;
+  ANY       = [_]     Space  <_> ;
+  Space     = ([ \r\n\t] / Comment)*  ;
+  Comment   = "//" _*+ EOL ;
+  EOL       = [\r]? [\n] / !_  <end of line> ;
+  EOT       = !_               <end of text> ;
+
+\end{Verbatim}
+\normalsize

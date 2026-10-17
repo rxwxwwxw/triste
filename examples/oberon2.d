@@ -226,3 +226,11 @@ Keyword         <- "ARRAY" / "ABS"/ "ASH" / "BOOLEAN" / "BEGIN" / "BY"
 `;
 
 mixin(grammar(Oberon2Grammar));
+
+extern (C) string npegged_Oberon2Grammar() @nogc nothrow pure {
+    return Oberon2Grammar;
+}
+
+@nogc nothrow unittest {
+    assert(npegged_Oberon2Grammar().length);
+}

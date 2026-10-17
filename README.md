@@ -83,18 +83,22 @@ consume the literal's byte length. Offsets and columns are byte-based.
 
 ## Building and checking
 
-Required tools: DMD, LDC (`ldc2`), GDC, separately linkable druntime libraries,
-`dfmt`, Python 3, GNU `timeout`, `gcov` matching GDC 16, `rg`, and Valgrind with matching libc
-debug symbols. No DUB dependency is needed for the library.
+Required compiler targets: DMD and LDC (`ldc2`). Other tools: separately linkable
+druntime libraries, `dfmt`, Python 3, GNU `timeout`, `rg`, and Valgrind with matching
+libc debug symbols. GDC remains an optional compatibility compiler. The current
+branch-coverage collector additionally requires GDC 16 and matching `gcov`, including
+when invoked by full validation or the pre-commit hook; replacing that collector is
+still needed to make the complete coverage gate independent of GDC. No DUB dependency
+is needed for the library.
 
 ```sh
 scripts/build.sh                       # unit tests and integration runner
 DC=ldc2 scripts/build.sh
-DC=gdc scripts/build.sh
+DC=gdc scripts/build.sh                 # optional compatibility check
 scripts/examples.sh                    # Pascal and DConf programs; regeneration check
-scripts/hotpaths.sh                     # GC diagnostics on all three compilers
+scripts/hotpaths.sh                     # GC diagnostics on DMD and LDC
 scripts/coverage.sh                     # line and source-branch coverage gate
-scripts/validate.sh                     # complete required validation
+scripts/validate.sh --full              # full checks, including GDC-based coverage
 scripts/install-hooks.sh               # install into a writable Git checkout
 ```
 
@@ -166,3 +170,7 @@ The runner verifies complete consumption and output records before timing and
 reports repeated-run dispersion, MB/s, compiler/CPU metadata, and allocator
 traffic. See [benchmark instructions](benchmark/README.md) for output contracts,
 commands, and measurement limits.
+
+
+The [performance roadmap](docs/PERFORMANCE_PLAN.md) tracks the next optimization
+work and acceptance criteria.

@@ -2,6 +2,7 @@
     Runtime code generation is a cold path using selective druntime GC. */
 module npegged.grammar;
 public import npegged.peg;
+public import npegged.dfa;
 import npegged.io;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts;
 
@@ -16,6 +17,12 @@ enum Memoization {
     no,
     yes,
     selective
+}
+
+/// The direct backend lowers recognition control; other modes retain combinators.
+enum ParserBackend {
+    combinators,
+    direct
 }
 
 private string number(ulong value) pure nothrow {
@@ -105,7 +112,7 @@ unittest {
 }
 
 /// Cold grammar frontend. Runtime generation selectively uses druntime GC; emitted parsers never do.
-private struct Frontend {
+package struct Frontend {
     string input;
     size_t pos;
     Diagnostic error;
@@ -118,10 +125,15 @@ private struct Frontend {
     string name, params;
     bool memoize = true;
     bool selective;
+    ParserBackend backend;
     uint[] recordKinds;
+    bool[] recordLeaves;
+    bool[] recordSubtrees;
     string[] parameterNames;
     private GrammarAnalysis analyzed;
     private bool hasAnalysis;
+    private bool[] scalarRules;
+    private string directDeclarations, directRule;
     void skip() nothrow {
         while (pos < input.length) {
             if (input[pos] == ' ' || input[pos] == '\t' || input[pos] == '\n' || input[pos] == '\r')
@@ -833,6 +845,30 @@ private struct Frontend {
         return res;
     }
 
+    private string decodedLiteral(string source) const nothrow {
+        Frontend decoder;
+        decoder.input = source;
+        while (decoder.pos < source.length && source[decoder.pos] != '"')
+            ++decoder.pos;
+        if (decoder.pos == source.length)
+            return null;
+        ++decoder.pos;
+        string bytes;
+        while (decoder.pos < source.length && source[decoder.pos] != '"') {
+            const byteEscape = source[decoder.pos] == '\\' && decoder.pos + 1 < source.length
+                && source[decoder.pos + 1] == 'x';
+            const scalar = decoder.character(true);
+            bytes ~= byteEscape ? [cast(char)scalar].idup : encode(scalar);
+        }
+        return bytes;
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        assert(frontend.decodedLiteral(`literal!("a\n\x80é")`) == "a\n\x80é");
+        assert(frontend.decodedLiteral("unknown") is null);
+    }
+
     private size_t expressionNode(ref GrammarAnalysis graph, string text) const nothrow {
         while (text.length && (text[0] == ' ' || text[0] == '\t'))
             text = text[1 .. $];
@@ -840,28 +876,33 @@ private struct Frontend {
             text = text[0 .. $ - 1];
         Expression node;
         node.source = text;
+        size_t marker;
+        while (marker < text.length && text[marker] != '!')
+            ++marker;
         bool parameter;
-        foreach (name; parameterNames)
-            if (text == name)
-                parameter = true;
+        if (marker == text.length)
+            foreach (name; parameterNames)
+                if (text == name)
+                    parameter = true;
+        size_t knownRule = size_t.max;
+        if (marker == text.length && !parameter)
+            knownRule = graph.ruleIndex(text);
         if (parameter)
             node.kind = ExpressionKind.unknown;
-        else if (graph.ruleIndex(text) != size_t.max) {
+        else if (knownRule != size_t.max) {
             node.kind = ExpressionKind.reference;
             node.reference = text;
-        } else if (text == "eps" || text == "eoi" || text == "endOfInput" || text == "fail") {
+            node.rule = knownRule;
+        } else if (marker == text.length && (text == "eps" || text == "eoi" || text == "endOfInput" || text == "fail")) {
             node.kind = ExpressionKind.terminal;
             node.known = true;
             node.nullable = text == "fail" ? Nullable.no : Nullable.yes;
-        } else if (text == "any") {
+        } else if (marker == text.length && text == "any") {
             node.kind = ExpressionKind.terminal;
             node.known = true;
             node.nullable = Nullable.no;
             node.first = CharSetMask([ulong.max, ulong.max, ulong.max, ulong.max]);
         } else {
-            size_t marker;
-            while (marker < text.length && text[marker] != '!')
-                ++marker;
             string combinator = text[0 .. marker];
             bool compound = marker + 2 < text.length && text[marker .. marker + 2] == "!(" && text[$ - 1] == ')';
             string[] args;
@@ -881,14 +922,16 @@ private struct Frontend {
                     .repetition;
                 args.length = 1;
                 children = true;
-            } else if (compound && args.length && (combinator == "posLookahead" || combinator == "negLookahead")) {
+            } else if (compound && args.length && (combinator == "posLookahead"
+                    || combinator == "negLookahead" || combinator == "predictiveNot")) {
                 node.kind = ExpressionKind.predicate;
                 args.length = 1;
                 children = true;
             } else if (compound && args.length && (combinator == "discard" || combinator == "fuse"
                     || combinator == "keep"
                     || combinator == "drop" || combinator == "propagate" || combinator == "oneOrMore"
-                    || combinator == "named" || combinator == "defined" || combinator == "branch")) {
+                    || combinator == "named"
+                    || combinator == "defined" || combinator == "branch" || combinator == "dfaToken")) {
                 node.kind = ExpressionKind.wrapper;
                 args.length = 1;
                 children = true;
@@ -933,8 +976,67 @@ private struct Frontend {
                 }
             }
         }
-        graph.expressions ~= node;
-        return graph.expressions.length - 1;
+        if (node.kind == ExpressionKind.terminal && startsWith(text, "literal!")) {
+            node.byteTerminal = true;
+            const bytes = decodedLiteral(text);
+            node.byteWidth = bytes.length;
+            node.first = CharSetMask.init;
+            if (bytes.length)
+                node.first.addChar(bytes[0]);
+            foreach (c; bytes)
+                node.alphabet.addChar(c);
+        } else if (node.kind == ExpressionKind.terminal && node.known && node.nullable == Nullable.no
+                && (text == "any" || text == "digit" || text == "alpha" || text == "Alpha"
+                    || text == "hexDigit" || text == "space" || text == "blank"
+                    || text == "doublequote" || text == "backslash"
+                    || text == "quote" || text == "slash" || text == "backquote" || text == "tab"
+                    || startsWith(text, "charClass!(") || startsWith(text, "charRange!("))) {
+            node.byteTerminal = true;
+            node.byteWidth = 1;
+            node.alphabet = node.first;
+        }
+        // A guarded byte is a common spelling of a complemented byte class.
+        if (node.combinator == "and" && node.children.length == 2) {
+            auto guard = graph.expressions[node.children[0]];
+            auto consumedByte = graph.expressions[node.children[1]];
+            if (guard.combinator == "negLookahead" && guard.children.length == 1
+                    && consumedByte.kind == ExpressionKind.terminal && consumedByte.source == "any") {
+                auto excluded = graph.expressions[guard.children[0]];
+                bool byteChoice = false;
+                CharSetMask excludedMask;
+                if (excluded.byteTerminal && excluded.nullable == Nullable.no && excluded.byteWidth == 1) {
+                    byteChoice = true;
+                    excludedMask = excluded.first;
+                } else if (excluded.kind == ExpressionKind.choice && excluded.children.length) {
+                    byteChoice = true;
+                    foreach (child; excluded.children) {
+                        auto branch = graph.expressions[child];
+                        if (!branch.byteTerminal || branch.nullable != Nullable.no || branch
+                                .byteWidth != 1) {
+                            byteChoice = false;
+                            break;
+                        }
+                        excludedMask = excludedMask | branch.first;
+                    }
+                }
+                if (byteChoice) {
+                    node.kind = ExpressionKind.terminal;
+                    node.children = null;
+                    node.arguments = null;
+                    node.combinator = null;
+                    node.byteTerminal = node.known = true;
+                    node.byteWidth = 1;
+                    node.nullable = Nullable.no;
+                    foreach (i; 0 .. 4)
+                        node.first.bits[i] = ~excludedMask.bits[i];
+                    node.alphabet = node.first;
+                    node.source = "charClass!(" ~ ulongHex(node.first.bits[0]) ~ ", " ~ ulongHex(
+                            node.first.bits[1]) ~ ", " ~ ulongHex(node.first.bits[2]) ~ ", " ~ ulongHex(
+                            node.first.bits[3]) ~ ")";
+                }
+            }
+        }
+        return graph.appendExpression(node);
     }
 
     private void prepareAnalysis() nothrow {
@@ -950,9 +1052,11 @@ private struct Frontend {
     FirstSetResult computeFirstSet(string expression) nothrow {
         if (!hasAnalysis)
             prepareAnalysis();
-        auto query = analyzed;
-        auto root = expressionNode(query, expression);
-        const value = query.appendFacts(root);
+        const saved = analyzed.expressions.length;
+        scope (exit)
+            analyzed.truncate(saved);
+        auto root = expressionNode(analyzed, expression);
+        auto value = analyzed.appendFacts(root);
         return FirstSetResult(value.known && value.nullable != Nullable.unknown,
                 value.nullable != Nullable.no, value.first);
     }
@@ -986,10 +1090,11 @@ private struct Frontend {
     }
 
     private string dispatchChoice(string[] choices, FirstFacts[] values) nothrow {
-        if (choices.length < 2)
+        if (choices.length < 2 || choices.length > ubyte.max)
             return null;
-        foreach (value; values)
-            if (!value.known || value.nullable != Nullable.no || value.first.empty)
+        foreach (i, value; values)
+            if (!value.known || value.nullable == Nullable.unknown || value.nullable == Nullable.yes
+                    && i + 1 != values.length || value.first.empty && value.nullable != Nullable.yes)
                 return null;
         foreach (i; 0 .. values.length)
             foreach (j; i + 1 .. values.length)
@@ -1000,7 +1105,8 @@ private struct Frontend {
             const mask = values[i].first;
             result ~= (i ? ", " : "") ~ "branch!(" ~ choice ~ ", " ~ ulongHex(
                     mask.bits[0]) ~ ", " ~ ulongHex(mask.bits[1]) ~ ", " ~ ulongHex(
-                    mask.bits[2]) ~ ", " ~ ulongHex(mask.bits[3]) ~ ")";
+                    mask.bits[2]) ~ ", " ~ ulongHex(mask.bits[3]) ~ (
+                    values[i].nullable == Nullable.yes ? ", true" : "") ~ ")";
         }
         return result ~ ")";
     }
@@ -1017,14 +1123,61 @@ private struct Frontend {
         return dispatchChoice(choices, values);
     }
 
-    private string emitExpression(const ref GrammarAnalysis graph, size_t index) nothrow {
-        const ref node = graph.expressions[index];
+    private string emitExpression(ref GrammarAnalysis graph, size_t index) nothrow {
+        auto node = graph.expressions[index];
         if (!node.children.length)
             return node.source;
         string[] args;
         foreach (i, argument; node.arguments)
             args ~= i < node.children.length ? emitExpression(graph, node.children[i]) : argument;
         if (node.combinator == "or") {
+            string[] factored;
+            bool changed;
+            for (size_t start; start < node.children.length;) {
+                const first = node.children[start];
+                auto branch = graph.expressions[first];
+                const prefix = branch.combinator == "and" && branch.children.length ? branch.children[0] : first;
+                size_t end = start + 1;
+                if (graph.shareable(prefix)) {
+                    while (end < node.children.length) {
+                        const candidate = node.children[end];
+                        auto other = graph.expressions[candidate];
+                        const head = other.combinator == "and" && other.children.length ? other
+                            .children[0] : candidate;
+                        if (graph.expressions[head].source != graph.expressions[prefix].source)
+                            break;
+                        ++end;
+                    }
+                }
+                if (end == start + 1) {
+                    factored ~= args[start];
+                } else {
+                    string tails = "or!(";
+                    foreach (i; start .. end) {
+                        auto alternative = graph.expressions[node.children[i]];
+                        string tail = "discard!(eps)";
+                        if (alternative.combinator == "and" && alternative.children.length > 1) {
+                            tail = "and!(";
+                            foreach (j, child; alternative.children[1 .. $])
+                                tail ~= (j ? ", " : "") ~ emitExpression(graph, child);
+                            tail ~= ")";
+                        }
+                        tails ~= (i == start ? "" : ", ") ~ tail;
+                    }
+                    tails ~= ")";
+                    factored ~= "and!(" ~ emitExpression(graph, prefix) ~ ", " ~ optimizeRule(tails) ~ ")";
+                    changed = true;
+                }
+                start = end;
+            }
+            if (changed) {
+                if (factored.length == 1)
+                    return factored[0];
+                string choice = "or!(";
+                foreach (i, branch; factored)
+                    choice ~= (i ? ", " : "") ~ branch;
+                return optimizeRule(choice ~ ")");
+            }
             FirstFacts[] values;
             foreach (child; node.children)
                 values ~= graph.facts[child];
@@ -1038,13 +1191,27 @@ private struct Frontend {
         return result ~ ")";
     }
 
+    nothrow unittest {
+        Frontend frontend;
+        assert(frontend.optimizeRule(`or!(and!(literal!("a"), literal!("b")), and!(literal!("a"), literal!("c")))`) == `and!(literal!("a"), predictiveChoice!(branch!(and!(literal!("b")), 0x0UL, 0x400000000UL, 0x0UL, 0x0UL), branch!(and!(literal!("c")), 0x0UL, 0x800000000UL, 0x0UL, 0x0UL)))`);
+        assert(startsWith(
+                frontend.optimizeRule(`or!(and!(literal!("a"), literal!("b")), literal!("a"))`),
+                `and!(literal!("a"), predictiveChoice!(`));
+        const separated = `or!(and!(literal!("a"), literal!("b")), literal!("x"), literal!("a"))`;
+        assert(frontend.optimizeRule(separated) == separated);
+        const effectful = `or!(and!(external, literal!("b")), and!(external, literal!("c")))`;
+        assert(frontend.optimizeRule(effectful) == effectful);
+    }
+
     string optimizeRule(string expression) nothrow {
         if (!hasAnalysis)
             prepareAnalysis();
-        auto query = analyzed;
-        auto root = expressionNode(query, expression);
-        query.appendFacts(root);
-        return emitExpression(query, root);
+        const saved = analyzed.expressions.length;
+        scope (exit)
+            analyzed.truncate(saved);
+        auto root = expressionNode(analyzed, expression);
+        analyzed.appendFacts(root);
+        return emitExpression(analyzed, root);
     }
 
     void configureRecords(alias Selector)() nothrow {
@@ -1053,6 +1220,738 @@ private struct Frontend {
                     "Compact selectors must be pure @nogc nothrow uint functions");
             foreach (rule; rules)
                 recordKinds ~= Selector(name ~ "." ~ rule.name);
+        }
+    }
+
+    /// Emit a small regular-expression graph; determinization happens in CTFE.
+    private string regularTable(ref GrammarAnalysis graph, size_t root, out size_t references) nothrow {
+        bool hasRecords;
+        return regularTable(graph, root, references, hasRecords);
+    }
+
+    private string regularTable(ref GrammarAnalysis graph, size_t root, out size_t references, out bool hasRecords) nothrow {
+        references = 0;
+        hasRecords = false;
+        GrammarAnalysis* regular = &graph;
+        GrammarAnalysis stripped;
+        bool requireEnd;
+        auto rootNode = graph.expressions[root];
+        if (rootNode.combinator == "and" && rootNode.children.length) {
+            const last = graph.expressions[rootNode.children[$ - 1]].source;
+            if (last == "eoi" || last == "endOfInput") {
+                Expression strippedNode = rootNode;
+                strippedNode.children = rootNode.children[0 .. $ - 1].dup;
+                root = graph.appendExpression(strippedNode);
+                graph.appendFacts(root);
+                requireEnd = true;
+            }
+        }
+        if (!regular.regularLeaf(root, requireEnd))
+            return null;
+        RegularExpression[] nodes;
+        size_t lower(size_t index, size_t depth = 0) {
+            auto expression = regular.expressions[index];
+            if (expression.kind == ExpressionKind.reference) {
+                const targetRule = graph.referenceRule(expression);
+                if (recordKinds.length == 0)
+                    hasRecords = true;
+                else if (targetRule < recordKinds.length && (recordKinds[targetRule] != uint.max
+                        || (targetRule < recordSubtrees.length && recordSubtrees[targetRule])))
+                    hasRecords = true;
+                if (depth + 1 > references)
+                    references = depth + 1;
+                return lower(graph.roots[targetRule], depth + 1);
+            }
+            const escaped = regular.escapeLoop(index);
+            if (escaped.known) {
+                size_t prefix;
+                if (escaped.doubled) {
+                    prefix = nodes.length;
+                    nodes ~= RegularExpression(RegularKind.bytes, regular.expressions[escaped.prefix]
+                            .first);
+                } else
+                    prefix = lower(escaped.prefix, depth);
+                const any = nodes.length;
+                nodes ~= RegularExpression(RegularKind.bytes, escaped.doubled
+                        ? regular.expressions[escaped.prefix].first
+                        : CharSetMask([ulong.max, ulong.max, ulong.max, ulong.max]));
+                const pair = nodes.length;
+                nodes ~= RegularExpression(RegularKind.sequence, CharSetMask.init, [prefix, any]);
+                CharSetMask ordinary, fallback;
+                foreach (i; 0 .. 4) {
+                    const first = regular.expressions[escaped.prefix].first.bits[i];
+                    const bytes = regular.expressions[escaped.ordinary].first.bits[i];
+                    ordinary.bits[i] = bytes & ~first;
+                    fallback.bits[i] = bytes & first;
+                }
+                const ordinaryByte = nodes.length;
+                nodes ~= RegularExpression(RegularKind.bytes, ordinary);
+                size_t[] alternatives = [pair, ordinaryByte];
+                if (!fallback.empty) {
+                    const lastByte = nodes.length;
+                    nodes ~= RegularExpression(RegularKind.bytes, fallback);
+                    const end = nodes.length;
+                    nodes ~= RegularExpression(RegularKind.endOfInput);
+                    const last = nodes.length;
+                    nodes ~= RegularExpression(RegularKind.sequence, CharSetMask.init, [
+                        lastByte, end
+                    ]);
+                    alternatives ~= last;
+                }
+                const choice = nodes.length;
+                nodes ~= RegularExpression(RegularKind.choice, CharSetMask.init, alternatives);
+                const repeated = nodes.length;
+                nodes ~= RegularExpression(RegularKind.repetition, CharSetMask.init, [choice]);
+                if (expression.combinator == "oneOrMore") {
+                    nodes ~= RegularExpression(RegularKind.sequence, CharSetMask.init, [
+                        choice, repeated
+                    ]);
+                    return nodes.length - 1;
+                }
+                return repeated;
+            }
+            RegularExpression node;
+            if (expression.kind == ExpressionKind.terminal) {
+                if (startsWith(expression.source, "literal!")) {
+                    node.kind = RegularKind.sequence;
+                    foreach (c; decodedLiteral(expression.source)) {
+                        CharSetMask mask;
+                        mask.addChar(c);
+                        node.children ~= nodes.length;
+                        nodes ~= RegularExpression(RegularKind.bytes, mask);
+                    }
+                } else if (expression.source == "eps")
+                    node.kind = RegularKind.sequence;
+                else {
+                    node.kind = RegularKind.bytes;
+                    node.bytes = expression.first;
+                }
+            } else {
+                foreach (child; expression.children)
+                    node.children ~= lower(child, depth);
+                if (expression.combinator == "or" || expression.combinator == "predictiveChoice")
+                    node.kind = RegularKind.choice;
+                else if (expression.combinator == "option")
+                    node.kind = RegularKind.optional;
+                else if (expression.combinator == "zeroOrMore")
+                    node.kind = RegularKind.repetition;
+                else if (expression.combinator == "oneOrMore") {
+                    const child = node.children[0];
+                    const repeated = nodes.length;
+                    nodes ~= RegularExpression(RegularKind.repetition, CharSetMask.init, [child]);
+                    node.children = [child, repeated];
+                    node.kind = RegularKind.sequence;
+                } else
+                    node.kind = RegularKind.sequence;
+            }
+            nodes ~= node;
+            return nodes.length - 1;
+        }
+
+        const index = lower(root);
+        bool repeated;
+        foreach (node; nodes)
+            repeated = repeated || node.kind == RegularKind.repetition;
+        // Fixed terminals already use inlined literal/byte matching. A state
+        // machine is useful here when it replaces a character-processing loop.
+        if (!repeated)
+            return null;
+        string source = "compileDFA([\n";
+        foreach (i, node; nodes) {
+            if (node.kind == RegularKind.bytes) {
+                source ~= "regularByte(";
+                foreach (j, bits; node.bytes.bits)
+                    source ~= (j ? ", " : "") ~ ulongHex(bits);
+                source ~= ")";
+            } else {
+                const kind = ["bytes", "sequence", "choice", "optional", "repetition", "endOfInput"][node
+                        .kind];
+                source ~= "regularNode(RegularKind." ~ kind ~ ", [";
+                foreach (j, child; node.children)
+                    source ~= (j ? ", " : "") ~ number(child);
+                source ~= "])";
+            }
+            source ~= ", // node " ~ number(i) ~ "\n";
+        }
+        return source ~ "], " ~ number(index) ~ ", " ~ (requireEnd ? "true" : "false") ~ ")";
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        frontend.input = `Regular: Token <- [0-9]+ Unsafe <- 'a'* 'a'
+            Class <- '[' '^'? ('\\' . / (!']' .))* ']'
+            PlainEscapes <- ('\\' . / 'a')*`;
+        frontend.read();
+        frontend.prepareAnalysis();
+        size_t references;
+        assert(startsWith(frontend.regularTable(frontend.analyzed, frontend.analyzed.roots[0],
+                references), "compileDFA(["));
+        assert(frontend.regularTable(frontend.analyzed, frontend.analyzed.roots[1], references) is null);
+        assert(frontend.regularTable(frontend.analyzed, frontend.analyzed.roots[2], references)
+                .length);
+        assert(frontend.regularTable(frontend.analyzed, frontend.analyzed.roots[3], references)
+                .length);
+        assert(frontend.emit().length);
+    }
+
+    /// Compile maximal eligible regions even when their enclosing rule is not regular.
+    private string emitTokens(ref GrammarAnalysis graph, size_t index, string rule, ref size_t count,
+            ref string declarations) nothrow {
+        auto node = graph.expressions[index];
+        if (node.combinator == "negLookahead" && node.children.length == 1 && !graph.conservative) {
+            auto facts = graph.facts[node.children[0]];
+            if (facts.known && (facts.nullable == Nullable.no || facts.eofOnly)) {
+                string result = "predictiveNot!(" ~ emitTokens(graph, node.children[0], rule, count, declarations);
+                foreach (bits; facts.first.bits)
+                    result ~= ", " ~ ulongHex(bits);
+                return result ~ ")";
+            }
+        }
+        if (node.children.length && node.kind != ExpressionKind.reference && node.combinator != "branch") {
+            size_t referenceDepth;
+            bool hasRecords;
+            const table = regularTable(graph, index, referenceDepth, hasRecords);
+            if (table.length) {
+                const symbol = "_dfa_" ~ rule ~ (count ? "_" ~ number(count) : "");
+                ++count;
+                declarations ~= "struct " ~ symbol ~ " { enum automaton = " ~ table
+                    ~ "; enum valid = automaton.valid; enum requireEnd = automaton.requireEnd; }\n";
+                return "dfaToken!(" ~ emitExpression(graph,
+                        index) ~ ", " ~ symbol ~ ", " ~ number(referenceDepth) ~ ", " ~ (hasRecords
+                        ? "true" : "false") ~ ")";
+            }
+        }
+        // Merge adjacent regular children before falling back to nonregular syntax.
+        // A trailing comment/recursive rule must not split a lexical header into
+        // several separate scanners. Each region independently proves PEG equivalence.
+        if (node.combinator == "and" && node.children.length > 2) {
+            string[] regions;
+            for (size_t start; start < node.children.length;) {
+                size_t selected = start + 1;
+                string selectedTable;
+                size_t selectedDepth;
+                bool selectedRecords;
+                foreach (end; start + 2 .. node.children.length + 1) {
+                    if (end - start > 64)
+                        break;
+                    if (end == start + 2 && (!closedEmpty(graph, node.children[start])
+                            || !graph.regularLeaf(node.children[start])))
+                        break;
+                    if (!closedEmpty(graph, node.children[end - 1]) || !graph.regularLeaf(node
+                            .children[end - 1]))
+                        break;
+                    Expression region;
+                    region.kind = ExpressionKind.sequence;
+                    region.combinator = "and";
+                    region.children = node.children[start .. end].dup;
+                    region.source = "and!(";
+                    foreach (i, child; region.children) {
+                        const text = graph.expressions[child].source;
+                        region.arguments ~= text;
+                        region.source ~= (i ? ", " : "") ~ text;
+                    }
+                    region.source ~= ")";
+                    const savedRegion = graph.expressions.length;
+                    const root = graph.appendExpression(region);
+                    graph.appendFacts(root);
+                    size_t referenceDepth;
+                    bool hasRecords;
+                    const table = regularTable(graph, root, referenceDepth, hasRecords);
+                    graph.truncate(savedRegion);
+                    // Closed terminal regions have identical scanning policies in
+                    // recognition and record modes; named calls retain rule budgets.
+                    if (!table.length || referenceDepth || hasRecords)
+                        break;
+                    selected = end;
+                    selectedTable = table;
+                    selectedDepth = referenceDepth;
+                    selectedRecords = hasRecords;
+                }
+                if (selected == start + 1) {
+                    regions ~= emitTokens(graph, node.children[start], rule, count, declarations);
+                } else {
+                    const symbol = "_dfa_" ~ rule ~ (count ? "_" ~ number(count) : "");
+                    ++count;
+                    declarations ~= "struct " ~ symbol ~ " { enum automaton = " ~ selectedTable ~ "; enum valid = automaton.valid; enum requireEnd = automaton.requireEnd; }\n";
+                    string original = "and!(";
+                    foreach (i, child; node.children[start .. selected])
+                        original ~= (i ? ", " : "") ~ emitExpression(graph, child);
+                    regions ~= "dfaToken!(" ~ original ~ "), " ~ symbol ~ ", " ~ number(
+                            selectedDepth) ~ ", " ~ (selectedRecords ? "true" : "false") ~ ")";
+                }
+                start = selected;
+            }
+            string result = "and!(";
+            foreach (i, region; regions)
+                result ~= (i ? ", " : "") ~ region;
+            return result ~ ")";
+        }
+        if (!node.children.length)
+            return node.source;
+        string result = node.combinator ~ "!(";
+        foreach (i, argument; node.arguments)
+            result ~= (i ? ", " : "") ~ (i < node.children.length ? emitTokens(graph,
+                    node.children[i], rule, count, declarations) : argument);
+        return result ~ ")";
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        frontend.input = "Partial: Token <- 'a'* 'a'";
+        frontend.read();
+        frontend.prepareAnalysis();
+        size_t count;
+        string declarations;
+        const string body = frontend.emitTokens(frontend.analyzed, frontend.analyzed.roots[0],
+                "Token", count, declarations);
+        assert(count == 1 && startsWith(body, "and!(dfaToken!("));
+        assert(startsWith(declarations, "struct _dfa_Token { enum automaton = compileDFA(["));
+    }
+
+    /// Empty fast paths only compile closed expressions; opaque calls stay untouched.
+    private bool closedEmpty(ref GrammarAnalysis graph, size_t index, size_t depth = 0) nothrow {
+        auto node = graph.expressions[index];
+        if (depth >= 64 || node.kind == ExpressionKind.reference || node.kind == ExpressionKind
+                .unknown)
+            return false;
+        foreach (child; node.children)
+            if (!closedEmpty(graph, child, depth + 1))
+                return false;
+        return true;
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        GrammarAnalysis graph;
+        auto root = frontend.expressionNode(graph, "zeroOrMore!(literal!(\"a\"))");
+        assert(frontend.closedEmpty(graph, root));
+        assert(!frontend.closedEmpty(graph, root, 64));
+        root = frontend.expressionNode(graph, "and!(literal!(\"a\"), externalParser)");
+        assert(!frontend.closedEmpty(graph, root));
+    }
+
+    /// 0: unknown/possibly consumes, 1: zero-width success, 2: zero-width failure.
+    /// Reachable predicates are deliberately unknown; they may inspect a suffix.
+    private int zeroMatch(ref GrammarAnalysis graph, size_t index, int byteValue, size_t depth = 0) nothrow {
+        if (depth >= 64)
+            return 0;
+        auto node = graph.expressions[index];
+        const op = node.combinator;
+        if (op == "and") {
+            foreach (child; node.children) {
+                const result = zeroMatch(graph, child, byteValue, depth + 1);
+                if (result != 1)
+                    return result;
+            }
+            return 1;
+        }
+        if (op == "or") {
+            foreach (child; node.children) {
+                const result = zeroMatch(graph, child, byteValue, depth + 1);
+                if (result != 2)
+                    return result;
+            }
+            return 2;
+        }
+        if (op == "predictiveChoice") {
+            if (!node.children.length)
+                return 2;
+            foreach (branch; node.children)
+                if (byteValue < 256 && graph.facts[branch].first.contains(cast(ubyte)byteValue))
+                    return 0;
+            const last = node.children[$ - 1];
+            return graph.facts[last].nullable == Nullable.yes ? zeroMatch(graph, last, byteValue, depth + 1) : 2;
+        }
+        if (op == "zeroOrMore" || op == "option" || op == "oneOrMore") {
+            const result = zeroMatch(graph, node.children[0], byteValue, depth + 1);
+            return result == 2 && op != "oneOrMore" ? 1 : result;
+        }
+        if (op == "discard" || op == "fuse" || op == "keep" || op == "drop" || op == "propagate"
+                || op == "named" || op == "defined" || op == "dfaToken" || op == "branch")
+            return zeroMatch(graph, node.children[0], byteValue, depth + 1);
+        if (node.kind != ExpressionKind.terminal)
+            return 0;
+        if (node.source == "eps" || startsWith(node.source, "literal!(") && node.byteWidth == 0)
+            return 1;
+        if (node.source == "eoi" || node.source == "endOfInput")
+            return byteValue == 256 ? 1 : 2;
+        if (node.source == "fail")
+            return 2;
+        if (node.byteTerminal && (byteValue == 256 || !node.first.contains(cast(ubyte)byteValue)))
+            return 2;
+        return 0;
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        GrammarAnalysis graph;
+        foreach (source; [
+            "and!(zeroOrMore!(literal!(\"a\")), option!(literal!(\"b\")))",
+            "or!(literal!(\"a\"), eps)", "oneOrMore!(eps)",
+            "fuse!(zeroOrMore!(literal!(\"a\")))", "discard!(eps)", "keep!(eps)",
+            "drop!(eps)", "propagate!(eps)", "named!(eps, \"x\")", "defined!(eps, \"x\")",
+        ]) {
+            const root = frontend.expressionNode(graph, source);
+            graph.appendFacts(root);
+            assert(frontend.zeroMatch(graph, root, 'x') == 1);
+        }
+        foreach (source; [
+            "and!(literal!(\"a\"), eps)", "or!(literal!(\"a\"), literal!(\"b\"))",
+            "oneOrMore!(literal!(\"a\"))", "fail", "eoi"
+        ]) {
+            const root = frontend.expressionNode(graph, source);
+            graph.appendFacts(root);
+            assert(frontend.zeroMatch(graph, root, 'x') == 2);
+        }
+        const literalRoot = frontend.expressionNode(graph, "literal!(\"x\")");
+        assert(frontend.zeroMatch(graph, literalRoot, 'x') == 0);
+        assert(frontend.zeroMatch(graph, literalRoot, 'x', 64) == 0);
+        const end = frontend.expressionNode(graph, "eoi");
+        assert(frontend.zeroMatch(graph, end, 256) == 1);
+        const endInput = frontend.expressionNode(graph, "endOfInput");
+        assert(frontend.zeroMatch(graph, endInput, 256) == 1);
+        assert(frontend.zeroMatch(graph, endInput, 'x') == 2);
+        const emptyLit = frontend.expressionNode(graph, "literal!(\"\")");
+        assert(frontend.zeroMatch(graph, emptyLit, 'x') == 1);
+        const dfaNode = frontend.expressionNode(graph, "dfaToken!(eps, _dfa, 0, false)");
+        assert(frontend.zeroMatch(graph, dfaNode, 'x') == 1);
+        const branchNode = frontend.expressionNode(graph, "branch!(eps, 0UL, 0UL, 0UL, 0UL, true)");
+        assert(frontend.zeroMatch(graph, branchNode, 'x') == 1);
+        const predChoice = frontend.expressionNode(graph, "predictiveChoice!(branch!(literal!(\"a\"), 0UL, 0x2UL, 0UL, 0UL, false), branch!(eps, 0UL, 0UL, 0UL, 0UL, true))");
+        graph.appendFacts(predChoice);
+        assert(frontend.zeroMatch(graph, predChoice, 'a') == 0);
+        assert(frontend.zeroMatch(graph, predChoice, 'z') == 1);
+        const predFail = frontend.expressionNode(graph, "predictiveChoice!(branch!(literal!(\"a\"), 0UL, 0x2UL, 0UL, 0UL, false), branch!(literal!(\"b\"), 0UL, 0x4UL, 0UL, 0UL, false))");
+        graph.appendFacts(predFail);
+        assert(frontend.zeroMatch(graph, predFail, 'z') == 2);
+        const suffix = frontend.expressionNode(graph, "option!(negLookahead!(literal!(\"xy\")))");
+        assert(frontend.zeroMatch(graph, suffix, 'x') == 0);
+    }
+
+    /// Probe the existing optimized expression at CTFE, then batch only proven
+    /// zero-width paths. One spare work unit keeps DFA speculation off its budget edge.
+    private string emitEmpty(ref GrammarAnalysis graph, size_t root, string rule, out string guard,
+            int outputMode, string position = "p", string complete = "return true;") nothrow {
+        guard = null;
+        auto facts = graph.facts[root];
+        if (!facts.known || facts.nullable != Nullable.yes
+                || graph.expressions[root].source.length > 16384 || !closedEmpty(graph, root))
+            return null;
+        int outside;
+        while (outside < 256 && facts.first.contains(cast(ubyte)outside))
+            ++outside;
+        const ordinary = outside < 256 && zeroMatch(graph, root, outside) == 1;
+        const atEnd = zeroMatch(graph, root, 256) == 1;
+        if (!ordinary && !atEnd)
+            return null;
+        const type = "_Empty_" ~ rule ~ "_" ~ number(outputMode);
+        string declarations = "private struct " ~ type ~ " { size_t cost; bool diagnostic, valid; }\n";
+        foreach (eof; [false, true]) {
+            const symbol = "_empty_" ~ rule ~ "_" ~ number(outputMode) ~ (eof ? "_eof" : "_byte");
+            const eligible = eof ? atEnd : ordinary;
+            declarations ~= "private enum " ~ symbol ~ " = ";
+            if (!eligible)
+                declarations ~= type ~ ".init;\n";
+            else {
+                declarations ~= "() { State!(true, " ~ number(outputMode) ~ ") state; " ~ (outputMode == 2 ? "import npegged.records : RecordBuffer; Arena owner; state.arena = &owner; RecordBuffer output; output.arena = &owner; state.attachRecords(output); " : "") ~ "state.context.stepLimit = 65536; state.input = " ~ quoted(
+                        eof ? "" : [cast(char)outside].idup) ~ "; auto matched = " ~ graph
+                    .expressions[root].source ~ "(state, 0); auto failure = state.checkpointFailure(); return " ~ type ~ "(state.steps, failure.present, state.status == Status.ok && matched.successful" ~ " && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();\n";
+            }
+            guard ~= "static if (" ~ symbol ~ ".valid && " ~ symbol
+                ~ ".cost >= 3) { if (s.status == Status.ok" ~ " && s.context.trace is null && "
+                ~ position ~ " " ~ (eof ? "==" : "<") ~ " s.input.length";
+            if (!eof)
+                guard ~= " && !CharSetMask([" ~ ulongHex(facts.first.bits[0]) ~ ", " ~ ulongHex(
+                        facts.first.bits[1]) ~ ", " ~ ulongHex(facts.first.bits[2]) ~ ", " ~ ulongHex(
+                        facts.first.bits[3]) ~ "]).contains(cast(ubyte)s.input[" ~ position ~ "])";
+            guard ~= " && s.steps < s.context.stepLimit && s.context.stepLimit - s.steps > "
+                ~ symbol ~ ".cost) { s.steps += " ~ symbol ~ ".cost; static if (" ~ symbol
+                ~ ".diagnostic) s.recordFailure(s.node("
+                ~ position ~ ", " ~ position ~ ", false)); " ~ complete ~ " } }\n";
+        }
+        return declarations;
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        GrammarAnalysis graph;
+        string guard;
+        const empty = frontend.expressionNode(graph, "and!(zeroOrMore!(literal!(\" \")), zeroOrMore!(and!(literal!(\"#\"), zeroOrMore!(any))))");
+        graph.appendFacts(empty);
+        auto source = frontend.emitEmpty(graph, empty, "Probe", guard, 2);
+        assert(startsWith(source, "private struct _Empty_Probe_2"));
+        assert(guard.length);
+        const any = frontend.expressionNode(graph, "option!(any)");
+        graph.appendFacts(any);
+        assert(frontend.emitEmpty(graph, any, "ProbeAny", guard, 1).length);
+        const predicate = frontend.expressionNode(graph, "option!(negLookahead!(literal!(\"xy\")))");
+        graph.appendFacts(predicate);
+        assert(frontend.emitEmpty(graph, predicate, "ProbeSuffix", guard, 1) is null && guard is null);
+        const required = frontend.expressionNode(graph, "literal!(\"x\")");
+        graph.appendFacts(required);
+        assert(frontend.emitEmpty(graph, required, "Required", guard, 1) is null);
+        char[16384] large;
+        large[] = 'a';
+        const oversized = frontend.expressionNode(graph, "zeroOrMore!(literal!(" ~ quoted(cast(string)large[]) ~ "))");
+        graph.appendFacts(oversized);
+        assert(frontend.emitEmpty(graph, oversized, "Large", guard, 1) is null);
+    }
+
+    /// Lower rule-local recognition control flow without intermediate aggregate results.
+    /// Terminals, scanners, predicates and unsupported operators retain their contracts.
+    private string emitDirect(ref GrammarAnalysis graph, size_t index, string start, string target,
+            ref size_t serial, size_t depth = 0, int outputMode = 1) nothrow {
+        auto expression = graph.expressions[index];
+        const position = "_p" ~ number(serial++);
+        string code = "size_t " ~ target ~ "End = " ~ start ~ ", " ~ target ~ "Fail = " ~ start
+            ~ "; bool "
+            ~ target ~ "Ok = s.status == Status.ok; { const size_t " ~ position ~ " = " ~ start ~ ";\n";
+        const op = expression.combinator;
+        const checkpoint = "_checkpoint" ~ number(serial++);
+        if (outputMode == 2 && (op == "or" || op == "predictiveChoice"))
+            code ~= "const size_t " ~ checkpoint ~ " = s.outputCheckpoint();\n";
+        code ~= "do {\n";
+        // Bound rule-local expansion, including duplicated nullable fallback arms.
+        const lower = depth < 64 && serial < 2048;
+        if (lower && index < graph.facts.length && (op == "and" || op == "or" || op == "predictiveChoice"
+                || op == "zeroOrMore" || op == "oneOrMore" || op == "option")) {
+            bool cheap;
+            if ((op == "zeroOrMore" || op == "oneOrMore" || op == "option") && expression.children
+                    .length) {
+                auto child = graph.expressions[expression.children[0]];
+                cheap = child.kind == ExpressionKind.terminal && !child.children.length
+                    && child.source != "space" && child.source != "blank";
+            }
+            if (!cheap) {
+                string guard;
+                const complete = target ~ "End = " ~ position ~ "; " ~ target ~ "Fail = " ~ position
+                    ~ "; " ~ target ~ "Ok = true; break;";
+                directDeclarations ~= emitEmpty(graph, index, directRule ~ position, guard,
+                        outputMode, position, complete);
+                code ~= guard;
+            }
+        }
+        const reference = expression.kind == ExpressionKind.reference ? graph.referenceRule(expression) : size_t
+            .max;
+        if (reference < scalarRules.length && scalarRules[reference]) {
+            string entry = "recognizeRule";
+            string tag = ", false";
+            if (outputMode == 2) {
+                entry = "recognizeRecordedRule";
+                tag = ", -1L";
+                if (recordKinds.length) {
+                    if (recordKinds[reference] != uint.max)
+                        tag = ", " ~ number(cast(ulong)recordKinds[reference] | (
+                                recordLeaves[reference] ? 1UL << 32 : 0UL)) ~ "L";
+                    else
+                        tag = recordSubtrees[reference] ? ", -2L" : ", -3L";
+                }
+            }
+            code ~= target ~ "Ok = s." ~ entry ~ "!(_cursor_" ~ expression.reference ~ ", " ~ quoted(
+                    name ~ "." ~ expression.reference) ~ tag ~ ")(" ~ target ~ "End, " ~ target ~ "Fail);\n";
+        } else if (outputMode == 2 && op == "dfaToken" && expression.arguments.length == 4) {
+            string innerRecords = expression.arguments[3];
+            while (innerRecords.length && (innerRecords[0] == ' ' || innerRecords[0] == '\t'))
+                innerRecords = innerRecords[1 .. $];
+            const next = "_d" ~ number(serial++);
+            if (innerRecords == "true")
+                code ~= emitDirect(graph, expression.children[0], position, next, serial, depth + 1, outputMode);
+            else
+                code ~= "auto " ~ next ~ " = " ~ expression.source ~ "(s, " ~ position ~ ");\n";
+            if (innerRecords == "true")
+                code ~= target ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target
+                    ~ "Ok = " ~ next ~ "Ok;\n";
+            else
+                code ~= target ~ "End = " ~ next ~ ".end; " ~ target ~ "Fail = " ~ next ~ ".failEnd; "
+                    ~ target ~ "Ok = " ~ next ~ ".successful;\n";
+        } else if (lower && (op == "discard" || op == "fuse" || op == "keep" || op == "drop"
+                || op == "propagate" || op == "named" || op == "defined")) {
+            const next = "_d" ~ number(serial++);
+            const scanner = op == "discard" || op == "fuse";
+            if (scanner)
+                code ~= "static if (!__traits(hasMember, "
+                    ~ graph.expressions[expression.children[0]].source ~ ", \"scan\")) {\n";
+            code ~= emitDirect(graph, expression.children[0], position, next, serial, depth + 1, outputMode);
+            code ~= target ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target
+                ~ "Ok = " ~ next ~ "Ok;\n";
+            if (scanner) {
+                const scanned = "_scanned" ~ number(serial++);
+                code ~= "} else { auto " ~ scanned ~ " = " ~ expression.source ~ "(s, " ~ position
+                    ~ "); " ~ target
+                    ~ "End = " ~ scanned ~ ".end; " ~ target ~ "Fail = " ~ scanned ~ ".failEnd; "
+                    ~ target ~ "Ok = " ~ scanned ~ ".successful; }\n";
+            }
+        } else if (lower && op == "and") {
+            foreach (child; expression.children) {
+                const next = "_d" ~ number(serial++);
+                code ~= "if (!s.tick()) { " ~ target ~ "End = " ~ position ~ "; " ~ target ~ "Fail = "
+                    ~ position ~ "; " ~ target ~ "Ok = false; break; }\n";
+                code ~= emitDirect(graph, child, target ~ "End", next, serial, depth + 1, outputMode);
+                code ~= "if (!" ~ next ~ "Ok) { " ~ target ~ "Ok = false; " ~ target ~ "Fail = " ~ next
+                    ~ "Fail; break; } " ~ target ~ "End = " ~ next ~ "End;\n";
+            }
+        } else if (lower && (op == "posLookahead" || op == "negLookahead" || op == "predictiveNot")) {
+            const next = "_d" ~ number(serial++);
+            const saved = "_probe" ~ number(serial++);
+            const nested = "_nested" ~ number(serial++);
+            const failure = "_failure" ~ number(serial++);
+            if (op == "predictiveNot") {
+                const probe = "_not" ~ number(serial++);
+                code ~= "alias " ~ probe ~ " = " ~ expression.source
+                    ~ "; if (s.context.trace is null && " ~ position ~ " < s.input.length && !" ~ probe
+                    ~ ".mask.contains(cast(ubyte)s.input["
+                    ~ position ~ "])) { " ~ target ~ "Ok = s.tick(); break; }\n";
+            }
+            code ~= "const " ~ saved ~ " = s.beginProbe();\n" ~ emitDirect(graph,
+                    expression.children[0],
+                    position, next, serial, depth + 1, outputMode) ~ "const " ~ nested
+                ~ " = s.finishProbe(" ~ saved ~ ");\n" ~ target ~ "Ok = (" ~ next ~ "Ok == " ~ (
+                        op == "posLookahead"
+                        ? "true" : "false") ~ ") && s.status == Status.ok; if (!" ~ target ~ "Ok) {\n";
+            if (op == "posLookahead")
+                code ~= target ~ "Fail = " ~ next ~ "Fail; auto " ~ failure ~ " = s.node(" ~ position
+                    ~ ", " ~ position ~ ", false); "
+                    ~ failure ~ ".failEnd = " ~ nested ~ ".present ? " ~ nested ~ ".failEnd : " ~ next
+                    ~ "Fail; s.recordFailure(" ~ failure ~ ");\n";
+            else
+                code ~= "s.failure(" ~ position ~ ", \"negative lookahead\");\n";
+            code ~= "}\n";
+        } else if (lower && op == "predictiveChoice") {
+            const dispatch = "_choice" ~ number(serial++);
+            code ~= "if (!s.tick()) { " ~ target ~ "Ok = false; break; }\n" ~ "alias " ~ dispatch
+                ~ " = " ~ expression.source ~ ";\n" ~ "const ubyte " ~ dispatch ~ "Selected = " ~ position
+                ~ " < s.input.length ? " ~ dispatch ~ ".branchTable[cast(ubyte)s.input[" ~ position
+                ~ "]] : cast(ubyte)" ~ dispatch ~ ".fallback; switch (" ~ dispatch ~ "Selected) {\n";
+            foreach (i, branch; expression.children) {
+                const next = "_d" ~ number(serial++);
+                code ~= "case " ~ number(i + 1) ~ ": {\n";
+                code ~= emitDirect(graph, graph.expressions[branch].children[0], position, next,
+                        serial, depth + 1, outputMode);
+                code ~= target ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target
+                    ~ "Ok = " ~ next ~ "Ok;\n";
+                const last = expression.children[$ - 1];
+                const args = graph.expressions[last].arguments;
+                string nullableArgument = args.length == 6 ? args[5] : null;
+                while (nullableArgument.length && (nullableArgument[0] == ' ' || nullableArgument[0] == '\t'))
+                    nullableArgument = nullableArgument[1 .. $];
+                if (i + 1 != expression.children.length && nullableArgument == "true") {
+                    const fallback = "_d" ~ number(serial++);
+                    code ~= "if (!" ~ next ~ "Ok && s.status == Status.ok) {\n" ~ (outputMode == 2
+                            ? "s.rollbackOutput(" ~ checkpoint ~ ");\n" : "") ~ emitDirect(graph,
+                            graph.expressions[last].children[0], position, fallback, serial, depth + 1,
+                            outputMode) ~ target ~ "End = " ~ fallback ~ "End; " ~ target ~ "Fail = "
+                        ~ fallback ~ "Fail; " ~ target ~ "Ok = " ~ fallback ~ "Ok; }\n";
+                }
+                code ~= "break; }\n";
+            }
+            code ~= "default: { auto failed = s.failure(" ~ position ~ ", \"choice\"); " ~ target
+                ~ "End = failed.end; "
+                ~ target ~ "Fail = failed.failEnd; " ~ target ~ "Ok = failed.successful; break; } }\n";
+        } else if (lower && op == "or") {
+            code ~= target ~ "Ok = false;\n";
+            foreach (child; expression.children) {
+                if (outputMode == 2)
+                    code ~= "s.rollbackOutput(" ~ checkpoint ~ ");\n";
+                const next = "_d" ~ number(serial++);
+                code ~= emitDirect(graph, child, position, next, serial, depth + 1, outputMode);
+                code ~= "if (" ~ next ~ "Ok || " ~ next ~ "Fail >= " ~ target ~ "Fail) { " ~ target
+                    ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target ~ "Ok = "
+                    ~ next ~ "Ok; } if (" ~ next ~ "Ok) break;\n";
+            }
+        } else if (lower && (op == "zeroOrMore" || op == "oneOrMore" || op == "option")) {
+            const next = "_d" ~ number(serial++);
+            const count = "_count" ~ number(serial++);
+            code ~= "size_t " ~ count ~ " = 0; while (" ~ (op == "option" ? count ~ " < 1 && " : "") ~ "s.tick()) {\n";
+            if (outputMode == 2)
+                code ~= "const size_t " ~ checkpoint ~ " = s.outputCheckpoint();\n";
+            code ~= emitDirect(graph, expression.children[0], target ~ "End", next, serial, depth + 1,
+                    outputMode);
+            code ~= "if (!" ~ next ~ "Ok) {\n";
+            if (outputMode == 2)
+                code ~= "s.rollbackOutput(" ~ checkpoint ~ ");\n";
+            if (op == "oneOrMore")
+                code ~= "if (!" ~ count ~ ") { " ~ target ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = "
+                    ~ next ~ "Fail; " ~ target ~ "Ok = false; }\n";
+            code ~= "break; } ++" ~ count ~ "; if (" ~ next ~ "End == " ~ target ~ "End) break; "
+                ~ target ~ "End = " ~ next ~ "End; }\n";
+            code ~= "if (s.status != Status.ok" ~ (op == "oneOrMore" ? " || !" ~ count : "") ~ ") "
+                ~ target ~ "Ok = false;\n";
+        } else if (startsWith(expression.source, "literal!(")) {
+            const text = decodedLiteral(expression.source);
+            code ~= "if (!s.tick()) { " ~ target ~ "Ok = false; break; }\n";
+            if (text.length) {
+                const bytes = "_literal" ~ number(serial++);
+                const matched = "_matched" ~ number(serial++);
+                code ~= "enum " ~ bytes ~ " = " ~ quoted(text) ~ ";\n" ~ "if (" ~ position
+                    ~ " <= s.input.length && " ~ bytes ~ ".length <= s.input.length - "
+                    ~ position ~ " && s.input[" ~ position ~ " .. " ~ position ~ " + " ~ bytes
+                    ~ ".length] == " ~ bytes
+                    ~ ") { " ~ target ~ "End += " ~ bytes ~ ".length; " ~ target ~ "Fail = " ~ target
+                    ~ "End; } else { size_t "
+                    ~ matched ~ "; while (" ~ matched ~ " < " ~ bytes ~ ".length && " ~ position ~ " + "
+                    ~ matched ~ " < s.input.length && s.input["
+                    ~ position ~ " + " ~ matched ~ "] == " ~ bytes ~ "[" ~ matched ~ "]) ++" ~ matched
+                    ~ "; " ~ target ~ "Ok = false; "
+                    ~ target ~ "Fail += " ~ matched ~ "; s.recordFailure(s.node(" ~ position ~ ", "
+                    ~ target ~ "Fail, false)); }\n";
+            }
+        } else if (expression.byteTerminal && expression.byteWidth == 1
+                && (expression.source == "any"
+                    || expression.source == "digit" || expression.source == "alpha"
+                    || expression.source == "Alpha" || expression.source == "hexDigit"
+                    || startsWith(expression.source, "charClass!(") || startsWith(expression.source, "charRange!("))) {
+            const mask = "_mask" ~ number(serial++);
+            code ~= "enum ulong[4] " ~ mask ~ " = [" ~ ulongHex(
+                    expression.alphabet.bits[0]) ~ ", " ~ ulongHex(expression.alphabet.bits[1])
+                ~ ", " ~ ulongHex(expression.alphabet.bits[2]) ~ ", " ~ ulongHex(
+                        expression.alphabet.bits[3])
+                ~ "]; if (!s.tick() || " ~ position ~ " >= s.input.length || (" ~ mask
+                ~ "[cast(ubyte)s.input[" ~ position ~ "] >> 6] & (1UL << (cast(ubyte)s.input["
+                ~ position ~ "] & 63))) == 0) { " ~ target ~ "Ok = false; s.recordFailure(s.node("
+                ~ position ~ ", " ~ position ~ ", false)); } else { ++" ~ target ~ "End; " ~ target
+                ~ "Fail = " ~ target ~ "End; }\n";
+        } else if (expression.source == "eps") {
+            // Empty success neither consumes input nor charges a work unit.
+        } else if (expression.source == "eoi" || expression.source == "endOfInput" || expression
+                .source == "fail") {
+            code ~= "if (" ~ (expression.source == "fail"
+                    ? "true" : position ~ " != s.input.length") ~ ") { " ~ target
+                ~ "Ok = false; s.recordFailure(s.node(" ~ position ~ ", " ~ position ~ ", false)); }\n";
+        } else {
+            const next = "_node" ~ number(serial++);
+            code ~= "auto " ~ next ~ " = " ~ expression.source ~ "(s, " ~ position ~ "); " ~ target
+                ~ "End = " ~ next ~ ".end; " ~ target ~ "Fail = " ~ next ~ ".failEnd; " ~ target ~ "Ok = "
+                ~ next ~ ".successful;\n";
+        }
+        code ~= "} while (false);\n";
+        if (outputMode == 2 && op == "or" && lower)
+            code ~= "if (!" ~ target ~ "Ok) s.rollbackOutput(" ~ checkpoint ~ ");\n";
+        return code ~ "}\n";
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        GrammarAnalysis graph;
+        const root = frontend.expressionNode(graph, "and!(or!(literal!(\"a\"), literal!(\"b\")), oneOrMore!(option!(literal!(\"x\"))), zeroOrMore!(eps))");
+        size_t serial;
+        auto code = frontend.emitDirect(graph, root, "p", "result", serial);
+        assert(code.length && serial > 10);
+        assert(startsWith(code, "size_t resultEnd"));
+        serial = 0;
+        assert(frontend.emitDirect(graph, root, "p", "result", serial, 64).length);
+        foreach (expr; [
+            "named!(literal!(\"a\"), \"x\")", "defined!(literal!(\"a\"), \"x\")",
+            "keep!(literal!(\"a\"))", "drop!(literal!(\"a\"))", "propagate!(literal!(\"a\"))",
+            "discard!(literal!(\"a\"))", "fuse!(literal!(\"a\"))",
+            "posLookahead!(literal!(\"a\"))", "negLookahead!(literal!(\"a\"))",
+            "predictiveNot!(literal!(\"a\"), 0UL, 0UL, 0UL, 0UL)",
+            "dfaToken!(literal!(\"a\"), _dfa, 0, true)",
+            "dfaToken!(literal!(\"a\"), _dfa, 0, false)",
+            "endOfInput", "space", "blank", "charRange!(97, 122)",
+        ]) {
+            serial = 0;
+            const node = frontend.expressionNode(graph, expr);
+            assert(frontend.emitDirect(graph, node, "p", "result", serial, 0, 2).length);
         }
     }
 
@@ -1065,6 +1964,11 @@ private struct Frontend {
             foreach (i; 0 .. rule.body.length)
                 if (startsWith(rule.body[i .. $], "action!("))
                     actionGrammar = true;
+        scalarRules = new bool[rules.length];
+        foreach (i, rule; rules)
+            scalarRules[i] = backend == ParserBackend.direct && !actionGrammar && !params.length
+                && !rule.params.length && !analyzed.leftRecursive[i] && !analyzed.conservative
+                && (!memoize || selective);
         string result = "struct " ~ name ~ params ~ " {\n";
         if (recordKinds.length) {
             result ~= "enum string[] compactRuleNames = [";
@@ -1075,50 +1979,133 @@ private struct Frontend {
                 result ~= (i ? ", " : "") ~ number(kind);
             result ~= "];\n";
         }
-        bool[] recordLeaves;
-        if (recordKinds.length)
+        if (recordKinds.length) {
             recordLeaves = analyzed.selectedLeaves(recordKinds);
+            recordSubtrees = analyzed.selectedSubtrees(recordKinds);
+        }
         bool spacingDefined;
         foreach (rule; rules)
             if (rule.name == "Spacing")
                 spacingDefined = true;
         if (!spacingDefined)
             result ~= "alias Spacing = npegged.peg.spacing;\n";
+        auto ruleChunks = new string[rules.length];
         foreach (ruleIndex, rule; rules) {
+            string ruleOut;
             bool cache = memoize && (!selective || analyzed.conservative || analyzed.leftRecursive[ruleIndex]);
             if (params.length || rule.params.length)
                 cache = memoize;
             string recordTag;
-            if (recordKinds.length)
-                recordTag = ", " ~ (recordKinds[ruleIndex] == uint.max
-                        ? "-2" : number(cast(ulong)recordKinds[ruleIndex] | (recordLeaves[ruleIndex]
-                            ? 1UL << 32 : 0UL)) ~ "L");
+            if (recordKinds.length) {
+                if (recordKinds[ruleIndex] != uint.max)
+                    recordTag = ", " ~ number(cast(ulong)recordKinds[ruleIndex] | (
+                            recordLeaves[ruleIndex] ? 1UL << 32 : 0UL)) ~ "L";
+                else if (recordSubtrees[ruleIndex])
+                    recordTag = ", -2L";
+                else
+                    recordTag = ", -3L";
+            }
             if (rule.params.length)
-                result ~= "template " ~ rule.name ~ rule.params ~ " {\n";
+                ruleOut ~= "template " ~ rule.name ~ rule.params ~ " {\n";
             string r = rule.name;
             string entryName = rule.params.length ? "_entry" : r;
-            result ~= "private static State!(CT, Check).Node _" ~ r ~ "(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow { return defined!(" ~ rule
-                .body ~ ", " ~ quoted(name ~ "." ~ r) ~ ")(s,p); }\n";
+            const savedRuleExprs = analyzed.expressions.length;
+            scope (exit)
+                analyzed.truncate(savedRuleExprs);
+            size_t tokenRoot = analyzed.roots[ruleIndex];
+            if (rule.body != analyzed.expressions[tokenRoot].source) {
+                tokenRoot = expressionNode(analyzed, rule.body);
+                analyzed.appendFacts(tokenRoot);
+            }
+            size_t count;
+            string declarations;
+            const string body = emitTokens(analyzed, tokenRoot, r, count, declarations);
+            ruleOut ~= declarations;
+            const directRule = backend == ParserBackend.direct && !actionGrammar
+                && !analyzed.leftRecursive[ruleIndex] && !params.length && !rule.params.length;
+            bool useDirect, directRecords;
+            if (directRule) {
+                alias directGraph = analyzed;
+                size_t directRoot = tokenRoot;
+                if (body != analyzed.expressions[tokenRoot].source) {
+                    directRoot = expressionNode(directGraph, body);
+                    directGraph.appendFacts(directRoot);
+                }
+                const op = directGraph.expressions[directRoot].combinator;
+                useDirect = op == "and" || op == "or" || op == "predictiveChoice" || op == "zeroOrMore"
+                    || op == "oneOrMore"
+                    || op == "option" || op == "posLookahead" || op == "negLookahead" || op == "predictiveNot";
+                if ((op == "discard" || op == "fuse" || op == "keep" || op == "drop" || op == "propagate"
+                        || op == "named" || op == "defined") && directGraph.expressions[directRoot]
+                        .children.length) {
+                    const child = directGraph.expressions[directRoot].children[0];
+                    const childOp = directGraph.expressions[child].combinator;
+                    // Sequences/choices and generated rule functions have no scan member.
+                    useDirect = childOp == "and" || childOp == "or" || childOp == "predictiveChoice"
+                        || directGraph.expressions[child].kind == ExpressionKind.reference;
+                }
+                if (op == "dfaToken" && directGraph.expressions[directRoot].arguments.length == 4) {
+                    string inner = directGraph.expressions[directRoot].arguments[3];
+                    while (inner.length && (inner[0] == ' ' || inner[0] == '\t'))
+                        inner = inner[1 .. $];
+                    directRecords = inner == "true";
+                }
+                foreach (check; [1, 2]) {
+                    directDeclarations = null;
+                    this.directRule = r;
+                    size_t serial;
+                    const cursorBody = emitDirect(directGraph, directRoot, "p", "_result", serial, 0, check);
+                    ruleOut ~= directDeclarations;
+                    ruleOut ~= (useDirect || check == 2 && directRecords ? "" : "pragma(inline, true) ") ~ "private static bool _cursor_" ~ r ~ "(ref State!(false, " ~ number(
+                            check) ~ ") s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ cursorBody ~ "cursor = _resultEnd; failure = _resultFail; return _resultOk; }\n";
+                }
+                ruleOut ~= "pragma(inline, true) private static State!(CT, Check).Node _direct_" ~ r ~ "(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; " ~ "const successful = _cursor_" ~ r ~ "(s, end, failure); " ~ "auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }\n";
+            }
+            ruleOut ~= "private static State!(CT, Check).Node _" ~ r
+                ~ "(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow { ";
+            const original = analyzed.expressions[analyzed.roots[ruleIndex]].source;
+            if (original != rule.body)
+                ruleOut ~= "if (s.context.trace !is null) return defined!(" ~ original ~ ", " ~ quoted(
+                        name ~ "." ~ r) ~ ")(s,p); ";
+            if (useDirect || directRecords)
+                ruleOut ~= "static if (!CT && ((Check == 1 && " ~ (useDirect
+                        ? "true" : "false") ~ ") || (Check == 2 && " ~ (useDirect || directRecords
+                        ? "true" : "false")
+                    ~ "))) { if (s.context.trace is null) return defined!(_direct_"
+                    ~ r ~ "!(CT, Check), " ~ quoted(name ~ "." ~ r) ~ ")(s,p); } ";
+            ruleOut ~= "return defined!(" ~ body ~ ", " ~ quoted(name ~ "." ~ r) ~ ")(s,p); }\n";
             // Concrete overloads break recursive attribute-inference cycles.
             foreach (mode; [
                 "false, false", "true, false", "false, true", "true, true", "false, 2", "true, 2"
             ]) {
                 auto attributes = !startsWith(mode, "true") ? " @nogc nothrow" : " nothrow";
-                result ~= "static State!(" ~ mode ~ ").Node " ~ entryName ~ (startsWith(mode, "true")
+                ruleOut ~= "static State!(" ~ mode ~ ").Node " ~ entryName ~ (startsWith(mode, "true")
                         ? "(CompileTime = void)" : "") ~ "(ref State!(" ~ mode ~ ") s, size_t p)" ~ attributes;
                 if (actionGrammar && (mode != "false, false" && mode != "true, false"))
-                    result ~= " { return s.treeFallback!(" ~ entryName ~ ")(p); }\n";
+                    ruleOut ~= " { return s.treeFallback!(" ~ entryName ~ ")(p); }\n";
                 else
-                    result ~= " { return s.rule!(_" ~ r ~ "!(" ~ mode ~ "), " ~ quoted(
+                    ruleOut ~= " { return s.rule!(_" ~ r ~ "!(" ~ mode ~ "), " ~ quoted(
                             name ~ "." ~ r) ~ ", " ~ (cache ? "true" : "false") ~ recordTag ~ ")(p); }\n";
             }
-            result ~= "static ParseResult " ~ entryName ~ "(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(" ~ entryName ~ ")(ctx,input); }\n";
-            result ~= "static ParseTree " ~ entryName
+            ruleOut ~= "static ParseResult " ~ entryName ~ "(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(" ~ entryName ~ ")(ctx,input); }\n";
+            ruleOut ~= "static ParseTree " ~ entryName
                 ~ "(Input)(Input input) nothrow if (is(Input == string)) { return parseCT!("
                 ~ entryName ~ ")(input); }\n";
             if (rule.params.length)
-                result ~= "alias " ~ r ~ " = _entry;\n}\n";
+                ruleOut ~= "alias " ~ r ~ " = _entry;\n}\n";
+            ruleChunks[ruleIndex] = ruleOut;
         }
+        size_t totalLen = result.length;
+        foreach (chunk; ruleChunks)
+            totalLen += chunk.length;
+        auto outBuf = new char[totalLen + 1024];
+        outBuf[0 .. result.length] = result[];
+        size_t outPos = result.length;
+        foreach (chunk; ruleChunks) {
+            outBuf[outPos .. outPos + chunk.length] = chunk[];
+            outPos += chunk.length;
+        }
+        result = cast(string)outBuf[0 .. outPos];
         if (!rules[0].params.length) {
             auto first = rules[0].name;
             foreach (mode; [
@@ -1203,13 +2190,13 @@ nothrow unittest {
     assert(parser.optimizeChoice(["A"]) is null); // less than 2
     assert(parser.optimizeChoice(["unknown1", "unknown2"]) is null);
 
-    // Test overlapping choice falls back to or
+    // Shared prefixes are extracted before suffix dispatch.
     Frontend overlap;
     overlap.input = "OverlapTest: Term <- 'a' 'b' / 'a' 'c'";
     overlap.read();
     assert(!overlap.error.message.length);
     auto emittedOverlap = overlap.emit();
-    assert(startsWith(overlap.rules[0].body, "or!("));
+    assert(startsWith(overlap.rules[0].body, "and!(literal!(\"a\"), predictiveChoice!("));
 
     // Test character classes in primary
     Frontend charClasses;
@@ -1343,11 +2330,13 @@ unittest {
 }
 
 /// Returns D source for mixin() or cold runtime generation. Grammar errors become static diagnostics.
-string grammar(Memoization memo = Memoization.yes, alias Selector = void)(string definition) nothrow {
+string grammar(Memoization memo = Memoization.yes, alias Selector = void,
+        ParserBackend backend = ParserBackend.combinators)(string definition) nothrow {
     Frontend frontend;
     frontend.input = definition;
     frontend.memoize = memo != Memoization.no;
     frontend.selective = memo == Memoization.selective;
+    frontend.backend = backend;
     frontend.read();
     if (frontend.error.message.length)
         return "static assert(false, " ~ quoted(
@@ -1364,6 +2353,32 @@ unittest {
     static assert(result.successful && result.matches == ["x", "x", "x"]);
     enum invalid = grammar("Broken: A <- (");
     static assert(invalid.length > 0);
+}
+
+nothrow unittest {
+    foreach (definition; [
+        "DirectCold: Root <- Item+ eoi Item <- '(' Root ')' / 'a' 'x'? / 'b' / eps 'x'",
+        "DirectCold: Root <- (!')' Item)* &')' Item <- '(' Root ')' / 'a'",
+        "DirectCold: Root <- Item eoi Item <- 'a' Item 'x' / 'b'?", "DirectCold: Root <- [0-9]+ eoi",
+        "DirectCold: Root <- Item* eoi Item <- '(' Root ')' / 'abé' / [a-z] '.' / ![()z] .",
+        "DirectCold: Root <- '' fail", "DirectCold: Root <- Root '+' [0-9]+ / [0-9]+",
+        "DirectCold(T=identifier): Root <- T", "DirectCold: Root <- 'a'{p => p}",
+        "DirectCold: Rec <- '(' Rec ')' / 'a' ZStar <- Rec* ZPlus <- Rec+ ZOpt <- Rec? ZPos <- &Rec ZNeg <- !Rec ZPredNot <- !'a' . ZOr <- Rec 'a' / Rec 'b' ZDisc <- :(Rec 'a') ZFuse <- ~(Rec 'a') ZKeep <- ^(Rec 'a' / Rec 'b') ZDrop <- ;('a' / 'b') ZProp <- %Rec",
+    ]) {
+        auto direct = generate!(Memoization.selective, void, ParserBackend.direct)(definition);
+        assert(direct.status == Status.ok && direct.source.length);
+    }
+    foreach (definition; [
+        "DirectCold: Root <- Leaf+ Ignored eoi Leaf <- [a-z] Ignored <: ' '?",
+        "DirectCold: Root <- Ignored eoi Ignored <- Leaf Leaf <- [a-z]",
+        "DirectCold: Root <- alpha Alpha digit hexDigit . eoi",
+        "DirectCold: Root <~ [a-z]+ ':' Leaf Leaf <- [a-z]",
+    ]) {
+        auto selected = generate!(Memoization.selective, compactTag, ParserBackend.direct)(definition);
+        assert(selected.status == Status.ok && selected.source.length);
+    }
+    auto invalid = generate!(Memoization.selective, void, ParserBackend.direct)("Broken:");
+    assert(invalid.status == Status.invalidInput);
 }
 
 version (unittest) mixin(grammar(`
@@ -1421,6 +2436,8 @@ version (unittest) private ParseTree countAction(bool CT)(ref State!CT state, Pa
 
 version (unittest) mixin(grammar(`ActionRecognition: Root <- (Root 'a' / 'a'){countAction}`));
 version (unittest) mixin(grammar(`PredicateAction: Root <- (&('a'{countAction}) 'a' / 'b') eoi`));
+version (unittest) mixin(grammar(`NegativeAction: Root <- !(&('a'{countAction}) 'z') . eoi`));
+version (unittest) mixin(grammar(`NegativeBoundary: Root <- !Boundary . eoi Boundary <- eoi / 'a' 'b'`));
 version (unittest) mixin(grammar!(Memoization.selective)(`SelectiveAction: Root <- (Root 'a' / 'a'){countAction}`));
 
 @nogc nothrow unittest {
@@ -1448,6 +2465,22 @@ version (unittest) mixin(grammar!(Memoization.selective)(`SelectiveAction: Root 
     calls = 0;
     auto recognized = check!(PredicateAction.opCall)(context, "b");
     assert(recognized.successful && calls == 1);
+}
+
+@nogc nothrow unittest {
+    ParseContext context;
+    size_t calls;
+    context.userData = &calls;
+    assert(check!(NegativeAction.opCall)(context, "a").successful && calls == 1);
+    foreach (input; ["", "a", "b", "x", "ab", "ax"]) {
+        auto tree = NegativeBoundary(context, input);
+        auto result = check!(NegativeBoundary.opCall)(context, input);
+        assert(tree.successful == result.successful && tree.end == result.end);
+        assert(tree.failEnd == result.failEnd);
+    }
+    calls = 0;
+    context.trace = &countRecordTrace;
+    assert(check!(NegativeBoundary.opCall)(context, "x").successful && calls == 2);
 }
 
 version (unittest) mixin(grammar!(Memoization.selective)(`
@@ -1693,19 +2726,20 @@ struct GenerationResult {
     Diagnostic diagnostic;
 }
 
-GenerationResult generate(Memoization memo = Memoization.yes, alias Selector = void)(
-        string definition, string moduleName = "") nothrow {
+GenerationResult generate(Memoization memo = Memoization.yes, alias Selector = void,
+        ParserBackend backend = ParserBackend.combinators)(string definition, string moduleName = "") nothrow {
     Frontend frontend;
     frontend.input = definition;
     frontend.memoize = memo != Memoization.no;
     frontend.selective = memo == Memoization.selective;
+    frontend.backend = backend;
     frontend.read();
     if (frontend.error.message.length)
         return GenerationResult(Status.invalidInput, null, frontend.error);
     frontend.configureRecords!Selector();
     auto source = frontend.emit();
     if (moduleName.length)
-        source = "module " ~ moduleName ~ ";\npublic import npegged.peg;\n" ~ source;
+        source = "module " ~ moduleName ~ ";\npublic import npegged.peg;\npublic import npegged.dfa;\n" ~ source;
     return GenerationResult(Status.ok, source);
 }
 
@@ -1716,17 +2750,19 @@ unittest {
     assert(invalid.status == Status.invalidInput);
 }
 
-Status asModule(Memoization memo = Memoization.yes, alias Selector = void)(string moduleName,
-        string fileName, string definition, string header = "") nothrow {
+Status asModule(Memoization memo = Memoization.yes, alias Selector = void,
+        ParserBackend backend = ParserBackend.combinators)(string moduleName, string fileName,
+        string definition, string header = "") nothrow {
     import npegged.io : File;
 
-    auto result = generate!(memo, Selector)(definition);
+    auto result = generate!(memo, Selector, backend)(definition);
     if (result.status != Status.ok)
         return result.status;
     auto file = File.open(fileName ~ ".d", true);
     if (file.write("// Generated from Pegged-derived npegged grammar. Boost 1.0.\n") != Status.ok)
         return Status.ioError;
-    if (file.write("module " ~ moduleName ~ ";\npublic import npegged.peg;\n") != Status.ok)
+    if (file.write("module " ~ moduleName ~ ";\npublic import npegged.peg;\npublic import npegged.dfa;\n") != Status
+            .ok)
         return Status.ioError;
     if (header.length && file.write(header ~ "\n") != Status.ok)
         return Status.ioError;
@@ -1740,10 +2776,11 @@ unittest {
 }
 
 /// Generate from a successful grammar parse while its owning result remains alive.
-string grammar(Memoization memo = Memoization.yes, alias Selector = void)(scope const ref ParseTree definition) nothrow {
+string grammar(Memoization memo = Memoization.yes, alias Selector = void,
+        ParserBackend backend = ParserBackend.combinators)(scope const ref ParseTree definition) nothrow {
     if (!definition.successful)
         return "static assert(false, `Cannot generate from a failed grammar parse`);";
-    return grammar!(memo, Selector)(definition.input);
+    return grammar!(memo, Selector, backend)(definition.input);
 }
 
 nothrow unittest {
@@ -1759,15 +2796,16 @@ nothrow unittest {
 }
 
 /// Borrow a scoped file and generate a parser module, preserving I/O error status.
-Status asModule(Memoization memo = Memoization.yes, alias Selector = void)(string moduleName,
-        string destination, ref npegged.io.File input, string header = "") nothrow {
+Status asModule(Memoization memo = Memoization.yes, alias Selector = void,
+        ParserBackend backend = ParserBackend.combinators)(string moduleName, string destination,
+        ref npegged.io.File input, string header = "") nothrow {
     import npegged.storage : Buffer;
 
     Buffer!char text;
     auto status = input.read(text);
     if (status != Status.ok)
         return status;
-    return asModule!(memo, Selector)(moduleName, destination, cast(string)text.data, header);
+    return asModule!(memo, Selector, backend)(moduleName, destination, cast(string)text.data, header);
 }
 
 nothrow unittest {

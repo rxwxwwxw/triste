@@ -49,4 +49,14 @@ mixin(grammar(testerGrammar));
     assert(unordered.successful);
     auto invalid = TesterGrammar(context, "Root->{");
     assert(!invalid.successful);
+
+    size_t traceCalls;
+    static void traceHook(string rule, size_t pos, bool success, void* user) @nogc nothrow {
+        *(cast(size_t*)user) += 1;
+    }
+
+    context.trace = &traceHook;
+    context.userData = &traceCalls;
+    auto traced = TesterGrammar(context, "Root->{A B}");
+    assert(traced.successful && traceCalls > 0);
 }

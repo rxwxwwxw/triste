@@ -7,8 +7,10 @@ import math
 import os
 from pathlib import Path
 import platform
+import shutil
 import subprocess
 import sys
+import time
 
 from compare_benchmarks import ROOT, positive, run
 
@@ -69,18 +71,28 @@ def main():
     before = source_hashes()
     environment = os.environ.copy()
     compiler = Path(environment.get('DC', 'ldc2')).name
+    build_started = time.monotonic()
     build = run(['bash', 'scripts/benchmark.sh', '--export-corpus'], env=environment)
+    build_seconds = time.monotonic() - build_started
     corpus = json.loads(build.stdout)
     names = [case['name'] for case in corpus if case['timed']]
     reports, ratios = [], []
     binary = str(ROOT / 'build' / compiler / 'benchmark_runner')
-    workload_corpus = json.loads(run([binary, '--workloads', '--export-corpus'],
-                                     env=environment, timeout=120).stdout)
-    workload_names = [case['name'] for case in workload_corpus if case['timed']]
-    if not workload_names:
-        raise ValueError('Missing handwritten workload corpus')
+    text_bytes = None
+    if shutil.which('size'):
+        sections = run(['size', '-A', binary], timeout=10).stdout.splitlines()
+        text_bytes = sum(int(fields[1]) for line in sections
+                         if (fields := line.split()) and fields[0].startswith('.text'))
+    workload_corpora = {}
     jobs = [('json-ambiguity', mode, names, []) for mode in args.modes]
-    jobs.append(('handwritten-workloads', 'validation', workload_names, ['--workloads']))
+    for mode in dict.fromkeys(['validation', *args.modes]):
+        workload_corpus = json.loads(run([binary, '--workloads', '--export-corpus',
+                                         f'--mode={mode}'], env=environment, timeout=120).stdout)
+        workload_names = [case['name'] for case in workload_corpus if case['timed']]
+        if not workload_names:
+            raise ValueError(f'Missing handwritten workload corpus: {mode}')
+        workload_corpora[mode] = workload_corpus
+        jobs.append(('handwritten-workloads', mode, workload_names, ['--workloads']))
     for repeat in range(args.runs):
         for suite, mode, case_names, extra in jobs:
             measured = json.loads(run([binary, '--target-engines', '--json', '--memory',
@@ -103,11 +115,16 @@ def main():
                     if line.startswith('model name')), cpu)
     failed = [row for row in ratios if row['ratio'] > 5]
     result = {'schemaVersion': 1, 'passed': not failed, 'targetRatio': 5,
-              'coverage': 'JSON/ambiguity selected output modes; arithmetic, CSV, numbers, and handwritten PEG syntax validation',
-              'corpora': {'json-ambiguity': corpus, 'handwritten-workloads': workload_corpus},
+              'coverage': 'JSON/ambiguity selected output modes; arithmetic/CSV selected output modes; numbers and handwritten PEG syntax validation',
+              'corpora': {'json-ambiguity': corpus, 'handwritten-workloads': workload_corpora['validation'],
+                          'handwritten-workload-outputs': workload_corpora},
               'allOutputModes': set(args.modes) == {'validation', 'spans', 'tree'},
               'metadata': {'cpu': cpu, 'platform': platform.platform(),
                            'compiler': compiler, 'buildLog': build.stderr,
+                           'backend': environment.get('PARSER_BACKEND', 'combinators'),
+                           'buildAndExportSeconds': build_seconds,
+                           'binaryBytes': Path(binary).stat().st_size,
+                           'textBytes': text_bytes,
                            'revision': run(['git', 'rev-parse', 'HEAD']).stdout.strip(),
                            'worktreeDirty': bool(run(['git', 'status', '--porcelain']).stdout),
                            'sourceHashes': before, 'iterations': args.iterations,

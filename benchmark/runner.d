@@ -5,6 +5,8 @@ import core.stdc.stdio : printf, fprintf, stderr, putchar;
 import core.time : MonoTime;
 import benchmark.measurement : consume, currentChecksum, expectedChecksum, opaqueInput;
 import benchmark.workload_grammars : observeWorkload;
+import benchmark.workload_output : observeWorkloadOutput, verifyWorkloadOutput,
+    supportsWorkloadOutput, arithmeticOutput, csvOutput;
 import benchmark.options : Options, OptionStatus, parseOptions;
 import npegged.peg : ParseContext, ParseResult;
 import npegged.storage : Buffer, Status;
@@ -56,13 +58,14 @@ struct BenchmarkCase {
     HandwrittenFn runHandwritten;
     ArenaPeakFn getNPeggedArenaPeak;
     bool expectedAccepted = true;
-    bool validationPair;
+    bool workloadPair;
 }
 
 Observation observeCase(ref BenchmarkCase bc, size_t engine, bool comparison, OutputMode mode) {
     const input = opaqueInput(bc.input);
-    if (bc.validationPair)
-        return observeWorkload(bc.name, input, engine == 2);
+    if (bc.workloadPair)
+        return mode == OutputMode.validation ? observeWorkload(bc.name, input,
+                engine == 2) : observeWorkloadOutput(bc.name, input, mode, engine == 2);
     if (comparison) {
         if (engine == 0)
             return observePegged(input, mode, contains(bc.name, "Ambiguous."));
@@ -539,24 +542,41 @@ int main(string[] args) {
     }
 
     foreach (ref bc; benchmarks)
-        bc.validationPair = options.workloads && !contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous.");
+        bc.workloadPair = options.workloads && !contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous.");
 
     if (exportCorpus) {
         putchar('[');
         size_t count;
         foreach (ref bc; benchmarks) {
-            if (options.workloads ? !bc.validationPair : !contains(bc.name, "JSON.")
-                    && !contains(bc.name, "Ambiguous."))
+            if (options.workloads ? !bc.workloadPair : !contains(bc.name, "JSON.") && !contains(bc
+                    .name, "Ambiguous."))
+                continue;
+            if (bc.workloadPair && mode != OutputMode.validation && !supportsWorkloadOutput(bc.name))
                 continue;
             if (count++)
                 putchar(',');
-            if (bc.validationPair) {
+            if (bc.workloadPair) {
                 printf("{\"name\":");
                 writeJsonString(bc.name);
                 printf(",\"input\":");
                 writeJsonString(bc.input);
-                printf(",\"grammar\":\"workload\",\"output\":\"validation\",\"expectedAccepted\":%s,\"iterations\":%zu,\"timed\":true}",
-                        (bc.expectedAccepted ? "true" : "false").ptr, bc.defaultIterations);
+                const obligation = mode == OutputMode.validation
+                    ? "validation" : mode == OutputMode.spans ? "spans" : "tree";
+                printf(",\"grammar\":\"workload\",\"output\":\"%s\",\"expectedAccepted\":%s,\"iterations\":%zu,\"timed\":true",
+                        obligation.ptr, (bc.expectedAccepted ? "true" : "false").ptr, bc
+                            .defaultIterations);
+                if (mode != OutputMode.validation) {
+                    auto output = contains(bc.name, "Arithmetic.") ? arithmeticOutput(bc.input, mode) : csvOutput(
+                            bc.input, mode);
+                    printf(",\"expectedRecords\":[");
+                    foreach (i, node; output.nodes) {
+                        if (i)
+                            putchar(',');
+                        printf("[%u,%zu,%zu,%zu]", node.kind, node.begin, node.end, node.parent);
+                    }
+                    putchar(']');
+                }
+                putchar('}');
             } else
                 exportJsonCase(bc.name, bc.input, bc.expectedAccepted, bc.defaultIterations, true,
                         contains(bc.name, "Ambiguous."));
@@ -579,22 +599,29 @@ int main(string[] args) {
     else
         printf("Times include output construction, consumption, and disposal. Execution modes identify internal tree projection.\n");
     foreach (ref bc; benchmarks) {
-        if (options.workloads && !bc.validationPair)
+        if (options.workloads && (!bc.workloadPair || mode != OutputMode.validation && !supportsWorkloadOutput(
+                bc.name)))
             continue;
-        if (!contains(bc.name, filterPattern) || (comparison && !bc.validationPair
+        if (!contains(bc.name, filterPattern) || (comparison && !bc.workloadPair
                 && !contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous.")))
             continue;
         size_t iterations = customIterations ? customIterations : bc.defaultIterations;
         // Checks deliberately remain outside timing and do not depend on assert.
-        if (comparison && !bc.validationPair && !verifyOutputs(bc.input, mode, bc.expectedAccepted,
+        if (comparison && !bc.workloadPair && !verifyOutputs(bc.input, mode, bc.expectedAccepted,
                 contains(bc.name, "Ambiguous."))) {
             fprintf(stderr, "JSON output records differ: %.*s\n", cast(int)bc.name.length, bc.name
                     .ptr);
             return 1;
         }
+        if (bc.workloadPair && mode != OutputMode.validation && !verifyWorkloadOutput(bc.name,
+                bc.input, mode, bc.expectedAccepted)) {
+            fprintf(stderr, "Workload output records differ: %.*s\n", cast(int)bc.name.length, bc
+                    .name.ptr);
+            return 1;
+        }
         const reference = observeCase(bc, 2, comparison, mode);
         foreach (engine; 0 .. 3) {
-            if (bc.validationPair && engine == 0)
+            if (bc.workloadPair && engine == 0)
                 continue;
             const actual = observeCase(bc, engine, comparison, mode);
             if (actual.status != Status.ok || actual.accepted != bc.expectedAccepted || (comparison
@@ -606,7 +633,7 @@ int main(string[] args) {
             }
         }
         foreach (engine; 0 .. 3) {
-            if ((options.targetEngines || bc.validationPair) && engine == 0)
+            if ((options.targetEngines || bc.workloadPair) && engine == 0)
                 continue;
             // Identical iteration counts for timing and allocation normalization.
             double minimum = double.max, maximum = 0, sum = 0;

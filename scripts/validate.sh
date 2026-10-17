@@ -13,6 +13,7 @@ if [[ "${FULL:-0}" == "1" ]] || [[ -n "${CI:-}" && "${1:-}" != "--fast" ]]; then
 fi
 
 if [[ "$MODE" == "full" ]]; then
+  # GDC/gcov are coverage-collector dependencies, not compiler compliance targets.
   required_tools=(dmd ldc2 gdc dfmt valgrind timeout python3 gcov rg)
 else
   required_tools=(ldc2 dfmt timeout python3 rg)
@@ -31,7 +32,7 @@ while IFS= read -r -d '' file; do
 done < <(find src tests examples scripts benchmark -name '*.d' -print0)
 
 if [[ "$MODE" == "full" ]]; then
-  for compiler in dmd ldc2 gdc; do
+  for compiler in dmd ldc2; do
     DC=$compiler scripts/build.sh
     DC=$compiler scripts/examples.sh
   done
@@ -39,7 +40,6 @@ if [[ "$MODE" == "full" ]]; then
   scripts/hotpaths.sh
   scripts/coverage.sh
   DC=ldc2 ASAN_OPTIONS=detect_leaks=1 scripts/build.sh -fsanitize=address -g
-  DC=gdc ASAN_OPTIONS=detect_leaks=1 scripts/build.sh -fsanitize=address,leak -g
   DC=ldc2 scripts/build.sh -g -O0
   timeout --preserve-status --kill-after=2s 120s valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=definite,indirect --error-exitcode=1 build/ldc2/tests --DRT-testmode=run-main
   python3 scripts/benchmark_checks.py

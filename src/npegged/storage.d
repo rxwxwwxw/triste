@@ -57,7 +57,7 @@ struct Arena {
     void* function(size_t) @nogc nothrow allocator = &systemAllocate;
     @disable this(this);
     @disable this(ref Arena);
-    ~this() @nogc nothrow {
+    pragma(inline, true) ~this() @nogc nothrow {
         while (head !is null) {
             auto next = head.next;
             free(head);

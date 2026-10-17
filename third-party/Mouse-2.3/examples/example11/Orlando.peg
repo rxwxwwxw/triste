@@ -1,0 +1,7 @@
+
+// This sample grammar comes from Orlando Hill 'Support for Left-Recursive PEGs',
+// https://github.com/orlandohill/peg-left-recursion.
+
+A = B "a" / "a" ;
+B = C "b" / "b" ;
+C = A "c" / "c" ;

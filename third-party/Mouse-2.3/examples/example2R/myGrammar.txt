@@ -1,0 +1,7 @@
+    
+   // Example 2R
+
+   Compute = Sum !_ {print} ;
+   Sum     = Sum "+" Number {sum}
+           / Number {pass} ;
+   Number  = [0-9]+ {number} ;

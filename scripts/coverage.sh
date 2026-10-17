@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Source-branch coverage still requires GDC 16/gcov; DMD line coverage alone
+# cannot establish the required branch threshold. Do not silently skip this gate.
+for tool in dmd gdc gcov; do
+  command -v "$tool" >/dev/null || {
+    echo "Coverage collector requires $tool (GDC is not a compiler compliance target)." >&2
+    exit 2
+  }
+done
 timeout 10s python3 scripts/test_coverage_model.py
 timeout 10s python3 scripts/test_verify_coverage.py
 rm -rf build/coverage

@@ -1,0 +1,158 @@
+%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+
+\section{Left Recursion}\label{LeftRec}
+
+%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+
+Looking at specifications of programming langauges
+you probably noticed that syntax of artithmetic expressions 
+is often defined in a different way.
+A sum of integers, such as in Section~\ref{TheGram},
+may be defined like this:
+\smallskip
+\small
+\begin{Verbatim}[frame=single,framesep=2mm,samepage=true,xleftmargin=15mm,xrightmargin=15mm,baselinestretch=0.8]
+   Sum    = Sum "+" Number / Number ;
+   Number = [0-9]+ ;
+\end{Verbatim}
+\normalsize
+But this does not work as PEG. 
+Procedure \Sum\ would invoke itself repeatedly on the same input, in an infinite descent.
+We say that \Sum\ is \emph{left-recursive}.
+
+The above, on the other hand, makes perfect sense when read as EBNF,
+and defines \Sum\ as one or more \Number\,s separated by \tx{"+"}.
+
+Beginning with Version 2.0, \Mouse\ accepts such "pseudo-PEG" expressions
+and treats them as EBNF syntax definitions.
+The way of defining semantics is unchanged.
+The left-recursive version of example from Section~\ref{Semantics} may appear like this:
+
+\smallskip 
+\small
+\begin{Verbatim}[frame=single,framesep=2mm,samepage=true,xleftmargin=15mm,xrightmargin=15mm,baselinestretch=0.8]
+   Compute = Sum !_ {print} ;
+   Sum     = Sum "+" Number {sum}
+           / Number {pass} ;
+   Number  = [0-9]+ {number} ;
+\end{Verbatim}
+\normalsize
+
+It was necessary to add \Compute\ because you do not want to print the result
+after each occurrence of \Sum.
+The semantic action \Numbera\ is the same as in Section~\ref{Semantics}.
+Action \tx{pass()} just passes the value from \Number\ to \Sum:
+
+\smallskip 
+\small
+\begin{Verbatim}[frame=single,framesep=2mm,samepage=true,xleftmargin=15mm,xrightmargin=15mm,baselinestretch=0.8]
+  //-------------------------------------------------------------------
+  //  Sum = Number
+  //          0
+  //-------------------------------------------------------------------
+  void pass()
+    { lhs().put(rhs(0).get()); }
+\end{Verbatim}
+\normalsize
+
+\newpage
+Action \Suma\ does the actual computation
+and \Printa\ prints the result.
+
+\smallskip 
+\small
+\begin{Verbatim}[frame=single,framesep=2mm,samepage=true,xleftmargin=15mm,xrightmargin=15mm,baselinestretch=0.8]
+  //-------------------------------------------------------------------
+  //  Sum = Sum "+" Number
+  //         0   1    2
+  //-------------------------------------------------------------------
+  void sum()
+    { lhs().put((Integer)rhs(0).get() + (Integer)rhs(2).get()); }
+\end{Verbatim}
+\normalsize
+
+You find the grammar and semantics file in \tx{example2R};
+copy it to the \tx{work} directory.
+Generating the parser may look like this:
+
+\small
+\begin{Verbatim}[samepage=true,xleftmargin=15mm,baselinestretch=0.8]
+java mouse.Generate -P myParser -G myGrammar.txt -S mySemantics
+Parsing procedures:
+2 rules
+0 inner
+3 terminals
+4 procedures for 1 left-recursion class(es)
+\end{Verbatim}
+\normalsize
+
+You may then try the generated parser:
+  
+\small
+\begin{Verbatim}[samepage=true,xleftmargin=15mm,baselinestretch=0.8]
+java mouse.TryParser -P myParser
+> 17+4711
+4728
+> 12+2+3
+17
+>
+\end{Verbatim}
+\normalsize
+
+\Mouse\ does this trick by generating behind the scenes
+a Parsing Expression Grammar that is equivalent to your PEG
+and invokes the semantic actions in the correct context.
+Looking at the generated parser, you can see that left-recursive expressions
+have special procedures whose names begin with "\tx{\$}".
+
+The generated grammar is not left-recursive 
+under condition that your PEG does not contain "cycles".
+A cycle means that procedure can call itself without consuming any input.
+Here is an example: 
+
+\smallskip 
+\small
+\begin{Verbatim}[frame=single,framesep=2mm,samepage=true,xleftmargin=15mm,xrightmargin=15mm,baselinestretch=0.8]
+   A = B "a"? / "a" ;
+   B = A "b"? / "b" ;
+\end{Verbatim}
+\normalsize
+
+as \tx{"a"?} and \tx{"b"?} can succeed without consuming anything,
+\tx{A} can call \tx{B}
+and then call \tx{A} with nothing being consumed.
+
+The support for left recursion is restricted to Choice and Sequence expressions.
+In addition, the first expression in recursive Sequence must never accept an empty string.
+The semantic action "on failure" (described later) and Boolean action (see \ref{BoolAct})
+are not suported for left-recursive rules.
+
+In directory \tx{example4R} you find the grammar of Example~4 from Section~\ref{Floating}
+rewritten in left-recursive way:
+\smallskip 
+\small
+\begin{Verbatim}[frame=single,framesep=2mm,samepage=true,xleftmargin=15mm,xrightmargin=15mm,baselinestretch=0.8]
+   Compute = Space Sum !_ {print} ; 
+   Sum     = Sum AddOp Number {sum}
+           / Number {pass} ;
+   Number  = Sign Digits? "." Digits Space {fraction}
+           / Sign Digits Space {integer} ; 
+   Sign    = ("-" Space)? ;
+   AddOp   = [-+] Space ;
+   Digits  = [0-9]+ ;
+   Space   = " "* ;
+\end{Verbatim}
+\normalsize
+
+As in the preceding case, it was necessary to add \Compute.
+\Sign\ had to be moved to \Number\
+so that it applies only to the first term of the sum.
+You find semantic actions in the same directory.
+
+Directory \tx{example8R} contains left-recursive version of Example~8 from Section~\ref{errors}. 
+
+Directory \tx{example11} contains examples of left-recursive grammars found in the literature.
+
+
+
+

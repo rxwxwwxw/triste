@@ -83,8 +83,9 @@ records for the Rust runner. JSON schema version 2 replaces the former subproces
 RSS and approximate GC-live metrics; `arenaCumulativeBytes` is a compatibility
 alias for `reservedBytesPerOp`.
 
-Run `make benchmark-checks` for all three D compilers, unit/integration checks,
-and diagnostic line/branch coverage reports. The greater-than-90% coverage gate
+Run `make benchmark-checks` for DMD/LDC unit/integration checks and diagnostic
+line coverage. Use `BENCH_BRANCH_COVERAGE=1 make benchmark-checks` to additionally
+collect diagnostic branch coverage with GDC 16 and matching gcov. The greater-than-90% coverage gate
 applies only to `src/`, through `make coverage`. Benchmark coverage collection runs in
 isolated directories and includes generated comparator wrappers. Runner coverage
 uses the release assertion/bounds settings of the measured executable; helper
@@ -104,8 +105,8 @@ samples. It writes raw measurements, per-case ratios, failures and source/compil
 metadata to `build/performance-acceptance.json`, and fails if any ratio exceeds 5.
 It rejects unequal outputs, incomplete pairs, unresolved clocks and source changes
 during measurement. Use `--modes validation` to gate that mode separately; a
-partial-mode pass is not a full performance-plan acceptance. The current corpus
-covers JSON and ambiguity; the other handwritten workloads still need adapters.
+partial-mode pass is not a full performance-plan acceptance. The corpus covers JSON/ambiguity in all output modes, arithmetic/CSV in validation,
+spans and tree modes, and numbers/PEG syntax in validation mode.
 Run it without concurrent compilation or other heavy work. `make DC=ldc2
 performance-check` is equivalent (one shell command).
 
@@ -120,8 +121,9 @@ build/ldc2/benchmark_runner --workloads --export-corpus
 ```
 
 NPegged uses selective generated recognition grammars in `workload_grammars.d`.
-Both engines return boolean acceptance with complete consumption; input is borrowed
-synchronously. These rows do not time generic trees or claim span/tree coverage.
+The default workload mode measures boolean acceptance with complete consumption;
+input is borrowed synchronously. `--workloads --mode=spans` and `--mode=tree` select
+arithmetic/CSV output obligations. Numbers and PEG syntax remain validation-only.
 The suite omits Pegged because its illustrative grammars have different syntax.
 The PEG adapter follows the handwritten recognizer's permissive syntax (including
 balanced parameter text and repeated suffixes), rather than the bootstrap language.
@@ -129,3 +131,90 @@ Adjacent differential tests cover short exhaustive arithmetic/CSV/numeric inputs
 and PEG token combinations. The default repeated `performance_gate.py` now includes
 this corpus in addition to the requested JSON/ambiguity output modes. A pass still
 requires every row to meet 5× in every run; exploratory results are not acceptance.
+
+### Isolated DFA token scanning
+
+The phase-2 scanner benchmark measures numbers, identifiers, whitespace, line
+comments, unescaped strings, and strings with escaped quotes every 64 bytes.
+Each token spans 1 MiB, with 64 iterations per
+sample, seven samples per run, and three runs. Every token must reach 1.0 GB/s in
+every run. Parsing results feed an observable checksum. Input allocation and CTFE
+automaton construction are outside the timed region.
+
+```bash
+ldc2 -I. -Isrc -defaultlib=druntime-ldc -fno-exceptions -O3 -release \
+  -boundscheck=off -w -i benchmark/dfa_scanning.d -of=build/dfa-scanning
+timeout --kill-after=2s 60s build/dfa-scanning
+```
+
+Run this on an idle machine. Its isolated throughput result complements the
+paired performance gate; it does not establish whole-parser performance.
+
+### Experimental direct recognition backend
+
+Use `PARSER_BACKEND=direct python3 scripts/performance_gate.py --output
+build/direct-acceptance.json` to compare the direct generator against the same
+handwritten corpus and output obligations. The default backend is `combinators`.
+The chosen backend, build wall time, binary bytes, compiler flags, and source hashes
+are recorded in the report. `.text` section bytes are also recorded when the
+`size` utility is available. When `/usr/bin/time` is available, the captured compiler
+log also contains compiler elapsed time and peak RSS. Binary bytes include data and
+debug/metadata sections; inspect object text size separately when evaluating inlining.
+
+Library callers select `grammar!(Memoization.selective, void,
+ParserBackend.direct)(definition)`; the third template parameter also applies to
+`generate` and `asModule`. This experimental backend emits scalar recognition
+control and eligible non-memoized rule calls. Existing scanners remain available;
+unsupported expressions, memoized rule boundaries, actions, tracing, parameterized
+grammars, legacy trees, and compact-record output retain compatible paths. Performance
+acceptance is still pending; selecting this backend does not imply every grammar
+or output mode improves. See the implementation record for measured experiments.
+
+Arithmetic spans are number/identifier byte intervals. Arithmetic trees retain concrete
+Root, Term, Factor, Primary, Number, and Identifier rules, including whitespace in
+syntactic rule intervals where the grammar consumes it. CSV spans retain Field
+intervals, including quotes and surrounding spaces; trees add a Root parent. Empty
+fields are included, including after a trailing separator. Invalid parses produce
+empty output. Exported output corpora include the exact expected records.
+
+`workload_output.d` implements independent handwritten output parsers and generated
+selected-record projections. Both construct output while parsing, use the same record
+layout and consumer, and include allocation/disposal costs. Every output row is checked
+record by record before timing; fingerprints remain consumed in the timed loop.
+The direct backend now also lowers compact-output control while preserving selected
+rule boundaries, rollback, and lookahead suppression. Full current-tree acceptance
+remains pending; historical gate results do not establish acceptance of later edits.
+
+### Left-recursion scaling
+
+Run `bash scripts/recursion-scaling.sh > build/recursion-combinators.csv`, then
+`python3 scripts/summarize-recursion.py build/recursion-combinators.csv`.
+Repeat with `PARSER_BACKEND=direct` for the experimental backend. Copy
+`build/recursion-scaling/metadata.json` beside each CSV before the next build;
+metadata records compiler/flags, backend, CPU, and source hashes.
+
+`PARSER_MEMOIZATION=full` selects full memoization instead of the default selective
+policy. Run both policies with both backends to isolate memoization and execution
+costs. All combinations retain the same three output obligations; comparing tree
+timings to recognition timings is a cost breakdown rather than an acceptance ratio.
+`bash scripts/recursion-matrix.sh [output-directory]` runs all four configurations
+sequentially, preserving timing samples, summaries, counters, and their separate
+source manifests. Each execution has the scaling runner's 60-second timeout.
+
+The timeout-bound LDC release probe exercises direct and indirect left recursion
+at 8–512 terms, seven samples per size, with valid and trailing-operator inputs.
+Recognition, borrowed compact records selecting every named rule, and owned legacy
+trees are separate obligations. Samples include construction and disposal; allocator
+metrics are captured before disposal. It checks expected success/mismatch status.
+The summary reports medians and adjacent-size growth, with no performance pass
+threshold. It measures cumulative arena traffic, not live memory or dependency and
+snapshot counters. This probe supplements the equal-output gate; it cannot establish
+full acceptance or isolate a specific source of quadratic growth by itself.
+
+Use `PARSER_METRICS=1 bash scripts/recursion-scaling.sh > build/recursion-metrics.csv`
+for a separate diagnostic build. `NPeggedMetrics` adds an optional caller-owned
+`ParseMetrics` pointer to `ParseContext`, recording memo calls/hits, successful seed
+updates, invalidation visits/entries, and snapshot payload bytes. This build emits
+one counter row per case rather than timing samples; do not feed it to the timing
+summarizer or compare its timings. Ordinary builds compile out these fields and
+branches entirely. Counters aggregate the parse rather than identifying each rule.

@@ -43,7 +43,9 @@ def main():
                 f'-I{ROOT / "third-party/Pegged/examples/arithmetic/src"}',
                 f'-I{ROOT / "third-party/Pegged/examples/csv/src"}',
                 f'-I{ROOT / "third-party/Pegged/examples/numbers/src"}']
-    for compiler in ('dmd', 'ldc2', 'gdc'):
+    # GDC below is used separately for branch-coverage collection only.
+    for compiler in (('dmd', 'ldc2', 'gdc') if os.environ.get('BENCH_BRANCH_COVERAGE') == '1'
+                     else ('dmd', 'ldc2')):
         print(f'Checking benchmark units with {compiler}...', flush=True)
         flags = ['-i', '-unittest', '-main', '-w', '-de', '-checkaction=halt'] if compiler != 'gdc' else [
             '-finclude-imports', '-funittest', '-fmain', '-Wall', '-Werror', '-fcheckaction=halt']
@@ -78,7 +80,9 @@ def main():
                  for name in ('arithmetic', 'csv', 'numbers')]
     # The root runner uses the benchmark JSON grammar, not the illustrative legacy JSON module.
     runner_sources = [str(p) for p in [*maintained, *pegged, *examples]]
-    for compiler in ('dmd', 'ldc2', 'gdc'):
+    # GDC below is used separately for branch-coverage collection only.
+    for compiler in (('dmd', 'ldc2', 'gdc') if os.environ.get('BENCH_BRANCH_COVERAGE') == '1'
+                     else ('dmd', 'ldc2')):
         print(f'Checking runner unit tests with {compiler}...', flush=True)
         binary = OUTPUT / f'root-units-{compiler}'
         flags = ['-i', '-unittest', '-w', '-de', '-checkaction=halt'] if compiler != 'gdc' else ['-finclude-imports', '-funittest', '-Wall', '-Werror', '-fcheckaction=halt']
@@ -96,7 +100,7 @@ def main():
             for report in working.glob('*.lst'):
                 shutil.copy2(report, destination / report.name)
 
-    for compiler in ('dmd', 'gdc'):
+    for compiler in (('dmd', 'gdc') if os.environ.get('BENCH_BRANCH_COVERAGE') == '1' else ('dmd',)):
         print(f'Collecting benchmark runner coverage with {compiler}...', flush=True)
         binary = OUTPUT / f'runner-{compiler}'
         flags = ['-cov', '-release', '-boundscheck=off', '-w', '-de', '-checkaction=halt'] if compiler == 'dmd' else [
@@ -116,6 +120,13 @@ def main():
             destination.mkdir()
             for report in working.glob('*.lst'):
                 shutil.copy2(report, destination / report.name)
+
+    # Collect diagnostic branch coverage only when explicitly requested.
+    # Required compiler compliance above is DMD/LDC; this collector needs GDC/gcov.
+    if os.environ.get('BENCH_BRANCH_COVERAGE', '0') != '1':
+        print(f'Benchmark checks passed; line coverage: {COVERAGE}; '
+              'branch coverage not collected (set BENCH_BRANCH_COVERAGE=1).')
+        return
 
     # Each binary needs its own CFG map; debug units and release runner differ.
     for category, prefix in (('unit', 'units-gdc-'), ('root-unit', 'root-units-gdc-'), ('integration', 'runner-gdc-')):

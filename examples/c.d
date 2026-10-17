@@ -272,7 +272,17 @@ Sign <- "-" / "+"
 
 mixin(grammar(Cgrammar));
 
+extern (C) string npegged_Cgrammar() @nogc nothrow pure {
+    return Cgrammar;
+}
+
+extern (C) bool npegged_checkC() @nogc nothrow {
+    ParseContext context;
+    return C(context, "int value;").successful;
+}
+
 @nogc nothrow unittest {
+    assert(npegged_Cgrammar().length && npegged_checkC());
     ParseContext context;
     import npegged.tester.grammartester : GrammarTester;
 

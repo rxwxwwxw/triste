@@ -43,13 +43,31 @@ case "$(basename "$compiler")" in
     ;;
 esac
 
+case "${PARSER_BACKEND:-combinators}" in
+  combinators) ;;
+  direct)
+    if [[ $(basename "$compiler") == gdc ]]; then
+      flags+=(-fversion=NPeggedDirect)
+    elif [[ $(basename "$compiler") == ldc2 ]]; then
+      flags+=(-d-version=NPeggedDirect)
+    else
+      flags+=(-version=NPeggedDirect)
+    fi
+    ;;
+  *) echo "Unsupported PARSER_BACKEND: $PARSER_BACKEND" >&2; exit 2;;
+esac
+
 echo "Building benchmark runner with $compiler..." >&2
 "$compiler" --version >&2
 printf 'Build flags: %s\n' "${flags[*]}" >&2
 if [[ -r /proc/cpuinfo ]]; then
   rg -m 1 'model name|Hardware' /proc/cpuinfo >&2 || true
 fi
-"$compiler" "${common[@]}" "${flags[@]}" \
+measure=()
+if [[ -x /usr/bin/time ]]; then
+  measure=(/usr/bin/time -f 'Compile metrics: elapsedSeconds=%e peakRssKiB=%M')
+fi
+"${measure[@]}" "$compiler" "${common[@]}" "${flags[@]}" \
   "${library[@]}" \
   "${pegged_sources[@]}" \
   "${handwritten_sources[@]}" \
@@ -60,7 +78,7 @@ fi
   benchmark/json_grammar.d benchmark/json_npegged.d benchmark/json_pegged.d \
   benchmark/ambiguous_npegged.d benchmark/ambiguous_pegged.d \
   benchmark/options.d benchmark/measurement.d \
-  benchmark/json_output.d benchmark/json_comparison.d benchmark/workload_grammars.d \
+  benchmark/json_output.d benchmark/json_comparison.d benchmark/workload_grammars.d benchmark/workload_output.d \
   benchmark/runner.d \
   "${output[@]}"
 

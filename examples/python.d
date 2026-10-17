@@ -700,7 +700,12 @@ LineComment <~ :'#' (!endOfLine .)* :endOfLine
 
 mixin(grammar(pythonGrammar));
 
+extern (C) string npegged_pythonGrammar() @nogc nothrow pure {
+    return pythonGrammar;
+}
+
 @nogc nothrow unittest {
+    assert(npegged_pythonGrammar().length);
     ParseContext context;
     auto result = Python(context, `m = "Hello";`);
     assert(result.successful && result.end == 0); // Existing grammar accepts an empty prefix.

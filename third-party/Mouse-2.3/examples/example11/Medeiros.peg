@@ -1,0 +1,8 @@
+
+// This sample grammar comes from  S. Medeiros, F.Mascarenhas, R. Ierusalimschy,
+// 'Recursion in Parsing Expression Grammars',
+// Science of Computer Programming 96, P2 (2014), pp. 177 - 190.
+// It defines x and x followed by any number of (n) or .x, as long as it ends with .x.
+
+L = P "." "x" / "x" ;
+P = P "(n)" / L ;
