@@ -34,6 +34,7 @@ done < <(find src tests examples scripts benchmark -name '*.d' -print0)
 if [[ "$MODE" == "full" ]]; then
   for compiler in dmd ldc2; do
     DC=$compiler scripts/build.sh
+    DC=$compiler bash scripts/differential.sh
     DC=$compiler scripts/examples.sh
   done
   timeout 10s python3 scripts/test_hooks.py
@@ -46,6 +47,7 @@ if [[ "$MODE" == "full" ]]; then
   echo "Full validation passed (multi-compiler, coverage, ASan/LSan, Valgrind, benchmarks)."
 else
   DC=ldc2 scripts/build.sh
+  DC=ldc2 bash scripts/differential.sh
   DC=ldc2 scripts/examples.sh
   timeout 10s python3 scripts/test_hooks.py
   COMPILERS=ldc2 scripts/hotpaths.sh

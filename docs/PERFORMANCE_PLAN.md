@@ -158,7 +158,9 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 
 | Task | Commit | Checks & coverage | Baseline report | Candidate report | Outcome / regressions | Decision |
 |---|---|---|---|---|---|---|
-| F01 | see git log | source hashes verified; existing equal-output gate | performance/results/F01-baseline.json | — | 380/387 paired checks; 7 ratio failures | baseline captured |
+| F01 | ce113d9 | source hashes verified; existing equal-output gate | performance/results/F01-baseline.json | — | 380/387 paired checks; 7 ratio failures | baseline captured |
+
+| F02 | see git log | DMD/LDC differential fixture, exact tree/action/trace comparisons, CTFE and finite limits | performance/tasks/F02.md | — | no semantic delta in runnable corpus | accepted diagnostic |
 
 ## 9. First two implementation sprints and explicit non-goals
 
