@@ -21,15 +21,19 @@ def summarize(stream):
         prior = previous.get(key[:3])
         result.append((*key, elapsed, requested,
                        elapsed / prior[0] if prior else '',
-                       requested / prior[1] if prior and prior[1] else ''))
+                       requested / prior[1] if prior and prior[1] else '',
+                       len(rows),
+                       statistics.median(int(r.get('reserved_bytes', 0)) for r in rows),
+                       statistics.median(int(r.get('output_requested_bytes', 0)) for r in rows),
+                       statistics.median(int(r.get('output_reserved_bytes', 0)) for r in rows)))
         previous[key[:3]] = (elapsed, requested)
     expected = {(grammar, mode, valid, terms)
                 for grammar in ('LeftChain', 'IndirectChain')
-                for mode in ('validation', 'records', 'tree')
+                for mode in ('validation', 'records', 'owned-records', 'tree')
                 for valid in (0, 1)
-                for terms in (8, 16, 32, 64, 128, 256, 512)}
+                for terms in (16, 32, 64, 128, 256, 512, 1024)}
     if set(groups) != expected:
-        raise ValueError(f'expected 84 known grammar/mode/validity/size groups, got {len(result)}')
+        raise ValueError(f'expected 112 known grammar/mode/validity/size groups, got {len(result)}')
     return result
 
 
@@ -38,5 +42,6 @@ if __name__ == '__main__':
         rows = summarize(stream)
     writer = csv.writer(sys.stdout)
     writer.writerow(('grammar', 'mode', 'valid', 'terms', 'median_ns',
-                     'median_requested_bytes', 'time_growth', 'payload_growth'))
+                     'median_requested_bytes', 'time_growth', 'payload_growth', 'samples',
+                     'median_reserved_bytes', 'median_output_requested_bytes', 'median_output_reserved_bytes'))
     writer.writerows(rows)

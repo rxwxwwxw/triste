@@ -160,7 +160,9 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 |---|---|---|---|---|---|---|
 | F01 | ce113d9 | source hashes verified; existing equal-output gate | performance/results/F01-baseline.json | — | 380/387 paired checks; 7 ratio failures | baseline captured |
 
-| F02 | see git log | DMD/LDC differential fixture, exact tree/action/trace comparisons, CTFE and finite limits | performance/tasks/F02.md | — | no semantic delta in runnable corpus | accepted diagnostic |
+| F02 | 39906d3 | DMD/LDC differential fixture, exact tree/action/trace comparisons, CTFE and finite limits | performance/tasks/F02.md | — | no semantic delta in runnable corpus | accepted diagnostic |
+
+| F03 | see git log | 12 complete timing CSVs, 4 diagnostic CSVs; 9408 timed samples; all source hashes verified | performance/results/F03/README.md | — | all sizes through 1024 complete | accepted diagnostic |
 
 ## 9. First two implementation sprints and explicit non-goals
 

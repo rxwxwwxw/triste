@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/recursion-scaling
+ulimit -v 4194304
 mapfile -t library < <(rg --files src -g '*.d' | sort)
 flags=(-Isrc -I. -defaultlib=druntime-ldc -fno-exceptions -O3 -release -w -checkaction=halt)
 case ${PARSER_BACKEND:-combinators} in
@@ -21,7 +22,8 @@ from pathlib import Path
 sources = sorted(Path('src').rglob('*.d')) + [Path('benchmark/recursion_scaling.d'), Path('benchmark/measurement.d'), Path('scripts/recursion-scaling.sh')]
 metadata = dict(backend=sys.argv[1], memoization=sys.argv[2], samples=1 if '-d-version=NPeggedMetrics' in sys.argv else 7,
                 compiler=subprocess.check_output(['ldc2', '--version'], text=True),
-                flags=sys.argv[3:], platform=platform.platform(),
+                flags=sys.argv[3:], platform=platform.platform(), revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+                timeoutSeconds=60, memoryLimitBytes=4 * 1024**3,
                 cpu=Path('/proc/cpuinfo').read_text() if Path('/proc/cpuinfo').exists() else '',
                 sources={str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources})
 Path('build/recursion-scaling/metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')

@@ -72,6 +72,8 @@ def main():
                   *sorted((ROOT / 'benchmark').glob('*.d')),
                   *sorted((ROOT / 'benchmark/handwritten').glob('*.d'))]
     maintained.remove(ROOT / 'benchmark/unit_tests.d')
+    # Standalone scaling runner has its own main and bounded matrix script.
+    maintained.remove(ROOT / 'benchmark/recursion_scaling.d')
     pegged = [p for p in sorted((ROOT / 'third-party/Pegged/pegged').rglob('*.d'))
               if len(p.relative_to(ROOT / 'third-party/Pegged/pegged').parts) <= 2
               and not p.name.startswith(('tester', 'tohtml'))]

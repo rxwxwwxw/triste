@@ -14,9 +14,9 @@ class ScalingSummaryTests(unittest.TestCase):
     def corpus(self):
         lines = ['grammar,mode,valid,terms,sample,ns,requested_bytes']
         for grammar in ('LeftChain', 'IndirectChain'):
-            for mode in ('validation', 'records', 'tree'):
+            for mode in ('validation', 'records', 'owned-records', 'tree'):
                 for valid in (0, 1):
-                    for terms in (8, 16, 32, 64, 128, 256, 512):
+                    for terms in (16, 32, 64, 128, 256, 512, 1024):
                         for sample in range(7):
                             lines.append(f'{grammar},{mode},{valid},{terms},{sample},'
                                          f'{terms * terms + sample - 3},{terms * 32}')
@@ -24,9 +24,9 @@ class ScalingSummaryTests(unittest.TestCase):
 
     def test_growth(self):
         rows = summary.summarize(io.StringIO('\n'.join(self.corpus())))
-        self.assertEqual(len(rows), 84)
-        self.assertEqual(rows[0][4:], (64, 256, '', ''))
-        self.assertEqual(rows[1][6:], (4, 2))
+        self.assertEqual(len(rows), 112)
+        self.assertEqual(rows[0][4:8], (256, 512, '', ''))
+        self.assertEqual(rows[1][6:8], (4, 2))
 
     def test_missing_sample(self):
         with self.assertRaisesRegex(ValueError, 'incomplete samples'):
@@ -39,7 +39,7 @@ class ScalingSummaryTests(unittest.TestCase):
             summary.summarize(io.StringIO('\n'.join(lines)))
 
     def test_missing_group(self):
-        with self.assertRaisesRegex(ValueError, 'expected 84'):
+        with self.assertRaisesRegex(ValueError, 'expected 112'):
             summary.summarize(io.StringIO('\n'.join(self.corpus()[:-7])))
 
 
