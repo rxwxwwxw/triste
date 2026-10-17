@@ -19,11 +19,13 @@ version (NPeggedMetrics) {
     /// Actual output work, including appends subsequently rolled back on failure.
     struct RecordMetrics {
         ulong restoreCalls, restoreNodes, restoreBytes, growthCopyBytes;
+        ulong snapshotCalls, snapshotNodes, snapshotBytes;
     }
 
     @nogc nothrow unittest {
         RecordMetrics metrics;
         assert(metrics.restoreCalls == 0 && metrics.restoreNodes == 0);
+        assert(metrics.snapshotCalls == 0 && metrics.snapshotNodes == 0 && metrics.snapshotBytes == 0);
         assert(metrics.restoreBytes == 0 && metrics.growthCopyBytes == 0);
     }
 }
@@ -109,7 +111,14 @@ struct RecordBuffer {
 
     RecordSnapshot snapshot(ref Arena owner, size_t checkpoint) @nogc nothrow {
         assert(checkpoint <= _length);
-        return RecordSnapshot(owner.copy!CompactNode(storage[checkpoint .. _length]), checkpoint);
+        auto frozen = owner.copy!CompactNode(storage[checkpoint .. _length]);
+        version (NPeggedMetrics)
+            if (metrics !is null) {
+                ++metrics.snapshotCalls;
+                metrics.snapshotNodes += frozen.length;
+                metrics.snapshotBytes += frozen.length * CompactNode.sizeof;
+            }
+        return RecordSnapshot(frozen, checkpoint);
     }
 
     bool restore(RecordSnapshot saved) @nogc nothrow {
@@ -160,6 +169,17 @@ version (NPeggedMetrics) @nogc nothrow unittest {
     assert(metrics.growthCopyBytes == 32 * CompactNode.sizeof);
     assert(records.restore(RecordSnapshot.init));
     assert(metrics.restoreCalls == 2 && metrics.restoreNodes == 33);
+    Arena snapshots;
+    auto frozen = records.snapshot(snapshots, 1);
+    assert(frozen.nodes.length == 32);
+    assert(metrics.snapshotCalls == 1 && metrics.snapshotNodes == 32);
+    assert(metrics.snapshotBytes == 32 * CompactNode.sizeof);
+    assert(records.snapshot(snapshots, records.length).nodes.length == 0);
+    assert(metrics.snapshotCalls == 2 && metrics.snapshotNodes == 32);
+    Arena noSnapshot;
+    noSnapshot.limit = 0;
+    assert(records.snapshot(noSnapshot, 0).nodes.length == 0);
+    assert(metrics.snapshotCalls == 3 && metrics.snapshotNodes == 32);
     CompactNode[2] corrupt = [CompactNode.init, CompactNode(0, 0, 0, 1)];
     assert(!records.restore(RecordSnapshot(corrupt[], 0)));
     assert(metrics.restoreCalls == 3 && metrics.restoreNodes == 34);

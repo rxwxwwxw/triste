@@ -167,6 +167,7 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 | R01 | 658fb66 | DMD smoke; 3360 timed and 160 counter samples; source hashes verified | performance/results/F04/README.md | performance/results/R01/README.md | no superlinear recognition work through 8192 terms in these chains | accepted diagnostic |
 | R02 | 09834c0 | bounded traces; 448 cases; DMD/LDC, differential, -vgc, diagnostic ASan/LSan and Valgrind | performance/results/R01/README.md | performance/results/R02/README.md | cached transitive dependencies required; nested independent-retirement opportunity | accepted diagnostic |
 | R03 | see git log | DMD/LDC oracles, F02 matrix, sanitizer/Valgrind; 3150 timed and 150 counter samples | performance/results/R01/README.md | performance/results/R03/README.md | nesting improves; sibling visits become quadratic with 11–12× regressions | rejected/rolled back under stop rule |
+| R04 | see git log | 256 source-pinned diagnostic parses; DMD/LDC identical CSV; full coverage and memory checks | performance/results/R01/README.md | performance/results/R04/README.md | snapshot/restore copies quadratic despite linear logical output; root projection removes copies | accepted diagnostic |
 
 Checkpoint F: see [F05 findings](../performance/results/F05/README.md) and [verification](../performance/results/verification/README.md).
 
