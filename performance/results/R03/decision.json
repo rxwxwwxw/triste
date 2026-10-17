@@ -1,0 +1,21 @@
+{
+  "decision": "rejected-and-not-installed",
+  "reason": "retained-entry list scans become quadratic on sibling nested expressions",
+  "sourceBaseline": "09834c0",
+  "productionAlgorithmChanged": false,
+  "timedSamples": 3150,
+  "parsesPerTimedSample": 32,
+  "counterSamples": 150,
+  "sibling512RatiosByRun": {
+    "combinators": [
+      11.478074639995427,
+      11.42477382691332,
+      11.103445515861948
+    ],
+    "direct": [
+      12.088085542031623,
+      12.065367436619718,
+      11.930173718772789
+    ]
+  }
+}

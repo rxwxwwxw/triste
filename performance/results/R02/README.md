@@ -79,8 +79,11 @@ omits arbitrary semantic effects and context-dependent resource/work accounting.
 - Diagnostic ASan/LSan passes outside the sandbox's LSan ptrace restriction;
   diagnostic Valgrind uses the repository GC test configuration and reports zero
   errors and zero definite/indirect leaks. No suppressions.
-- Default-build full repository checks are being recorded separately; R02's
-  runtime changes are exclusively behind the explicit diagnostic version.
+- Default-build DMD/LDC, examples, differential, hooks, hotpaths, and >90%
+  line/branch coverage passed. The full runner stopped at the sandbox-only LSan
+  restriction; the same sanitizer binary passed outside, followed by successful
+  integration Valgrind and benchmark checks. Logs are under verification/. R02's
+  runtime changes remain exclusively behind the explicit diagnostic version.
 
 R03 must use a proven action-free subset, retain a general fallback, and handle
 cached transitive dependencies. A direct-read-only invalidator is rejected by this

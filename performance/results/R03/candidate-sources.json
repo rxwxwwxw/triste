@@ -1,0 +1,11 @@
+{
+  "baseRevision": "09834c0",
+  "patchSha256": "028578a27a9a75b233d686b2f35a09b302c3aee6bcdb8b344f9601d1bb75245d",
+  "sources": {
+    "src/npegged/peg.d": "21befd65026b42e1b92ea4e97560dbd3ca4f12d7ca59504911d4024cba40d895",
+    "src/npegged/grammar.d": "15e4916c2e8123607bdaf11fefc09ff8e7b3b52f2c50ebfdcdfafb0154ca40ab",
+    "tests/differential.d": "cb7f7231c55e586f1747b3bc207d8c71fa0ff6c4aab818280c36bc8aafdd2e64",
+    "tests/narrow_invalidation.d": "f95817861bf103ccca8a9f1f7c2a016365a6bea8ca348bfa78202a43b6542991",
+    "benchmark/diagnostics/narrow_invalidation.d": "4d95dd8c0fb4f1bf518e4c02a8058b59df098e0069b1ef3232859d17ba4ccc7b"
+  }
+}

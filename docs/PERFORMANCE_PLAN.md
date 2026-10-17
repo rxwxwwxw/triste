@@ -165,7 +165,8 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 
 | F05 | see git log | 3 runs × 7 samples; full/selective, combinator/direct; stage probes, traces, optimized-code evidence; full checks in verification report | performance/results/F01-baseline.json | performance/results/F05/README.md | four shapes diagnosed; H05 empty-Sp candidate; output-dominated measured recursion | accepted diagnostic; no optimization |
 | R01 | 658fb66 | DMD smoke; 3360 timed and 160 counter samples; source hashes verified | performance/results/F04/README.md | performance/results/R01/README.md | no superlinear recognition work through 8192 terms in these chains | accepted diagnostic |
-| R02 | see git log | bounded traces; 448 cases; DMD/LDC, differential, -vgc, diagnostic ASan/LSan and Valgrind | performance/results/R01/README.md | performance/results/R02/README.md | cached transitive dependencies required; nested independent-retirement opportunity | accepted diagnostic |
+| R02 | 09834c0 | bounded traces; 448 cases; DMD/LDC, differential, -vgc, diagnostic ASan/LSan and Valgrind | performance/results/R01/README.md | performance/results/R02/README.md | cached transitive dependencies required; nested independent-retirement opportunity | accepted diagnostic |
+| R03 | see git log | DMD/LDC oracles, F02 matrix, sanitizer/Valgrind; 3150 timed and 150 counter samples | performance/results/R01/README.md | performance/results/R03/README.md | nesting improves; sibling visits become quadratic with 11–12× regressions | rejected/rolled back under stop rule |
 
 Checkpoint F: see [F05 findings](../performance/results/F05/README.md) and [verification](../performance/results/verification/README.md).
 
