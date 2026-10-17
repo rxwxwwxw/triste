@@ -1,0 +1,15 @@
+tests/shared_records.d(22): Error: undefined identifier `SharedRecordStore`
+    SharedRecordStore store;
+    ^
+tests/shared_records.d(25): Error: undefined identifier `SharedRecordSnapshot`
+    SharedRecordSnapshot candidate;
+    ^
+tests/shared_records.d(55): Error: undefined identifier `SharedRecordStore`
+    SharedRecordStore store;
+    ^
+tests/shared_records.d(103): Error: undefined identifier `SharedRecordStore`
+    SharedRecordStore store;
+    ^
+tests/shared_records.d(105): Error: undefined identifier `SharedRecordSnapshot`
+    SharedRecordSnapshot[16] versions;
+    ^
