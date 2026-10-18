@@ -5,6 +5,8 @@ import npegged.storage : growthCapacity;
 public import npegged.records : CompactNode;
 import npegged.records : RecordBuffer, RecordSnapshot;
 
+version (NPeggedSharedOutput) import npegged.records : SharedRecordStore;
+
 /// Non-owning node. Runtime slices belong to the enclosing ParseResult.
 struct ParseTree {
     string name;
@@ -160,6 +162,7 @@ version (NPeggedDependencyTrace) {
 }
 
 struct ParseContext {
+    version (NPeggedSharedOutput) bool sharedOutput;
     version (NPeggedDependencyTrace) MemoTrace* memoTrace;
     version (NPeggedMetrics) ParseMetrics* metrics;
     size_t memoryLimit = 256 * 1024 * 1024;
@@ -322,7 +325,7 @@ struct State(bool CT, int Check = 0) {
                 records.parent = parent;
             foreach (child; tree.children)
                 projectRecords(child);
-            records.finish(index, tree.end);
+            records.finishFresh(index, tree.end);
         }
     }
 
@@ -493,10 +496,21 @@ struct State(bool CT, int Check = 0) {
             version (NPeggedMetrics)
                 if (context.metrics !is null) {
                     ++context.metrics.outputSnapshotCount;
-                    context.metrics.snapshotBytes += (records.length - checkpoint) * CompactNode
-                        .sizeof;
+                    version (NPeggedSharedOutput) {
+                    } else
+                        context.metrics.snapshotBytes += (records.length - checkpoint) * CompactNode
+                            .sizeof;
                 }
+            version (NPeggedSharedOutput) version (NPeggedMetrics) const copiedBefore = context
+                .metrics is null ? 0 : context.metrics.output.snapshotBytes;
             auto result = records.snapshot(*arena, checkpoint);
+            version (NPeggedSharedOutput) {
+                version (NPeggedMetrics)
+                    if (context.metrics !is null)
+                        context.metrics.snapshotBytes += context.metrics.output.snapshotBytes - copiedBefore;
+                if (records.sharingEnabled)
+                    syncOutput();
+            }
             if (arena.status != Status.ok)
                 status = arena.status;
             return result;
@@ -547,7 +561,7 @@ struct State(bool CT, int Check = 0) {
                 auto index = records.openKind(cast(uint)RecordKind, pos);
                 syncOutput();
                 if (status == Status.ok)
-                    records.finish(index, result.end);
+                    records.finishFresh(index, result.end);
                 else
                     records.rollback(checkpoint);
             } else
@@ -571,7 +585,7 @@ struct State(bool CT, int Check = 0) {
                 auto result = ruleBody!(body, name)(pos);
             syncOutput();
             if (result.successful && status == Status.ok)
-                records.finish(index, result.end);
+                records.finishFresh(index, result.end);
             else
                 records.rollback(checkpoint);
             // Status controls public success; preserve a stored seed's recognition value.
@@ -790,7 +804,7 @@ struct State(bool CT, int Check = 0) {
                     const index = records.openKind(cast(uint)RecordKind, pos);
                     syncOutput();
                     if (status == Status.ok)
-                        records.finish(index, end);
+                        records.finishFresh(index, end);
                     else
                         records.rollback(checkpoint);
                 } else
@@ -810,7 +824,7 @@ struct State(bool CT, int Check = 0) {
                 const successful = recognizeRule!(body, name, false)(end, failEnd);
                 syncOutput();
                 if (successful && status == Status.ok)
-                    records.finish(index, end);
+                    records.finishFresh(index, end);
                 else
                     records.rollback(checkpoint);
                 return successful;
@@ -1303,6 +1317,18 @@ CompactResult parseRecords(alias parser, alias selector, bool OwnInput = true)(
     RecordBuffer records;
     records.arena = &result.outputArena;
     records.selector = &selector;
+    version (NPeggedSharedOutput) {
+        SharedRecordStore sharedStore;
+        sharedStore.arena = &result.arena;
+        static if (__traits(hasMember, Owner, "npeggedSharedOutputEligible")) {
+            static if (Owner.npeggedSharedOutputEligible) {
+                if (context.sharedOutput && context.trace is null && context.stepLimit == size_t.max
+                        && context.depthLimit == size_t.max && context.memoryLimit == size_t.max
+                        && outputLimit == size_t.max)
+                    records.enableSharedOutput(sharedStore, result.arena);
+            }
+        }
+    }
     State!(false, 2) state;
     state.arena = &result.arena;
     state.input = parsedInput;

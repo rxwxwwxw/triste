@@ -1983,6 +1983,16 @@ package struct Frontend {
             recordLeaves = analyzed.selectedLeaves(recordKinds);
             recordSubtrees = analyzed.selectedSubtrees(recordKinds);
         }
+        bool sharedEligible = memoize && !actionGrammar && !analyzed.conservative && !params.length;
+        bool selectedRecursive;
+        foreach (i, rule; rules) {
+            sharedEligible = sharedEligible && !rule.params.length;
+            if (recordSubtrees.length && analyzed.leftRecursive[i] && recordSubtrees[i])
+                selectedRecursive = true;
+        }
+        if (recordKinds.length)
+            result ~= "version (NPeggedSharedOutput) enum npeggedSharedOutputEligible = " ~ (
+                    sharedEligible && selectedRecursive ? "true" : "false") ~ ";\n";
         bool spacingDefined;
         foreach (rule; rules)
             if (rule.name == "Spacing")
@@ -2536,6 +2546,39 @@ version (unittest) private uint compactTag(string name) @nogc nothrow pure {
     if (name.length >= 8 && name[$ - 8 .. $] == ".Ignored")
         return uint.max;
     return 2;
+}
+
+version (NPeggedSharedOutput) {
+    version (unittest) mixin(grammar!(Memoization.selective, compactTag)(`
+SharedOutputUnit:
+    Root <- Expr eoi
+    Expr <- Expr '+' Leaf / Leaf
+    Leaf <~ [0-9]+
+`));
+    @nogc nothrow unittest {
+        static assert(SharedOutputUnit.npeggedSharedOutputEligible);
+        char[256] input;
+        foreach (i, ref c; input)
+            c = i % 2 ? '+' : '1';
+        ParseContext context;
+        context.memoryLimit = context.depthLimit = context.stepLimit = size_t.max;
+        auto reference = parseRecords!(SharedOutputUnit.opCall, compactTag)(context,
+                cast(string)input[0 .. 255], size_t.max);
+        context.sharedOutput = true;
+        auto candidate = parseRecords!(SharedOutputUnit.opCall, compactTag)(context,
+                cast(string)input[0 .. 255], size_t.max);
+        assert(reference.status == candidate.status && reference.end == candidate.end
+                && reference.failEnd == candidate.failEnd);
+        assert(reference.nodes == candidate.nodes);
+        context.stepLimit = 1024;
+        auto guarded = parseRecords!(SharedOutputUnit.opCall, compactTag)(context,
+                cast(string)input[0 .. 255], size_t.max);
+        context.sharedOutput = false;
+        auto ordinary = parseRecords!(SharedOutputUnit.opCall, compactTag)(context,
+                cast(string)input[0 .. 255], size_t.max);
+        assert(guarded.status == ordinary.status && guarded.end == ordinary.end && guarded.failEnd == ordinary
+                .failEnd);
+    }
 }
 
 version (unittest) mixin(grammar!(Memoization.selective)(`

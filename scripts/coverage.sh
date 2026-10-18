@@ -21,13 +21,29 @@ sources = list(Path('src').rglob('*.d'))
 Path('build/coverage/sources.json').write_text(json.dumps({str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}))
 PY
 find . -maxdepth 1 -name '*.lst' -delete
-DC=dmd scripts/build.sh -cov
+dmd_extra=()
+gdc_extra=()
+if [[ "${SHARED_OUTPUT_COVERAGE:-0}" == 1 ]]; then
+ dmd_extra=(-version=NPeggedSharedOutput -version=NPeggedMetrics)
+ gdc_extra=(-fversion=NPeggedSharedOutput -fversion=NPeggedMetrics)
+fi
+DC=dmd scripts/build.sh -cov "${dmd_extra[@]}"
 scripts/collect_coverage.sh build/coverage build/dmd/tests dmd-unit
-COVERAGE_DIR=build/coverage DC=dmd scripts/examples.sh -cov
+COVERAGE_DIR=build/coverage DC=dmd scripts/examples.sh -cov "${dmd_extra[@]}"
 find build \( -name '*.gcda' -o -name '*.gcno' -o -name '*.profile' \) -delete
-DC=gdc scripts/build.sh --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno
+DC=gdc scripts/build.sh --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno "${gdc_extra[@]}"
 scripts/collect_coverage.sh build/coverage build/gdc/tests gdc-unit
-COVERAGE_DIR=build/coverage DC=gdc scripts/examples.sh --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno
+COVERAGE_DIR=build/coverage DC=gdc scripts/examples.sh --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno "${gdc_extra[@]}"
+if [[ "${SHARED_OUTPUT_COVERAGE:-0}" == 1 ]]; then
+ mapfile -t library < <(rg --files src -g '*.d' | sort)
+ mkdir -p build/coverage-oracle
+ dmd -Isrc -defaultlib=druntime -nothrow -w -unittest -cov "${dmd_extra[@]}" "${library[@]}" tests/shared_output.d -of=build/coverage-oracle/dmd-oracle
+ prlimit --as=4294967296 -- timeout --kill-after=2s 60s build/coverage-oracle/dmd-oracle --DRT-testmode=run-main > build/coverage-oracle/dmd.txt
+ scripts/collect_coverage.sh build/coverage build/coverage-oracle/dmd-oracle dmd-shared-output
+ gdc -Isrc -nophoboslib -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -fcheckaction=halt -Wall -Werror -funittest --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno "${gdc_extra[@]}" "${library[@]}" tests/shared_output.d -o build/coverage-oracle/gdc-oracle -lgdruntime
+ prlimit --as=4294967296 -- timeout --kill-after=2s 60s build/coverage-oracle/gdc-oracle --DRT-testmode=run-main > build/coverage-oracle/gdc.txt
+ scripts/collect_coverage.sh build/coverage build/coverage-oracle/gdc-oracle gdc-shared-output
+fi
 while IFS= read -r -d '' notes; do
  directory=$(dirname "$notes")
  basename=$(basename "$notes")

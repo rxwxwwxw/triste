@@ -1,0 +1,1 @@
+DMD and LDC: NPeggedSharedOutput tests/hotpath.d + src/npegged/records.d, -c -w -vgc: exit 0, no compiler diagnostics.

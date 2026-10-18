@@ -14,9 +14,9 @@ fi
 
 if [[ "$MODE" == "full" ]]; then
   # GDC/gcov are coverage-collector dependencies, not compiler compliance targets.
-  required_tools=(dmd ldc2 gdc dfmt valgrind timeout python3 gcov rg)
+  required_tools=(dmd ldc2 gdc dfmt valgrind timeout python3 gcov rg prlimit)
 else
-  required_tools=(ldc2 dfmt timeout python3 rg)
+  required_tools=(ldc2 dfmt timeout python3 rg prlimit)
 fi
 
 for tool in "${required_tools[@]}"; do
@@ -37,6 +37,7 @@ timeout 10s python3 tests/test_memo_dependencies.py
 
 if [[ "$MODE" == "full" ]]; then
   COMPILERS="dmd ldc2" bash scripts/shared-records-check.sh
+  COMPILERS="dmd ldc2" bash scripts/shared-output-check.sh
   for compiler in dmd ldc2; do
     DC=$compiler scripts/build.sh
     DC=$compiler bash scripts/differential.sh
@@ -52,6 +53,7 @@ if [[ "$MODE" == "full" ]]; then
   echo "Full validation passed (multi-compiler, coverage, ASan/LSan, Valgrind, benchmarks)."
 else
   COMPILERS=ldc2 bash scripts/shared-records-check.sh
+  COMPILERS=ldc2 BACKENDS=combinators MEMOS=selective PROJECTIONS=all bash scripts/shared-output-check.sh
   DC=ldc2 scripts/build.sh
   DC=ldc2 bash scripts/differential.sh
   DC=ldc2 scripts/examples.sh
