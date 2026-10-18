@@ -1,0 +1,1 @@
+All executable src/ modules exceed the line and branch coverage threshold.

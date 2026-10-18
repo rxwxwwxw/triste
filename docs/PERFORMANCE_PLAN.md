@@ -184,6 +184,8 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 
 | H06 | see git log | DMD/LDC transcripts 58,532 B identical; >90% line/branch coverage; -vgc; ASan/LSan/Memcheck; 1,352 event rows across 4 cohorts | performance/results/H05/README.md | performance/results/H06/README.md | 41 rules profiled; failureDiagnostic dominates with 2,220 replays; Sp_1 is top hotspot (1,820 replays) | accepted diagnostic only; no policy change |
 
+| H07 | see git log | DMD/LDC transcripts identical; >90% coverage; -vgc; ASan/LSan/Memcheck clean; 1,344 event rows | performance/results/H06/README.md | performance/results/H07/README.md | replays cut 99.8% (2,224 to 4); 2,220 failureDiagnostic replays eliminated; JSON.WhitespaceHeavy 12.6% faster | accepted and promoted |
+
 Checkpoint F: see [F05 findings](../performance/results/F05/README.md) and [verification](../performance/results/verification/README.md).
 
 ## 9. First two implementation sprints and explicit non-goals

@@ -620,7 +620,7 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                     if (examined > end)
                         s.recordFailure(s.node(pos, examined, false));
                     return s.node(pos, end);
-                } else static if (Check == 1) {
+                } else static if (Check == 1 || (Check == 2 && !HasInnerRecords)) {
                     static if (Table.requireEnd) {
                         if (lastEofEnd != size_t.max && (examined < limit || limit == s.input.length)) {
                             version (NPeggedScannerMetrics) {
@@ -816,10 +816,12 @@ version (NPeggedScannerMetrics) @nogc nothrow unittest {
     s2.context.scannerReport = &report;
     s2.attachRecords(records);
     assert(InnerToken(s2, 0).successful);
-    assert(report.total.reasons[ScannerReason.innerRecords] == 1);
     assert(!PairToken(s2, 0).successful);
-    assert(report.total.reasons[ScannerReason.failureDiagnostic] == 1);
-    assert(report.total.replays == 1 && report.total.replayedBytes == 2);
+    assert(report.total.fastFailure == 1);
+    assert(report.total.replays == 0);
+    assert(!AnchoredToken(s2, 0).successful);
+    assert(report.total.fastFailure == 2);
+    assert(report.total.replays == 0);
 
     assert(BadTableToken(s1, 0).successful);
     assert(report.total.reasons[ScannerReason.invalidTable] == 1);

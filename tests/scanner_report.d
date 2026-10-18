@@ -162,6 +162,14 @@ int main() @nogc nothrow {
         assert(tiny.truncated && tiny.length == 1 && tiny.total.calls >= 2);
         context.scannerReport = null;
         assert(check!(Candidate.Root)(context, "123").successful);
+        ScannerStats[16] testStorage;
+        ScannerReport testReport;
+        testReport.rows = testStorage[];
+        context.scannerReport = &testReport;
+        assert(!parseRecords!(Candidate.Digits, selected, false)(context, "xyz").successful);
+        assert(testReport.total.fastFailure == 1);
+        assert(testReport.total.replays == 0);
+        assert(testReport.total.reasons[ScannerReason.failureDiagnostic] == 0);
     }
     printf("scanner report oracle passed\n");
     return 0;
