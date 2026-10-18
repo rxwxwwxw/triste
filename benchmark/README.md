@@ -149,8 +149,9 @@ The PEG adapter follows the handwritten recognizer's permissive syntax (includin
 balanced parameter text and repeated suffixes), rather than the bootstrap language.
 Adjacent differential tests cover short exhaustive arithmetic/CSV/numeric inputs
 and PEG token combinations. The default repeated `performance_gate.py` now includes
-this corpus in addition to the requested JSON/ambiguity output modes. A pass still
-requires every row to meet 5× in every run; exploratory results are not acceptance.
+this corpus in addition to the requested JSON/ambiguity output modes. A pass
+requires every row to meet the target ratio (tightened to 1.5× now that 5× has been
+achieved across all gates) in every run; exploratory results are not acceptance.
 
 ### Isolated DFA token scanning
 

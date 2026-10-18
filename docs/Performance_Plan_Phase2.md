@@ -1,6 +1,6 @@
 # NPegged performance — Phase 2 plan after F01–F05, R01–R07, H01–H08
 
-**Goal:** ship the measured wins, remove the remaining performance-gate failures without changing PEG semantics, safely exploit the action-grammar pure-island fast path, and determine whether recursive output can become fast *without* penalizing flat grammars. The default reference parser remains available. Each milestone is one small, independently reviewable agent task, with tests and a written go/no-go decision.
+**Goal:** ship the measured wins, achieve the tightened <=1.5x performance target relative to handwritten D baselines (now that the 5.0x milestone is complete across all 513 gates), safely exploit the action-grammar pure-island fast path, and determine whether recursive output can become fast *without* penalizing flat grammars. The default reference parser remains available. Each milestone is one small, independently reviewable agent task, with tests and a written go/no-go decision.
 
 ## 1. Conclusions that the new plan must respect
 

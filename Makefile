@@ -148,7 +148,7 @@ help:
 	@echo "  examples-all     Run examples across dmd and ldc2"
 	@echo "  bench / benchmark Run benchmark suite against vendored Pegged"
 	@echo "  benchmark-checks Verify benchmark units, integrations, and diagnostic coverage"
-	@echo "  performance-check Run repeated paired 5x gates for the equal-output corpus"
+	@echo "  performance-check Run repeated paired 1.5x gates for the equal-output corpus"
 	@echo "  benchmark-compare Compare common outputs across D parsers and chumsky"
 	@echo "  bench-memory     Run benchmark suite with allocator accounting"
 	@echo "  coverage         Measure coverage and verify src/ >90% threshold"

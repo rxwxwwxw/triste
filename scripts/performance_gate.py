@@ -64,6 +64,8 @@ def main():
     parser.add_argument('--runs', type=positive, default=3)
     parser.add_argument('--modes', nargs='+', choices=('validation', 'spans', 'tree'),
                         default=['validation', 'spans', 'tree'])
+    parser.add_argument('--target-ratio', type=float, default=1.5,
+                        help='Target maximum ratio against handwritten baseline (default: 1.5)')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/performance-acceptance.json')
     args = parser.parse_args()
     if args.samples < 7 or args.runs < 3 or len(set(args.modes)) != len(args.modes):
@@ -113,8 +115,8 @@ def main():
         cpu = next((line.split(':', 1)[1].strip()
                     for line in Path('/proc/cpuinfo').read_text().splitlines()
                     if line.startswith('model name')), cpu)
-    failed = [row for row in ratios if row['ratio'] > 5]
-    result = {'schemaVersion': 1, 'passed': not failed, 'targetRatio': 5,
+    failed = [row for row in ratios if row['ratio'] > args.target_ratio]
+    result = {'schemaVersion': 1, 'passed': not failed, 'targetRatio': args.target_ratio,
               'coverage': 'JSON/ambiguity selected output modes; arithmetic/CSV selected output modes; numbers and handwritten PEG syntax validation',
               'corpora': {'json-ambiguity': corpus, 'handwritten-workloads': workload_corpora['validation'],
                           'handwritten-workload-outputs': workload_corpora},
@@ -129,7 +131,7 @@ def main():
                            'worktreeDirty': bool(run(['git', 'status', '--porcelain']).stdout),
                            'sourceHashes': before, 'iterations': args.iterations,
                            'samples': args.samples, 'runs': args.runs,
-                           'ratioDefinition': 'paired mean time per parse; every case must be <=5 in every run'},
+                           'ratioDefinition': f'paired mean time per parse; every case must be <={args.target_ratio} in every run'},
               'ratios': ratios, 'failures': failed, 'measurements': reports}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')

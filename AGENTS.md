@@ -17,6 +17,7 @@ All code authored, refactored, or reviewed by AI agents must strictly uphold the
 7. **Canonical Formatting (`dfmt`):** All `.d` files must be formatted with `dfmt` before commit. Unformatted code fails CI and pre-commit hooks.
 8. **Multi-Compiler Compliance:** Code must compile cleanly across **DMD** and **LDC** with zero compiler warnings.
 9. **Leak & Memory Safety Enforcement:** Code must run clean under AddressSanitizer (ASan), LeakSanitizer (LSan), and Valgrind (Memcheck) with zero leaks or invalid accesses.
+10. **Performance Target (<=1.5x of Handwritten):** All maintained parsers and performance gates must target execution times within 1.5x of handwritten D baselines across all equal-output workloads (tightened from the initial 5.0x target now that 5.0x has been achieved across all gates).
 
 ---
 
@@ -374,4 +375,5 @@ Before submitting code, generating patches, or opening a PR, complete every item
 * [ ] **Exception Free:** Marked `nothrow`, and fallible operations use `Result!(T, E)`.
 * [ ] **RAII Encapsulation:** All system handles and dynamic buffers use RAII wrappers with `@disable this(this);`.
 * [ ] **Sanitizer & Leak Clean:** Executed clean runs under ASan/LSan and Valgrind Memcheck with exit code 0.
+* [ ] **Performance Target <=1.5x:** Performance gates and benchmarks target the <=1.5x ratio threshold relative to handwritten D baselines.
 * [ ] **Git Hook Compliance:** Passed all staged validations in `.git/hooks/pre-commit`.

@@ -177,9 +177,12 @@ Run `make benchmark-compare DC=ldc2` for local NPegged, Pegged, handwritten D,
 and chumsky comparisons with matching validation, span, and tree outputs.
 The runner verifies complete consumption and output records before timing and
 reports repeated-run dispersion, MB/s, compiler/CPU metadata, and allocator
-traffic. See [benchmark instructions](benchmark/README.md) for output contracts,
-commands, and measurement limits.
+traffic. With the initial 5.0x performance target achieved across all paired acceptance
+gates (513/513 checks passing), our active project goal is for NPegged to execute within
+**1.5x of handwritten D baselines** across all supported equal-output workloads.
+See [benchmark instructions](benchmark/README.md) for output contracts, commands, and
+measurement limits.
 
 
-The [performance roadmap](docs/PERFORMANCE_PLAN.md) tracks the next optimization
-work and acceptance criteria.
+The [performance roadmap](docs/PERFORMANCE_PLAN.md) and [Phase 2 plan](docs/Performance_Plan_Phase2.md)
+track optimization milestones, lane decisions, and acceptance criteria.
