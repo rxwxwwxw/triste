@@ -1,5 +1,6 @@
 module tests.eligibility_report;
 import npegged.grammar;
+import core.memory : GC;
 import npegged.io : File;
 import core.stdc.stdio : printf, snprintf;
 import core.stdc.stdlib : getenv;
@@ -37,14 +38,18 @@ private void inspect(Memoization memo, ParserBackend backend, bool records)(stri
             auto repeated = eligibilityReport!(memo, selector, backend)(definition);
             auto text = eligibilityReport!(memo, selector, backend)(definition, EligibilityFormat
                     .text);
+            version (EligibilityGCStress)
+                GC.collect(); // Returned rows and strings survive a subsequent collection.
             assert(report.status == Status.ok && text.status == Status.ok);
+            assert(report.rules == text.rules);
+            assert(text.report == eligibilityReport!(memo, selector, backend)(definition,
+                    EligibilityFormat.text).report);
             assert(report.report == repeated.report && report.rules == repeated.rules);
             assert(report.rules.length && report.rules[0].selectorConfigured == records);
             assert(report.backend == backend && report.memoPolicy == memo);
             foreach (row; report.rules) {
-                const hasDirect = generated.source.indexOf(
-                        "private static State!(CT, Check).Node _direct_" ~ row.name[row.name.indexOf(
-                        ".") + 1 .. $]) >= 0;
+                const hasDirect = generated.source.indexOf("return defined!(_direct_"
+                        ~ row.name[row.name.indexOf(".") + 1 .. $] ~ "!(CT, Check),") >= 0;
                 assert(hasDirect == (row.directRecognition || row.directRecords));
             }
             if (index == 0) {

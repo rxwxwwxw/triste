@@ -76,6 +76,13 @@ execution uses scoped arenas, including the alternate backend when exercised
 at runtime. There are no Phobos dependencies in maintained D code or emitted
 parsers. Strict `-betterC` compilation is not a target of this first conversion.
 
+Use `eligibilityReport!(memo, Selector, backend)(definition)` for a cold JSON
+report of actual scalar/direct eligibility, memoization, fallback reasons and
+record selection. Pass `EligibilityFormat.text` for text. The result has explicit
+status and typed rule rows; requesting a report preserves parser generation
+policy. See the [eligibility report guide](performance/results/H01/README.md) for
+field meanings, examples and current whole-grammar barriers.
+
 Unicode folding and alphabetic-property tables are generated from the vendored
 Unicode 17 database, independently of the process locale. As in Pegged, `.`
 consumes one byte, character ranges decode UTF-8, and case-insensitive literals

@@ -4,6 +4,7 @@ module npegged.grammar;
 public import npegged.peg;
 public import npegged.dfa;
 import npegged.io;
+public import npegged.analysis : RuleEligibility;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts;
 
 nothrow:
@@ -23,6 +24,126 @@ enum Memoization {
 enum ParserBackend {
     combinators,
     direct
+}
+
+/// Serialization for an explicitly requested cold eligibility report.
+enum EligibilityFormat {
+    json,
+    text
+}
+
+/// Grammar-wide evidence and actual code-generation decisions, not a purity promise.
+struct EligibilityResult {
+    Status status = Status.invalidInput;
+    Diagnostic diagnostic;
+    string grammarName;
+    ParserBackend backend;
+    Memoization memoPolicy = Memoization.yes;
+    bool conservative;
+    string[] unknownEvidence, actionRules;
+    RuleEligibility[] rules;
+    string report;
+}
+
+@nogc nothrow unittest {
+    EligibilityResult result;
+    assert(result.status == Status.invalidInput && !result.report.length && !result.rules.length);
+}
+
+private string jsonQuoted(scope string value) pure nothrow {
+    string result = "\"";
+    enum hex = "0123456789abcdef";
+    foreach (c; value) {
+        if (c == '"' || c == '\\')
+            result ~= "\\" ~ c;
+        else if (cast(ubyte)c < 32)
+            result ~= "\\u00" ~ hex[cast(ubyte)c >> 4] ~ hex[cast(ubyte)c & 15];
+        else
+            result ~= c;
+    }
+    return result ~ "\"";
+}
+
+nothrow unittest {
+    assert(jsonQuoted("a\"\\\n\0\t\x1f/é") == "\"a\\\"\\\\\\u000a\\u0000\\u0009\\u001f/é\"");
+    assert(jsonQuoted("") == "\"\"");
+}
+
+private string jsonStrings(scope const(string)[] values) pure nothrow {
+    string result = "[";
+    foreach (i, value; values)
+        result ~= (i ? "," : "") ~ jsonQuoted(value);
+    return result ~ "]";
+}
+
+nothrow unittest {
+    assert(jsonStrings(null) == "[]");
+    assert(jsonStrings(["a", "b"]) == "[\"a\",\"b\"]");
+}
+
+private string booleanText(bool value) @nogc nothrow pure {
+    return value ? "true" : "false";
+}
+
+@nogc nothrow unittest {
+    assert(booleanText(true) == "true" && booleanText(false) == "false");
+}
+
+private string renderEligibility(scope const ref EligibilityResult value, EligibilityFormat format) nothrow {
+    const json = format == EligibilityFormat.json;
+    string result;
+    string field(string name, string data) nothrow {
+        return (json ? jsonQuoted(name) ~ ":" : name ~ "=") ~ data;
+    }
+
+    const separator = json ? "," : " ";
+    result = (json ? "{" : "") ~ field("grammar", jsonQuoted(value.grammarName)) ~ separator ~ field(
+            "backend", jsonQuoted(value.backend == ParserBackend.direct ? "direct" : "combinators")) ~ separator ~ field(
+            "memoPolicy", jsonQuoted(value.memoPolicy == Memoization.no
+            ? "no" : value.memoPolicy == Memoization.yes ? "yes" : "selective")) ~ separator ~ field(
+            "conservative",
+            booleanText(value.conservative)) ~ separator ~ field("unknownEvidence",
+            jsonStrings(value.unknownEvidence)) ~ separator ~ field("actionRules",
+            jsonStrings(value.actionRules)) ~ separator ~ field(
+            "fallbackModes", "[\"trace\",\"CTFE\",\"full-tree\"]") ~ (json ? ",\"rules\":[" : "\n");
+    foreach (i, row; value.rules) {
+        if (json)
+            result ~= i ? ",{" : "{";
+        result ~= field("name", jsonQuoted(row.name)) ~ separator ~ field("rootExpression",
+                jsonQuoted(row.rootExpression)) ~ separator ~ field("leftRecursive",
+                booleanText(row.leftRecursive)) ~ separator ~ field("memoized",
+                booleanText(row.memoized)) ~ separator ~ field("scalarEligible",
+                booleanText(row.scalarEligible)) ~ separator ~ field("scalarBlockers",
+                jsonStrings(row.scalarBlockers)) ~ separator ~ field("directRecognition",
+                booleanText(row.directRecognition)) ~ separator ~ field("directRecords",
+                booleanText(row.directRecords)) ~ separator ~ field("directFallback",
+                jsonQuoted(row.directFallback)) ~ separator ~ field("selectorConfigured",
+                booleanText(row.selectorConfigured)) ~ separator ~ field("recordKind",
+                number(row.recordKind)) ~ separator ~ field("recordSelected",
+                booleanText(row.recordSelected)) ~ separator ~ field("recordLeaf",
+                booleanText(row.recordLeaf)) ~ separator ~ field("recordSubtree",
+                booleanText(row.recordSubtree)) ~ (json ? "}" : "\n");
+    }
+    return result ~ (json ? "]}" : "");
+}
+
+nothrow unittest {
+    EligibilityResult value;
+    value.grammarName = "Quoted\n\"";
+    auto json = renderEligibility(value, EligibilityFormat.json);
+    assert(startsWith(json, "{\"grammar\":\"Quoted\\u000a\\\"\""));
+    assert(json[$ - 3 .. $] == "[]}");
+    assert(startsWith(renderEligibility(value, EligibilityFormat.text), "grammar="));
+    value.memoPolicy = Memoization.no;
+    value.backend = ParserBackend.direct;
+    value.rules = [RuleEligibility.init, RuleEligibility.init];
+    value.rules[0].name = "First";
+    value.rules[1].name = "Second";
+    value.rules[1].scalarBlockers = ["grammar-unknown", "full-memo"];
+    assert(renderEligibility(value, EligibilityFormat.json).length > json.length);
+    assert(renderEligibility(value, EligibilityFormat.text).length > json.length);
+    value.memoPolicy = Memoization.selective;
+    assert(renderEligibility(value, EligibilityFormat.json).length);
 }
 
 private string number(ulong value) pure nothrow {
@@ -133,6 +254,7 @@ package struct Frontend {
     private GrammarAnalysis analyzed;
     private bool hasAnalysis;
     private bool[] scalarRules;
+    private EligibilityResult* eligibility;
     private string directDeclarations, directRule;
     void skip() nothrow {
         while (pos < input.length) {
@@ -1957,13 +2079,23 @@ package struct Frontend {
 
     string emit() nothrow {
         prepareAnalysis();
+        if (eligibility !is null) {
+            eligibility.grammarName = name;
+            eligibility.conservative = analyzed.conservative;
+            eligibility.unknownEvidence = analyzed.unknownEvidence();
+        }
         foreach (i, ref rule; rules)
             rule.body = emitExpression(analyzed, analyzed.roots[i]);
         bool actionGrammar;
-        foreach (rule; rules)
+        foreach (rule; rules) {
+            bool actionInRule;
             foreach (i; 0 .. rule.body.length)
                 if (startsWith(rule.body[i .. $], "action!("))
-                    actionGrammar = true;
+                    actionInRule = true;
+            actionGrammar = actionGrammar || actionInRule;
+            if (eligibility !is null && actionInRule)
+                eligibility.actionRules ~= name ~ "." ~ rule.name;
+        }
         scalarRules = new bool[rules.length];
         foreach (i, rule; rules)
             scalarRules[i] = backend == ParserBackend.direct && !actionGrammar && !params.length
@@ -2103,6 +2235,45 @@ package struct Frontend {
                 ~ entryName ~ ")(input); }\n";
             if (rule.params.length)
                 ruleOut ~= "alias " ~ r ~ " = _entry;\n}\n";
+            if (eligibility !is null) {
+                RuleEligibility row;
+                row.name = name ~ "." ~ r;
+                row.rootExpression = analyzed.expressions[analyzed.roots[ruleIndex]].source;
+                row.leftRecursive = analyzed.leftRecursive[ruleIndex];
+                row.memoized = cache;
+                row.scalarEligible = scalarRules[ruleIndex];
+                row.directRecognition = useDirect;
+                row.directRecords = useDirect || directRecords;
+                if (backend != ParserBackend.direct)
+                    row.scalarBlockers ~= "backend-combinators";
+                if (actionGrammar)
+                    row.scalarBlockers ~= "grammar-action";
+                if (params.length)
+                    row.scalarBlockers ~= "grammar-parameters";
+                if (rule.params.length)
+                    row.scalarBlockers ~= "rule-parameters";
+                if (row.leftRecursive)
+                    row.scalarBlockers ~= "left-recursion";
+                if (analyzed.conservative)
+                    row.scalarBlockers ~= "grammar-unknown";
+                if (memoize && !selective)
+                    row.scalarBlockers ~= "full-memo";
+                assert(row.scalarEligible == !row.scalarBlockers.length);
+                row.directFallback = backend != ParserBackend.direct
+                    ? "backend-combinators" : actionGrammar
+                    ? "grammar-action" : params.length
+                    ? "grammar-parameters" : rule.params.length
+                    ? "rule-parameters" : row.leftRecursive
+                    ? "left-recursion" : !useDirect ? "root-combinator" : "none";
+                row.selectorConfigured = recordKinds.length != 0;
+                if (row.selectorConfigured) {
+                    row.recordKind = recordKinds[ruleIndex];
+                    row.recordSelected = row.recordKind != uint.max;
+                    row.recordLeaf = recordLeaves[ruleIndex];
+                    row.recordSubtree = recordSubtrees[ruleIndex];
+                }
+                eligibility.rules ~= row;
+            }
             ruleChunks[ruleIndex] = ruleOut;
         }
         size_t totalLen = result.length;
@@ -2767,6 +2938,82 @@ struct GenerationResult {
     Status status = Status.invalidInput;
     string source;
     Diagnostic diagnostic;
+}
+
+/// Cold, opt-in diagnostics. Runs the same emitter and captures its decisions;
+/// neither the returned report nor its evidence changes generated parser policy.
+EligibilityResult eligibilityReport(Memoization memo = Memoization.yes, alias Selector = void,
+        ParserBackend backend = ParserBackend.combinators)(string definition,
+        EligibilityFormat format = EligibilityFormat.json) nothrow {
+    EligibilityResult result;
+    if (format != EligibilityFormat.json && format != EligibilityFormat.text) {
+        result.diagnostic = Diagnostic(0, "Unknown eligibility report format");
+        return result;
+    }
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.diagnostic = Diagnostic(begin, "Eligibility report input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.memoize = memo != Memoization.no;
+    frontend.selective = memo == Memoization.selective;
+    frontend.backend = backend;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    frontend.configureRecords!Selector();
+    result.backend = backend;
+    result.memoPolicy = memo;
+    frontend.eligibility = &result;
+    frontend.emit();
+    result.report = renderEligibility(result, format);
+    result.status = Status.ok;
+    return result;
+}
+
+nothrow unittest {
+    enum definition = "Report: Root <- Leaf eoi Leaf <- 'a' Opaque <- external Effect <- 'x'{effect} Rec <- Rec 'n' / 'n'";
+    auto mixed = eligibilityReport!(Memoization.selective, compactTag, ParserBackend.direct)(definition);
+    assert(mixed.status == Status.ok && mixed.grammarName == "Report");
+    assert(mixed.conservative && mixed.actionRules == ["Report.Effect"]);
+    assert(mixed.unknownEvidence.length == 2);
+    assert(!mixed.rules[1].scalarEligible && mixed.rules[4].leftRecursive);
+    assert(mixed.rules[0].recordSelected && mixed.rules[0].recordSubtree);
+    assert(mixed.report == eligibilityReport!(Memoization.selective, compactTag,
+            ParserBackend.direct)(definition).report);
+    // Report the current emitter barrier even when its textual check is conservative.
+    auto literalAction = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)(
+            "LiteralAction: Root <- 'action!('");
+    assert(literalAction.actionRules == ["LiteralAction.Root"] && !literalAction.unknownEvidence
+            .length);
+    assert(!literalAction.rules[0].scalarEligible);
+    auto plain = eligibilityReport("Plain: Root <- 'a'");
+    assert(plain.status == Status.ok && plain.rules[0].memoized);
+    assert(plain.rules[0].directFallback == "backend-combinators");
+    auto recursion = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)(
+            "RecReport: Root <- Root 'a' / 'a' Leaf <- 'a'");
+    assert(recursion.rules[0].directFallback == "left-recursion");
+    assert(recursion.rules[1].scalarEligible && !recursion.rules[1].directRecognition);
+    auto parameter = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)(
+            "ParamReport(T=identifier): Root <- T");
+    assert(parameter.rules[0].directFallback == "grammar-parameters");
+    auto ruleParameter = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)(
+            "ParamRule: Root(P) <- P");
+    assert(ruleParameter.status == Status.ok && ruleParameter.rules[0].directFallback == "rule-parameters");
+    auto badEncoding = eligibilityReport("Bad: Root <- 'a' #\x80");
+    assert(badEncoding.status == Status.invalidInput && badEncoding.diagnostic.offset == 18);
+    auto invalid = eligibilityReport("Broken:");
+    assert(invalid.status == Status.invalidInput && invalid.diagnostic.message.length);
+    auto badFormat = eligibilityReport("Valid: Root <- 'a'", cast(EligibilityFormat)99);
+    assert(badFormat.status == Status.invalidInput && badFormat.diagnostic.message.length);
 }
 
 GenerationResult generate(Memoization memo = Memoization.yes, alias Selector = void,

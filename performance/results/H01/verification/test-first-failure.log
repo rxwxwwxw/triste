@@ -1,0 +1,61 @@
+tests/eligibility_report.d(36): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto report = eligibilityReport!(memo, selector, backend)(definition);
+                          ^
+tests/eligibility_report.d(37): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto repeated = eligibilityReport!(memo, selector, backend)(definition);
+                            ^
+tests/eligibility_report.d(38): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto text = eligibilityReport!(memo, selector, backend)(definition, EligibilityFormat
+                        ^
+tests/eligibility_report.d(82): Error: template instance `tests.eligibility_report.inspect!(Memoization.no, ParserBackend.combinators, false)` error instantiating
+                inspect!(memo, backend, records)(directory);
+                ^
+tests/eligibility_report.d(36): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto report = eligibilityReport!(memo, selector, backend)(definition);
+                          ^
+tests/eligibility_report.d(37): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto repeated = eligibilityReport!(memo, selector, backend)(definition);
+                            ^
+tests/eligibility_report.d(38): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto text = eligibilityReport!(memo, selector, backend)(definition, EligibilityFormat
+                        ^
+tests/eligibility_report.d(82): Error: template instance `tests.eligibility_report.inspect!(Memoization.no, ParserBackend.combinators, true)` error instantiating
+                inspect!(memo, backend, records)(directory);
+                ^
+tests/eligibility_report.d(36): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto report = eligibilityReport!(memo, selector, backend)(definition);
+                          ^
+tests/eligibility_report.d(37): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto repeated = eligibilityReport!(memo, selector, backend)(definition);
+                            ^
+tests/eligibility_report.d(38): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto text = eligibilityReport!(memo, selector, backend)(definition, EligibilityFormat
+                        ^
+tests/eligibility_report.d(82): Error: template instance `tests.eligibility_report.inspect!(Memoization.no, ParserBackend.direct, false)` error instantiating
+                inspect!(memo, backend, records)(directory);
+                ^
+tests/eligibility_report.d(36): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto report = eligibilityReport!(memo, selector, backend)(definition);
+                          ^
+tests/eligibility_report.d(37): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto repeated = eligibilityReport!(memo, selector, backend)(definition);
+                            ^
+tests/eligibility_report.d(38): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto text = eligibilityReport!(memo, selector, backend)(definition, EligibilityFormat
+                        ^
+tests/eligibility_report.d(82): Error: template instance `tests.eligibility_report.inspect!(Memoization.no, ParserBackend.direct, true)` error instantiating
+                inspect!(memo, backend, records)(directory);
+                ^
+tests/eligibility_report.d(36): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto report = eligibilityReport!(memo, selector, backend)(definition);
+                          ^
+tests/eligibility_report.d(37): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto repeated = eligibilityReport!(memo, selector, backend)(definition);
+                            ^
+tests/eligibility_report.d(38): Error: template instance `eligibilityReport!(memo, selector, backend)` template `eligibilityReport` is not defined
+            auto text = eligibilityReport!(memo, selector, backend)(definition, EligibilityFormat
+                        ^
+tests/eligibility_report.d(82): Error: template instance `tests.eligibility_report.inspect!(Memoization.yes, ParserBackend.combinators, false)` error instantiating
+                inspect!(memo, backend, records)(directory);
+                ^
+error limit (20) reached, use `-verrors=0` to show all

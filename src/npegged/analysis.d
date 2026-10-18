@@ -52,6 +52,22 @@ struct EscapeLoop {
     bool doubled;
 }
 
+/// Cold diagnostics for actual emitter choices. H02 refines effect evidence separately.
+struct RuleEligibility {
+    string name, rootExpression;
+    bool leftRecursive, memoized, scalarEligible, directRecognition, directRecords;
+    string[] scalarBlockers;
+    string directFallback;
+    bool selectorConfigured, recordSelected, recordLeaf, recordSubtree;
+    uint recordKind = uint.max;
+
+}
+
+@nogc nothrow unittest {
+    RuleEligibility row;
+    assert(row.recordKind == uint.max && !row.scalarEligible && !row.selectorConfigured);
+}
+
 /// FIRST is a conservative byte-set superset; unknown facts never enable dispatch.
 /// Left edges include every call reachable before proven input consumption.
 struct GrammarAnalysis {
@@ -128,6 +144,31 @@ nothrow:
         graph.names = names[];
         assert(graph.ruleIndex("First") == 0 && graph.ruleIndex("Second") == 1);
         assert(graph.ruleIndex("missing") == size_t.max);
+    }
+
+    /// Structural unknowns that force the existing grammar-wide conservative policy.
+    string[] unknownEvidence() nothrow {
+        string[] result;
+        foreach (node; expressions)
+            if (node.kind == ExpressionKind.unknown || node.kind == ExpressionKind.reference
+                    && ruleIndex(node.reference) == size_t.max)
+                result ~= node.source;
+        return result;
+    }
+
+    nothrow unittest {
+        GrammarAnalysis graph;
+        graph.names = ["Known"];
+        Expression known = Expression(ExpressionKind.reference, null, "Known");
+        known.source = "Known";
+        Expression opaque = Expression(ExpressionKind.reference, null, "External");
+        opaque.source = "External";
+        Expression action;
+        action.source = "action!(literal!(\"a\"), effect)";
+        graph.expressions = [known, opaque, action, Expression(ExpressionKind.terminal)];
+        assert(graph.unknownEvidence() == ["External", action.source]);
+        graph.expressions = null;
+        assert(!graph.unknownEvidence().length);
     }
 
     /// Only closed, acyclic expressions with understood effects may be shared.

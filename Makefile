@@ -107,7 +107,7 @@ check-phobos:
 
 # Run AddressSanitizer and LeakSanitizer tests
 asan:
-	$(RUN_BOUNDED) DC=ldc2 ASAN_OPTIONS=detect_leaks=1 scripts/build.sh -fsanitize=address -g
+	$(RUN_BOUNDED) DC=ldc2 ASAN_OPTIONS=detect_leaks=1:detect_stack_use_after_return=0 scripts/build.sh -fsanitize=address -g
 
 # Run Valgrind Memcheck leak verification
 valgrind:

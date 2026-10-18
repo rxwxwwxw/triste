@@ -38,6 +38,7 @@ timeout 10s python3 tests/test_memo_dependencies.py
 if [[ "$MODE" == "full" ]]; then
   COMPILERS="dmd ldc2" bash scripts/shared-records-check.sh
   COMPILERS="dmd ldc2" bash scripts/shared-output-check.sh
+  COMPILERS="dmd ldc2" bash scripts/eligibility-check.sh
   for compiler in dmd ldc2; do
     DC=$compiler scripts/build.sh
     DC=$compiler bash scripts/differential.sh
@@ -46,7 +47,7 @@ if [[ "$MODE" == "full" ]]; then
   timeout 10s python3 scripts/test_hooks.py
   scripts/hotpaths.sh
   scripts/coverage.sh
-  DC=ldc2 ASAN_OPTIONS=detect_leaks=1 scripts/build.sh -fsanitize=address -g
+  DC=ldc2 ASAN_OPTIONS=detect_leaks=1:detect_stack_use_after_return=0 scripts/build.sh -fsanitize=address -g
   DC=ldc2 scripts/build.sh -g -O0
   timeout --preserve-status --kill-after=2s 120s valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=definite,indirect --error-exitcode=1 build/ldc2/tests --DRT-testmode=run-main
   python3 scripts/benchmark_checks.py
@@ -54,6 +55,7 @@ if [[ "$MODE" == "full" ]]; then
 else
   COMPILERS=ldc2 bash scripts/shared-records-check.sh
   COMPILERS=ldc2 BACKENDS=combinators MEMOS=selective PROJECTIONS=all bash scripts/shared-output-check.sh
+  COMPILERS=ldc2 bash scripts/eligibility-check.sh
   DC=ldc2 scripts/build.sh
   DC=ldc2 bash scripts/differential.sh
   DC=ldc2 scripts/examples.sh

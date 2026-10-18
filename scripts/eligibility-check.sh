@@ -8,8 +8,8 @@ for compiler in "${compilers[@]}"; do
  mkdir -p "$directory/sources"
  flags=(-Isrc -w -unittest -checkaction=halt)
  case "$compiler" in
-  dmd) flags+=(-defaultlib=druntime -nothrow); if [[ "${BASELINE:-0}" == 1 ]]; then flags+=(-version=EligibilityBaseline); fi;;
-  ldc2) flags+=(-defaultlib=druntime-ldc -fno-exceptions); if [[ "${BASELINE:-0}" == 1 ]]; then flags+=(-d-version=EligibilityBaseline); fi;;
+  dmd) flags+=(-defaultlib=druntime -nothrow -version=EligibilityGCStress); if [[ "${BASELINE:-0}" == 1 ]]; then flags+=(-version=EligibilityBaseline); fi;;
+  ldc2) flags+=(-defaultlib=druntime-ldc -fno-exceptions -d-version=EligibilityGCStress); if [[ "${BASELINE:-0}" == 1 ]]; then flags+=(-d-version=EligibilityBaseline); fi;;
   *) exit 2;;
  esac
  prlimit --as=4294967296 -- timeout --kill-after=2s 300s "$compiler" "${flags[@]}" "${library[@]}" tests/eligibility_report.d "-of=$directory/runner"

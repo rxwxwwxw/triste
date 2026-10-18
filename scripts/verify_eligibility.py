@@ -11,6 +11,10 @@ actual = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
 assert actual == expected, 'generated parser bytes changed'
 rows = [json.loads(line) for line in (folder / 'report.jsonl').read_text().splitlines()]
 assert len(rows) == 72
+names = ('Eligibility', 'Pure', 'Rec', 'Params', 'Unicode', 'Empty')
+assert {(r['grammar'], r['backend'], r['memoPolicy'], r['rules'][0]['selectorConfigured']) for r in rows} == {
+    (name, backend, memo, selected) for name in names for backend in ('combinators', 'direct')
+    for memo in ('no', 'yes', 'selective') for selected in (False, True)}
 assert {(r['backend'], r['memoPolicy'], r['rules'][0]['selectorConfigured']) for r in rows} == {
     (b, m, s) for b in ('combinators', 'direct') for m in ('no', 'yes', 'selective') for s in (False, True)}
 for row in rows:

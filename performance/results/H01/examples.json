@@ -1,0 +1,246 @@
+[
+  {
+    "grammar": "Eligibility",
+    "backend": "direct",
+    "memoPolicy": "selective",
+    "conservative": true,
+    "unknownEvidence": [
+      "action!(literal!(\"x\"), effect)",
+      "external"
+    ],
+    "actionRules": [
+      "Eligibility.Effect"
+    ],
+    "fallbackModes": [
+      "trace",
+      "CTFE",
+      "full-tree"
+    ],
+    "rules": [
+      {
+        "name": "Eligibility.Root",
+        "rootExpression": "and!(Pure, eoi)",
+        "leftRecursive": false,
+        "memoized": true,
+        "scalarEligible": false,
+        "scalarBlockers": [
+          "grammar-action",
+          "grammar-unknown"
+        ],
+        "directRecognition": false,
+        "directRecords": false,
+        "directFallback": "grammar-action",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      },
+      {
+        "name": "Eligibility.Pure",
+        "rootExpression": "and!(literal!(\"a\"), option!(literal!(\"b\")))",
+        "leftRecursive": false,
+        "memoized": true,
+        "scalarEligible": false,
+        "scalarBlockers": [
+          "grammar-action",
+          "grammar-unknown"
+        ],
+        "directRecognition": false,
+        "directRecords": false,
+        "directFallback": "grammar-action",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      },
+      {
+        "name": "Eligibility.Rec",
+        "rootExpression": "or!(and!(Rec, literal!(\"n\")), literal!(\"n\"))",
+        "leftRecursive": true,
+        "memoized": true,
+        "scalarEligible": false,
+        "scalarBlockers": [
+          "grammar-action",
+          "left-recursion",
+          "grammar-unknown"
+        ],
+        "directRecognition": false,
+        "directRecords": false,
+        "directFallback": "grammar-action",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      },
+      {
+        "name": "Eligibility.Effect",
+        "rootExpression": "action!(literal!(\"x\"), effect)",
+        "leftRecursive": false,
+        "memoized": true,
+        "scalarEligible": false,
+        "scalarBlockers": [
+          "grammar-action",
+          "grammar-unknown"
+        ],
+        "directRecognition": false,
+        "directRecords": false,
+        "directFallback": "grammar-action",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      },
+      {
+        "name": "Eligibility.Opaque",
+        "rootExpression": "external",
+        "leftRecursive": false,
+        "memoized": true,
+        "scalarEligible": false,
+        "scalarBlockers": [
+          "grammar-action",
+          "grammar-unknown"
+        ],
+        "directRecognition": false,
+        "directRecords": false,
+        "directFallback": "grammar-action",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      }
+    ]
+  },
+  {
+    "grammar": "Pure",
+    "backend": "direct",
+    "memoPolicy": "selective",
+    "conservative": false,
+    "unknownEvidence": [],
+    "actionRules": [],
+    "fallbackModes": [
+      "trace",
+      "CTFE",
+      "full-tree"
+    ],
+    "rules": [
+      {
+        "name": "Pure.Root",
+        "rootExpression": "and!(oneOrMore!(Leaf), eoi)",
+        "leftRecursive": false,
+        "memoized": false,
+        "scalarEligible": true,
+        "scalarBlockers": [],
+        "directRecognition": false,
+        "directRecords": true,
+        "directFallback": "root-combinator",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      },
+      {
+        "name": "Pure.Leaf",
+        "rootExpression": "charRange!(97, 122)",
+        "leftRecursive": false,
+        "memoized": false,
+        "scalarEligible": true,
+        "scalarBlockers": [],
+        "directRecognition": false,
+        "directRecords": false,
+        "directFallback": "root-combinator",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      },
+      {
+        "name": "Pure.Ignored",
+        "rootExpression": "discard!(option!(literal!(\" \")))",
+        "leftRecursive": false,
+        "memoized": false,
+        "scalarEligible": true,
+        "scalarBlockers": [],
+        "directRecognition": false,
+        "directRecords": false,
+        "directFallback": "root-combinator",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      }
+    ]
+  },
+  {
+    "grammar": "Rec",
+    "backend": "direct",
+    "memoPolicy": "selective",
+    "conservative": false,
+    "unknownEvidence": [],
+    "actionRules": [],
+    "fallbackModes": [
+      "trace",
+      "CTFE",
+      "full-tree"
+    ],
+    "rules": [
+      {
+        "name": "Rec.Root",
+        "rootExpression": "and!(Expr, eoi)",
+        "leftRecursive": false,
+        "memoized": false,
+        "scalarEligible": true,
+        "scalarBlockers": [],
+        "directRecognition": true,
+        "directRecords": true,
+        "directFallback": "none",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      },
+      {
+        "name": "Rec.Expr",
+        "rootExpression": "or!(and!(Expr, literal!(\"+\"), Leaf), Leaf)",
+        "leftRecursive": true,
+        "memoized": true,
+        "scalarEligible": false,
+        "scalarBlockers": [
+          "left-recursion"
+        ],
+        "directRecognition": false,
+        "directRecords": false,
+        "directFallback": "left-recursion",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      },
+      {
+        "name": "Rec.Leaf",
+        "rootExpression": "oneOrMore!(charRange!(48, 57))",
+        "leftRecursive": false,
+        "memoized": false,
+        "scalarEligible": true,
+        "scalarBlockers": [],
+        "directRecognition": false,
+        "directRecords": false,
+        "directFallback": "root-combinator",
+        "selectorConfigured": false,
+        "recordKind": 4294967295,
+        "recordSelected": false,
+        "recordLeaf": false,
+        "recordSubtree": false
+      }
+    ]
+  }
+]

@@ -1,0 +1,27 @@
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.002s
+
+OK
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.140s
+
+OK
+-3
+Left[0, 5]["n", "+n", "+n"]
+ +-Left.R[0, 5]["n", "+n", "+n"]
+    +-Left.R[0, 3]["n", "+n"]
+       +-Left.R[0, 1]["n"]
+Right[0, 3]["n+", "n"]
+ +-Right.R[0, 3]["n+", "n"]
+    +-Right.R[2, 3]["n"]
+-3
+Left[0, 5]["n", "+n", "+n"]
+ +-Left.R[0, 5]["n", "+n", "+n"]
+    +-Left.R[0, 3]["n", "+n"]
+       +-Left.R[0, 1]["n"]
+Right[0, 3]["n+", "n"]
+ +-Right.R[0, 3]["n+", "n"]
+    +-Right.R[2, 3]["n"]
+All executable src/ modules exceed the line and branch coverage threshold.
