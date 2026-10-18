@@ -715,9 +715,159 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
     assert(baseline.end == compiled.end && baseline.failEnd == compiled.failEnd);
 }
 
+@nogc nothrow unittest {
+    import npegged.peg : Arena, ParseContext, State, Status, and, digit, eoi, literal, oneOrMore, or;
+    import npegged.records : RecordBuffer;
+
+    struct DigitsTable {
+        enum automaton = () {
+            CharSetMask mask;
+            mask.addRange('0', '9');
+            return compileDFA([
+                RegularExpression(RegularKind.bytes, mask),
+                RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+                RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1])
+            ], 2);
+        }();
+        enum valid = automaton.valid;
+        enum requireEnd = automaton.requireEnd;
+        enum diagnosticName = "Unit.Digits/_dfa_Digits";
+    }
+
+    struct AnchoredTable {
+        enum automaton = () {
+            CharSetMask mask;
+            mask.addRange('0', '9');
+            return compileDFA([
+                RegularExpression(RegularKind.bytes, mask),
+                RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+                RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1])
+            ], 2, true);
+        }();
+        enum valid = automaton.valid;
+        enum requireEnd = automaton.requireEnd;
+        enum diagnosticName = "Unit.Anchored/_dfa_Anchored";
+    }
+
+    struct PairTable {
+        enum automaton = () {
+            CharSetMask digits;
+            digits.addRange('0', '9');
+            const bang = CharSetMask.fromChars('!');
+            return compileDFA([
+                RegularExpression(RegularKind.bytes, digits),
+                RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+                RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1]),
+                RegularExpression(RegularKind.bytes, bang),
+                RegularExpression(RegularKind.sequence, CharSetMask.init, [2, 3])
+            ], 4);
+        }();
+        enum valid = automaton.valid;
+        enum requireEnd = automaton.requireEnd;
+        enum diagnosticName = "Unit.Pair/_dfa_Pair";
+    }
+
+    struct EscapeTable {
+        enum automaton = () {
+            CharSetMask slash = CharSetMask.fromChars('\\');
+            CharSetMask esc = CharSetMask.fromChars('n', 't', '\\', '"');
+            return compileDFA([
+                RegularExpression(RegularKind.bytes, slash), RegularExpression(RegularKind.bytes,
+                        esc), RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1])
+            ], 2);
+        }();
+        enum valid = automaton.valid;
+        enum requireEnd = automaton.requireEnd;
+        enum diagnosticName = "Unit.Escape/_dfa_Escape";
+    }
+
+    alias FastDigits = dfaToken!(oneOrMore!digit, DigitsTable, 2, false);
+    alias InnerDigits = dfaToken!(oneOrMore!digit, DigitsTable, 2, true);
+    alias AnchoredDigits = dfaToken!(and!(oneOrMore!digit, eoi), AnchoredTable, 0, false);
+    alias PairDigits = dfaToken!(and!(oneOrMore!digit, literal!"!"), PairTable, 0, false);
+
+    alias EscapeRule = and!(literal!"\\", or!(literal!"n", literal!"t", literal!"\\", literal!"\""));
+    alias FastEscape = dfaToken!(EscapeRule, EscapeTable, 2, false);
+    alias InnerEscape = dfaToken!(EscapeRule, EscapeTable, 2, true);
+
+    alias AltA = and!(FastDigits, literal!"!");
+    alias AltB = and!(FastDigits, literal!"?");
+    alias ChoiceDigits = or!(AltA, AltB);
+
+    Arena arena;
+    RecordBuffer records;
+    records.arena = &arena;
+    State!(false, 2) s;
+    s.arena = &arena;
+    s.attachRecords(records);
+
+    // 1. Terminal fast-failure on EOF: failEnd == 0, 0 records
+    s.input = "";
+    auto rEof = FastDigits(s, 0);
+    assert(!rEof.successful && rEof.failEnd == 0);
+    assert(records.length == 0);
+
+    // 2. Terminal fast-failure on mismatch: failEnd == 0, 0 records
+    s.input = "abc";
+    auto rMismatch = FastDigits(s, 0);
+    assert(!rMismatch.successful && rMismatch.failEnd == 0);
+    assert(records.length == 0);
+
+    // 3. Failed escape sequence: mismatching escape char, failEnd == 1, 0 records
+    s.input = "\\x";
+    auto rFailEsc = FastEscape(s, 0);
+    assert(!rFailEsc.successful && rFailEsc.failEnd == 1);
+    assert(records.length == 0);
+
+    // 4. Truncated escape sequence at EOF: failEnd == 1, 0 records
+    s.input = "\\";
+    auto rTruncEsc = FastEscape(s, 0);
+    assert(!rTruncEsc.successful && rTruncEsc.failEnd == 1);
+    assert(records.length == 0);
+
+    // 5. Successful escape sequence: end == 2
+    s.input = "\\n";
+    auto rSuccEsc = FastEscape(s, 0);
+    assert(rSuccEsc.successful && rSuccEsc.end == 2);
+
+    // 6. Truncated pair at EOF: failEnd == 3, 0 records
+    s.input = "123";
+    auto rTruncPair = PairDigits(s, 0);
+    assert(!rTruncPair.successful && rTruncPair.failEnd == 3);
+    assert(records.length == 0);
+
+    // 7. Anchored token failing at EOF requirement: failEnd == 3, 0 records
+    s.input = "123x";
+    auto rAnchored = AnchoredDigits(s, 0);
+    assert(!rAnchored.successful && rAnchored.failEnd == 3);
+    assert(records.length == 0);
+
+    // 8. Backtracking with choice: first alt fast-fails without corrupting state, second alt succeeds
+    s.input = "123?";
+    auto rChoice = ChoiceDigits(s, 0);
+    assert(rChoice.successful && rChoice.end == 4);
+
+    // 9. Token WITH inner records (InnerDigits): falls back to combinator execution on failure
+    s.input = "abc";
+    auto rInnerFail = InnerDigits(s, 0);
+    assert(!rInnerFail.successful && rInnerFail.failEnd == 0);
+    assert(records.length == 0);
+
+    s.input = "123";
+    auto rInnerSucc = InnerDigits(s, 0);
+    assert(rInnerSucc.successful && rInnerSucc.end == 3);
+
+    // 10. Step budget edge: limits halt scan safely
+    s.input = "12345";
+    s.context.stepLimit = 2;
+    auto rBudget = FastDigits(s, 0);
+    assert(!rBudget.successful);
+    s.context.stepLimit = size_t.max;
+}
+
 version (NPeggedScannerMetrics) @nogc nothrow unittest {
     import npegged.peg : Arena, ParseContext, ScannerReason, ScannerReport, ScannerStats, State,
-        Status, and, digit, eoi, literal, oneOrMore;
+        Status, and, digit, eoi, literal, oneOrMore, or;
     import npegged.records : RecordBuffer;
 
     static void noopTrace(string, size_t, bool, void*) @nogc nothrow {
@@ -771,6 +921,20 @@ version (NPeggedScannerMetrics) @nogc nothrow unittest {
         enum diagnosticName = "Unit.Pair/_dfa_Pair";
     }
 
+    struct EscapeTable {
+        enum automaton = () {
+            CharSetMask slash = CharSetMask.fromChars('\\');
+            CharSetMask esc = CharSetMask.fromChars('n', 't', '\\', '"');
+            return compileDFA([
+                RegularExpression(RegularKind.bytes, slash), RegularExpression(RegularKind.bytes,
+                        esc), RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1])
+            ], 2);
+        }();
+        enum valid = automaton.valid;
+        enum requireEnd = automaton.requireEnd;
+        enum diagnosticName = "Unit.Escape/_dfa_Escape";
+    }
+
     struct InvalidTable {
         enum automaton = Automaton.init;
         enum valid = false;
@@ -784,7 +948,15 @@ version (NPeggedScannerMetrics) @nogc nothrow unittest {
     alias AnchoredToken = dfaToken!(and!(oneOrMore!digit, eoi), AnchoredTable, 0, false);
     alias PairToken = dfaToken!(and!(oneOrMore!digit, literal!"!"), PairTable, 0, false);
 
-    ScannerStats[8] storage;
+    alias EscapeRule = and!(literal!"\\", or!(literal!"n", literal!"t", literal!"\\", literal!"\""));
+    alias FastEscape = dfaToken!(EscapeRule, EscapeTable, 2, false);
+    alias InnerEscape = dfaToken!(EscapeRule, EscapeTable, 2, true);
+
+    alias AltA = and!(FastToken, literal!"!");
+    alias AltB = and!(FastToken, literal!"?");
+    alias ChoiceToken = or!(AltA, AltB);
+
+    ScannerStats[16] storage;
     ScannerReport report;
     report.rows = storage[];
 
@@ -822,6 +994,55 @@ version (NPeggedScannerMetrics) @nogc nothrow unittest {
     assert(!AnchoredToken(s2, 0).successful);
     assert(report.total.fastFailure == 2);
     assert(report.total.replays == 0);
+
+    // EOF on fast terminal: fastFailure, 0 replays
+    s2.input = "";
+    auto rEof = FastToken(s2, 0);
+    assert(!rEof.successful && rEof.failEnd == 0);
+    assert(records.length == 0);
+    assert(report.total.fastFailure == 3);
+    assert(report.total.replays == 0);
+
+    // Failed escape sequence: fastFailure, 0 replays, exact failEnd == 1
+    s2.input = "\\x";
+    auto rFailEsc = FastEscape(s2, 0);
+    assert(!rFailEsc.successful && rFailEsc.failEnd == 1);
+    assert(records.length == 0);
+    assert(report.total.fastFailure == 4);
+    assert(report.total.replays == 0);
+
+    // Truncated escape sequence at EOF: fastFailure, 0 replays, exact failEnd == 1
+    s2.input = "\\";
+    auto rTruncEsc = FastEscape(s2, 0);
+    assert(!rTruncEsc.successful && rTruncEsc.failEnd == 1);
+    assert(records.length == 0);
+    assert(report.total.fastFailure == 5);
+    assert(report.total.replays == 0);
+
+    // Successful escape sequence: fastSuccess
+    s2.input = "\\n";
+    auto rSuccEsc = FastEscape(s2, 0);
+    assert(rSuccEsc.successful && rSuccEsc.end == 2);
+    assert(report.total.fastSuccess == 1);
+
+    // Backtracking with choice: first alt succeeds scanning prefix, then fails on literal, second alt succeeds without replay
+    s2.input = "123?";
+    auto rChoice = ChoiceToken(s2, 0);
+    assert(rChoice.successful && rChoice.end == 4);
+    assert(report.total.fastFailure == 5);
+    assert(report.total.replays == 0);
+
+    // Token WITH inner records (InnerToken): failed scan MUST fall back to combinator execution
+    s2.input = "abc";
+    const prevFastFailure = report.total.fastFailure;
+    const prevReplays = report.total.replays;
+    const prevInnerRecords = report.total.reasons[ScannerReason.innerRecords];
+    auto rInnerFail = InnerToken(s2, 0);
+    assert(!rInnerFail.successful && rInnerFail.failEnd == 0);
+    assert(records.length == 0);
+    assert(report.total.fastFailure == prevFastFailure);
+    assert(report.total.replays == prevReplays);
+    assert(report.total.reasons[ScannerReason.innerRecords] == prevInnerRecords + 1);
 
     assert(BadTableToken(s1, 0).successful);
     assert(report.total.reasons[ScannerReason.invalidTable] == 1);

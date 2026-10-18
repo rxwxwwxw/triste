@@ -170,6 +170,45 @@ int main() @nogc nothrow {
         assert(testReport.total.fastFailure == 1);
         assert(testReport.total.replays == 0);
         assert(testReport.total.reasons[ScannerReason.failureDiagnostic] == 0);
+
+        // 2. EOF on terminal rule: fastFailure, 0 replays, exact failEnd == 0
+        testReport.total = ScannerStats.init;
+        foreach (ref row; testStorage)
+            row = ScannerStats.init;
+        auto eofRes = parseRecords!(Candidate.Digits, selected, false)(context, "");
+        assert(!eofRes.successful && eofRes.failEnd == 0);
+        assert(testReport.total.fastFailure == 1);
+        assert(testReport.total.replays == 0);
+
+        // 3. Truncated/Anchored rule needing eoi: fastFailure, 0 replays
+        testReport.total = ScannerStats.init;
+        foreach (ref row; testStorage)
+            row = ScannerStats.init;
+        auto truncRes = parseRecords!(Candidate.Eof, selected, false)(context, "abc!");
+        assert(!truncRes.successful && truncRes.failEnd == 3);
+        assert(testReport.total.fastFailure == 1);
+        assert(testReport.total.replays == 0);
+
+        // 4. Token WITH inner records (Candidate.Inner): MUST fall back to combinator execution
+        testReport.total = ScannerStats.init;
+        foreach (ref row; testStorage)
+            row = ScannerStats.init;
+        auto innerRes = parseRecords!(Candidate.Inner, selected, false)(context, "xyz");
+        assert(!innerRes.successful && innerRes.failEnd == 0);
+        assert(testReport.total.fastFailure == 1);
+        assert(testReport.total.replays == 0);
+        assert(testReport.total.reasons[ScannerReason.recordLowering] == 1);
+
+        // 5. BudgetEdge on step limit: must not take fast failure shortcut
+        testReport.total = ScannerStats.init;
+        foreach (ref row; testStorage)
+            row = ScannerStats.init;
+        auto budgetCtx = context;
+        budgetCtx.stepLimit = 2;
+        auto budgetRes = parseRecords!(Candidate.Digits, selected, false)(budgetCtx, "12345");
+        assert(!budgetRes.successful);
+        assert(testReport.total.fastFailure == 0);
+        assert(testReport.total.reasons[ScannerReason.budgetEdge] == 1);
     }
     printf("scanner report oracle passed\n");
     return 0;
