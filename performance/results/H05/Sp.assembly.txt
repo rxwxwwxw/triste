@@ -1,0 +1,681 @@
+0000000000019d00 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)>:
+   19d00:	55                   	push   %rbp
+   19d01:	41 57                	push   %r15
+   19d03:	41 56                	push   %r14
+   19d05:	41 55                	push   %r13
+   19d07:	41 54                	push   %r12
+   19d09:	53                   	push   %rbx
+   19d0a:	48 81 ec c8 00 00 00 	sub    $0xc8,%rsp
+   19d11:	48 8b 1e             	mov    (%rsi),%rbx
+   19d14:	83 7f 40 00          	cmpl   $0x0,0x40(%rdi)
+   19d18:	0f 85 82 03 00 00    	jne    1a0a0 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3a0>
+   19d1e:	48 83 7f 38 00       	cmpq   $0x0,0x38(%rdi)
+   19d23:	0f 85 bb 00 00 00    	jne    19de4 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xe4>
+   19d29:	48 3b 5f 08          	cmp    0x8(%rdi),%rbx
+   19d2d:	73 62                	jae    19d91 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x91>
+   19d2f:	48 b8 00 26 00 00 09 	movabs $0x900002600,%rax
+   19d36:	00 00 00
+   19d39:	48 89 84 24 a8 00 00 	mov    %rax,0xa8(%rsp)
+   19d40:	00
+   19d41:	0f 57 c0             	xorps  %xmm0,%xmm0
+   19d44:	0f 11 84 24 b0 00 00 	movups %xmm0,0xb0(%rsp)
+   19d4b:	00
+   19d4c:	48 c7 84 24 c0 00 00 	movq   $0x0,0xc0(%rsp)
+   19d53:	00 00 00 00 00
+   19d58:	48 8b 47 10          	mov    0x10(%rdi),%rax
+   19d5c:	0f b6 04 18          	movzbl (%rax,%rbx,1),%eax
+   19d60:	89 c1                	mov    %eax,%ecx
+   19d62:	c1 e9 06             	shr    $0x6,%ecx
+   19d65:	48 8b 8c cc a8 00 00 	mov    0xa8(%rsp,%rcx,8),%rcx
+   19d6c:	00
+   19d6d:	48 0f a3 c1          	bt     %rax,%rcx
+   19d71:	72 1e                	jb     19d91 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x91>
+   19d73:	48 8b 4f 20          	mov    0x20(%rdi),%rcx
+   19d77:	48 8b 47 48          	mov    0x48(%rdi),%rax
+   19d7b:	48 29 c1             	sub    %rax,%rcx
+   19d7e:	41 0f 97 c0          	seta   %r8b
+   19d82:	48 83 f9 07          	cmp    $0x7,%rcx
+   19d86:	0f 93 c1             	setae  %cl
+   19d89:	44 20 c1             	and    %r8b,%cl
+   19d8c:	80 f9 01             	cmp    $0x1,%cl
+   19d8f:	74 24                	je     19db5 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xb5>
+   19d91:	48 3b 5f 08          	cmp    0x8(%rdi),%rbx
+   19d95:	75 4d                	jne    19de4 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xe4>
+   19d97:	48 8b 4f 20          	mov    0x20(%rdi),%rcx
+   19d9b:	48 8b 47 48          	mov    0x48(%rdi),%rax
+   19d9f:	48 29 c1             	sub    %rax,%rcx
+   19da2:	41 0f 97 c0          	seta   %r8b
+   19da6:	48 83 f9 07          	cmp    $0x7,%rcx
+   19daa:	0f 93 c1             	setae  %cl
+   19dad:	44 20 c1             	and    %r8b,%cl
+   19db0:	80 f9 01             	cmp    $0x1,%cl
+   19db3:	75 2f                	jne    19de4 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xe4>
+   19db5:	48 83 c0 06          	add    $0x6,%rax
+   19db9:	48 89 47 48          	mov    %rax,0x48(%rdi)
+   19dbd:	80 bf 80 00 00 00 01 	cmpb   $0x1,0x80(%rdi)
+   19dc4:	75 0c                	jne    19dd2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xd2>
+   19dc6:	b0 01                	mov    $0x1,%al
+   19dc8:	48 3b 5f 78          	cmp    0x78(%rdi),%rbx
+   19dcc:	0f 82 d0 02 00 00    	jb     1a0a2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3a2>
+   19dd2:	48 89 5f 78          	mov    %rbx,0x78(%rdi)
+   19dd6:	c6 87 80 00 00 00 01 	movb   $0x1,0x80(%rdi)
+   19ddd:	b0 01                	mov    $0x1,%al
+   19ddf:	e9 be 02 00 00       	jmp    1a0a2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3a2>
+   19de4:	4c 8b 57 20          	mov    0x20(%rdi),%r10
+   19de8:	48 8b 47 48          	mov    0x48(%rdi),%rax
+   19dec:	4d 89 d0             	mov    %r10,%r8
+   19def:	49 29 c0             	sub    %rax,%r8
+   19df2:	0f 86 a1 02 00 00    	jbe    1a099 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x399>
+   19df8:	48 ff c0             	inc    %rax
+   19dfb:	48 89 47 48          	mov    %rax,0x48(%rdi)
+   19dff:	4c 8b 4f 08          	mov    0x8(%rdi),%r9
+   19e03:	4c 89 c9             	mov    %r9,%rcx
+   19e06:	48 29 d9             	sub    %rbx,%rcx
+   19e09:	41 0f 93 c3          	setae  %r11b
+   19e0d:	4c 39 d0             	cmp    %r10,%rax
+   19e10:	41 0f 92 c2          	setb   %r10b
+   19e14:	45 20 da             	and    %r11b,%r10b
+   19e17:	41 80 fa 01          	cmp    $0x1,%r10b
+   19e1b:	0f 85 58 01 00 00    	jne    19f79 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x279>
+   19e21:	49 83 c0 fe          	add    $0xfffffffffffffffe,%r8
+   19e25:	49 39 c8             	cmp    %rcx,%r8
+   19e28:	4c 0f 43 c1          	cmovae %rcx,%r8
+   19e2c:	49 01 d8             	add    %rbx,%r8
+   19e2f:	4d 39 c8             	cmp    %r9,%r8
+   19e32:	0f 87 d9 08 00 00    	ja     1a711 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xa11>
+   19e38:	49 89 da             	mov    %rbx,%r10
+   19e3b:	4c 39 c3             	cmp    %r8,%rbx
+   19e3e:	0f 87 23 01 00 00    	ja     19f67 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x267>
+   19e44:	0f b6 0d 95 d8 04 00 	movzbl 0x4d895(%rip),%ecx        # 676e0 <.dynarrayStorage.2195>
+   19e4b:	41 89 ca             	mov    %ecx,%r10d
+   19e4e:	41 80 e2 01          	and    $0x1,%r10b
+   19e52:	45 31 ed             	xor    %r13d,%r13d
+   19e55:	41 80 fa 01          	cmp    $0x1,%r10b
+   19e59:	4d 19 ed             	sbb    %r13,%r13
+   19e5c:	49 09 dd             	or     %rbx,%r13
+   19e5f:	4c 39 c3             	cmp    %r8,%rbx
+   19e62:	73 6d                	jae    19ed1 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x1d1>
+   19e64:	4c 8b 5f 10          	mov    0x10(%rdi),%r11
+   19e68:	f6 c1 01             	test   $0x1,%cl
+   19e6b:	74 69                	je     19ed6 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x1d6>
+   19e6d:	48 8d 0d 3c 34 03 00 	lea    0x3343c(%rip),%rcx        # 4d2b0 <npegged.dfa.DfaStorage!(benchmark.diagnostics.empty_sp.EmptySP._dfa_Sp).DfaStorage.loops>
+   19e74:	4c 8d 35 65 d7 04 00 	lea    0x4d765(%rip),%r14        # 675e0 <.dynarrayStorage>
+   19e7b:	49 89 dd             	mov    %rbx,%r13
+   19e7e:	4d 89 ea             	mov    %r13,%r10
+   19e81:	66 66 66 66 66 66 2e 	data16 data16 data16 data16 data16 cs nopw 0x0(%rax,%rax,1)
+   19e88:	0f 1f 84 00 00 00 00
+   19e8f:	00
+   19e90:	47 0f b6 3c 13       	movzbl (%r11,%r10,1),%r15d
+   19e95:	45 89 fc             	mov    %r15d,%r12d
+   19e98:	41 c1 ec 06          	shr    $0x6,%r12d
+   19e9c:	4e 8b 24 e1          	mov    (%rcx,%r12,8),%r12
+   19ea0:	4d 0f a3 fc          	bt     %r15,%r12
+   19ea4:	73 0a                	jae    19eb0 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x1b0>
+   19ea6:	49 ff c2             	inc    %r10
+   19ea9:	4d 39 c2             	cmp    %r8,%r10
+   19eac:	72 e2                	jb     19e90 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x190>
+   19eae:	eb 7a                	jmp    19f2a <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x22a>
+   19eb0:	43 0f b6 2c 37       	movzbl (%r15,%r14,1),%ebp
+   19eb5:	85 ed                	test   %ebp,%ebp
+   19eb7:	0f 85 25 08 00 00    	jne    1a6e2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9e2>
+   19ebd:	4d 8d 6a 01          	lea    0x1(%r10),%r13
+   19ec1:	4d 39 c5             	cmp    %r8,%r13
+   19ec4:	72 b8                	jb     19e7e <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x17e>
+   19ec6:	49 ff c2             	inc    %r10
+   19ec9:	4d 89 d5             	mov    %r10,%r13
+   19ecc:	e9 7e 00 00 00       	jmp    19f4f <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x24f>
+   19ed1:	49 89 da             	mov    %rbx,%r10
+   19ed4:	eb 79                	jmp    19f4f <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x24f>
+   19ed6:	4c 8d 35 d3 33 03 00 	lea    0x333d3(%rip),%r14        # 4d2b0 <npegged.dfa.DfaStorage!(benchmark.diagnostics.empty_sp.EmptySP._dfa_Sp).DfaStorage.loops>
+   19edd:	4c 8d 3d fc d6 04 00 	lea    0x4d6fc(%rip),%r15        # 675e0 <.dynarrayStorage>
+   19ee4:	48 89 d9             	mov    %rbx,%rcx
+   19ee7:	49 89 ca             	mov    %rcx,%r10
+   19eea:	66 0f 1f 44 00 00    	nopw   0x0(%rax,%rax,1)
+   19ef0:	47 0f b6 24 13       	movzbl (%r11,%r10,1),%r12d
+   19ef5:	44 89 e5             	mov    %r12d,%ebp
+   19ef8:	c1 ed 06             	shr    $0x6,%ebp
+   19efb:	49 8b 2c ee          	mov    (%r14,%rbp,8),%rbp
+   19eff:	4c 0f a3 e5          	bt     %r12,%rbp
+   19f03:	73 0a                	jae    19f0f <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x20f>
+   19f05:	49 ff c2             	inc    %r10
+   19f08:	4d 39 c2             	cmp    %r8,%r10
+   19f0b:	72 e3                	jb     19ef0 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x1f0>
+   19f0d:	eb 2a                	jmp    19f39 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x239>
+   19f0f:	43 0f b6 2c 3c       	movzbl (%r12,%r15,1),%ebp
+   19f14:	85 ed                	test   %ebp,%ebp
+   19f16:	0f 85 c9 07 00 00    	jne    1a6e5 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9e5>
+   19f1c:	49 8d 4a 01          	lea    0x1(%r10),%rcx
+   19f20:	4c 39 c1             	cmp    %r8,%rcx
+   19f23:	72 c2                	jb     19ee7 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x1e7>
+   19f25:	49 ff c2             	inc    %r10
+   19f28:	eb 25                	jmp    19f4f <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x24f>
+   19f2a:	49 ff c5             	inc    %r13
+   19f2d:	4d 39 e8             	cmp    %r13,%r8
+   19f30:	4d 0f 47 e8          	cmova  %r8,%r13
+   19f34:	4c 89 e9             	mov    %r13,%rcx
+   19f37:	eb 0a                	jmp    19f43 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x243>
+   19f39:	48 ff c1             	inc    %rcx
+   19f3c:	49 39 c8             	cmp    %rcx,%r8
+   19f3f:	49 0f 47 c8          	cmova  %r8,%rcx
+   19f43:	4d 89 c2             	mov    %r8,%r10
+   19f46:	4c 39 c1             	cmp    %r8,%rcx
+   19f49:	0f 85 da 07 00 00    	jne    1a729 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xa29>
+   19f4f:	49 83 fd ff          	cmp    $0xffffffffffffffff,%r13
+   19f53:	74 12                	je     19f67 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x267>
+   19f55:	4d 39 c8             	cmp    %r9,%r8
+   19f58:	0f 84 94 01 00 00    	je     1a0f2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3f2>
+   19f5e:	4d 39 c2             	cmp    %r8,%r10
+   19f61:	0f 82 8b 01 00 00    	jb     1a0f2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3f2>
+   19f67:	4d 39 c8             	cmp    %r9,%r8
+   19f6a:	0f 84 4d 01 00 00    	je     1a0bd <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3bd>
+   19f70:	4d 39 c2             	cmp    %r8,%r10
+   19f73:	0f 82 44 01 00 00    	jb     1a0bd <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3bd>
+   19f79:	48 8d 44 24 18       	lea    0x18(%rsp),%rax
+   19f7e:	48 89 f9             	mov    %rdi,%rcx
+   19f81:	48 89 c7             	mov    %rax,%rdi
+   19f84:	49 89 f7             	mov    %rsi,%r15
+   19f87:	49 89 ce             	mov    %rcx,%r14
+   19f8a:	48 89 ce             	mov    %rcx,%rsi
+   19f8d:	49 89 d4             	mov    %rdx,%r12
+   19f90:	48 89 da             	mov    %rbx,%rdx
+   19f93:	e8 88 16 00 00       	call   1b620 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>
+   19f98:	4c 89 fe             	mov    %r15,%rsi
+   19f9b:	4c 89 e2             	mov    %r12,%rdx
+   19f9e:	80 7c 24 30 00       	cmpb   $0x0,0x30(%rsp)
+   19fa3:	0f 84 40 01 00 00    	je     1a0e9 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3e9>
+   19fa9:	4c 8b 6c 24 20       	mov    0x20(%rsp),%r13
+   19fae:	4c 89 f7             	mov    %r14,%rdi
+   19fb1:	83 7f 40 00          	cmpl   $0x0,0x40(%rdi)
+   19fb5:	0f 85 e5 00 00 00    	jne    1a0a0 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3a0>
+   19fbb:	48 8b 4f 20          	mov    0x20(%rdi),%rcx
+   19fbf:	48 8b 47 48          	mov    0x48(%rdi),%rax
+   19fc3:	48 39 c8             	cmp    %rcx,%rax
+   19fc6:	0f 83 cd 00 00 00    	jae    1a099 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x399>
+   19fcc:	4c 8d 40 01          	lea    0x1(%rax),%r8
+   19fd0:	4c 89 47 48          	mov    %r8,0x48(%rdi)
+   19fd4:	48 83 7f 38 00       	cmpq   $0x0,0x38(%rdi)
+   19fd9:	0f 85 6b 01 00 00    	jne    1a14a <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x44a>
+   19fdf:	4c 3b 6f 08          	cmp    0x8(%rdi),%r13
+   19fe3:	73 62                	jae    1a047 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x347>
+   19fe5:	49 b9 00 00 00 00 08 	movabs $0x800000000,%r9
+   19fec:	00 00 00
+   19fef:	4c 89 8c 24 88 00 00 	mov    %r9,0x88(%rsp)
+   19ff6:	00
+   19ff7:	0f 57 c0             	xorps  %xmm0,%xmm0
+   19ffa:	0f 11 84 24 90 00 00 	movups %xmm0,0x90(%rsp)
+   1a001:	00
+   1a002:	48 c7 84 24 a0 00 00 	movq   $0x0,0xa0(%rsp)
+   1a009:	00 00 00 00 00
+   1a00e:	4c 8b 4f 10          	mov    0x10(%rdi),%r9
+   1a012:	47 0f b6 0c 29       	movzbl (%r9,%r13,1),%r9d
+   1a017:	45 89 ca             	mov    %r9d,%r10d
+   1a01a:	41 c1 ea 06          	shr    $0x6,%r10d
+   1a01e:	4e 8b 94 d4 88 00 00 	mov    0x88(%rsp,%r10,8),%r10
+   1a025:	00
+   1a026:	4d 0f a3 ca          	bt     %r9,%r10
+   1a02a:	72 1b                	jb     1a047 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x347>
+   1a02c:	49 89 c9             	mov    %rcx,%r9
+   1a02f:	4d 29 c1             	sub    %r8,%r9
+   1a032:	41 0f 97 c2          	seta   %r10b
+   1a036:	49 83 f9 04          	cmp    $0x4,%r9
+   1a03a:	41 0f 93 c1          	setae  %r9b
+   1a03e:	45 20 d1             	and    %r10b,%r9b
+   1a041:	41 80 f9 01          	cmp    $0x1,%r9b
+   1a045:	74 24                	je     1a06b <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x36b>
+   1a047:	4c 3b 6f 08          	cmp    0x8(%rdi),%r13
+   1a04b:	0f 85 f9 00 00 00    	jne    1a14a <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x44a>
+   1a051:	4c 29 c1             	sub    %r8,%rcx
+   1a054:	41 0f 97 c0          	seta   %r8b
+   1a058:	48 83 f9 04          	cmp    $0x4,%rcx
+   1a05c:	0f 93 c1             	setae  %cl
+   1a05f:	44 20 c1             	and    %r8b,%cl
+   1a062:	80 f9 01             	cmp    $0x1,%cl
+   1a065:	0f 85 df 00 00 00    	jne    1a14a <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x44a>
+   1a06b:	48 83 c0 04          	add    $0x4,%rax
+   1a06f:	48 89 47 48          	mov    %rax,0x48(%rdi)
+   1a073:	80 bf 80 00 00 00 01 	cmpb   $0x1,0x80(%rdi)
+   1a07a:	75 08                	jne    1a084 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x384>
+   1a07c:	b0 01                	mov    $0x1,%al
+   1a07e:	4c 3b 6f 78          	cmp    0x78(%rdi),%r13
+   1a082:	72 0d                	jb     1a091 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x391>
+   1a084:	4c 89 6f 78          	mov    %r13,0x78(%rdi)
+   1a088:	c6 87 80 00 00 00 01 	movb   $0x1,0x80(%rdi)
+   1a08f:	b0 01                	mov    $0x1,%al
+   1a091:	48 89 d9             	mov    %rbx,%rcx
+   1a094:	e9 34 06 00 00       	jmp    1a6cd <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9cd>
+   1a099:	c7 47 40 03 00 00 00 	movl   $0x3,0x40(%rdi)
+   1a0a0:	31 c0                	xor    %eax,%eax
+   1a0a2:	48 89 d9             	mov    %rbx,%rcx
+   1a0a5:	48 89 1e             	mov    %rbx,(%rsi)
+   1a0a8:	48 89 0a             	mov    %rcx,(%rdx)
+   1a0ab:	48 81 c4 c8 00 00 00 	add    $0xc8,%rsp
+   1a0b2:	5b                   	pop    %rbx
+   1a0b3:	41 5c                	pop    %r12
+   1a0b5:	41 5d                	pop    %r13
+   1a0b7:	41 5e                	pop    %r14
+   1a0b9:	41 5f                	pop    %r15
+   1a0bb:	5d                   	pop    %rbp
+   1a0bc:	c3                   	ret
+   1a0bd:	48 29 d8             	sub    %rbx,%rax
+   1a0c0:	4c 01 d0             	add    %r10,%rax
+   1a0c3:	48 ff c0             	inc    %rax
+   1a0c6:	48 89 47 48          	mov    %rax,0x48(%rdi)
+   1a0ca:	80 bf 80 00 00 00 01 	cmpb   $0x1,0x80(%rdi)
+   1a0d1:	75 06                	jne    1a0d9 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3d9>
+   1a0d3:	4c 3b 57 78          	cmp    0x78(%rdi),%r10
+   1a0d7:	72 0b                	jb     1a0e4 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3e4>
+   1a0d9:	4c 89 57 78          	mov    %r10,0x78(%rdi)
+   1a0dd:	c6 87 80 00 00 00 01 	movb   $0x1,0x80(%rdi)
+   1a0e4:	4c 89 54 24 28       	mov    %r10,0x28(%rsp)
+   1a0e9:	48 8b 4c 24 28       	mov    0x28(%rsp),%rcx
+   1a0ee:	31 c0                	xor    %eax,%eax
+   1a0f0:	eb b3                	jmp    1a0a5 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3a5>
+   1a0f2:	48 29 d8             	sub    %rbx,%rax
+   1a0f5:	4c 01 d0             	add    %r10,%rax
+   1a0f8:	48 ff c0             	inc    %rax
+   1a0fb:	48 89 47 48          	mov    %rax,0x48(%rdi)
+   1a0ff:	4d 39 ea             	cmp    %r13,%r10
+   1a102:	76 1a                	jbe    1a11e <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x41e>
+   1a104:	80 bf 80 00 00 00 01 	cmpb   $0x1,0x80(%rdi)
+   1a10b:	75 06                	jne    1a113 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x413>
+   1a10d:	4c 3b 57 78          	cmp    0x78(%rdi),%r10
+   1a111:	72 0b                	jb     1a11e <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x41e>
+   1a113:	4c 89 57 78          	mov    %r10,0x78(%rdi)
+   1a117:	c6 87 80 00 00 00 01 	movb   $0x1,0x80(%rdi)
+   1a11e:	48 c7 44 24 30 00 00 	movq   $0x0,0x30(%rsp)
+   1a125:	00 00
+   1a127:	48 89 5c 24 18       	mov    %rbx,0x18(%rsp)
+   1a12c:	4c 89 6c 24 20       	mov    %r13,0x20(%rsp)
+   1a131:	4c 89 6c 24 28       	mov    %r13,0x28(%rsp)
+   1a136:	c6 44 24 30 01       	movb   $0x1,0x30(%rsp)
+   1a13b:	83 7f 40 00          	cmpl   $0x0,0x40(%rdi)
+   1a13f:	0f 85 5b ff ff ff    	jne    1a0a0 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3a0>
+   1a145:	e9 71 fe ff ff       	jmp    19fbb <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x2bb>
+   1a14a:	4d 89 eb             	mov    %r13,%r11
+   1a14d:	4d 89 df             	mov    %r11,%r15
+   1a150:	83 7f 40 00          	cmpl   $0x0,0x40(%rdi)
+   1a154:	0f 85 68 05 00 00    	jne    1a6c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9c2>
+   1a15a:	4c 8b 5f 20          	mov    0x20(%rdi),%r11
+   1a15e:	4c 8b 57 48          	mov    0x48(%rdi),%r10
+   1a162:	4d 89 d8             	mov    %r11,%r8
+   1a165:	4d 29 d0             	sub    %r10,%r8
+   1a168:	0f 86 eb 04 00 00    	jbe    1a659 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x959>
+   1a16e:	49 8d 42 01          	lea    0x1(%r10),%rax
+   1a172:	48 89 47 48          	mov    %rax,0x48(%rdi)
+   1a176:	4c 39 d8             	cmp    %r11,%rax
+   1a179:	0f 83 da 04 00 00    	jae    1a659 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x959>
+   1a17f:	4d 8d 62 02          	lea    0x2(%r10),%r12
+   1a183:	4c 89 67 48          	mov    %r12,0x48(%rdi)
+   1a187:	4c 8b 4f 08          	mov    0x8(%rdi),%r9
+   1a18b:	4c 89 c8             	mov    %r9,%rax
+   1a18e:	4c 29 f8             	sub    %r15,%rax
+   1a191:	0f 93 c1             	setae  %cl
+   1a194:	4d 39 dc             	cmp    %r11,%r12
+   1a197:	40 0f 92 c5          	setb   %bpl
+   1a19b:	40 20 cd             	and    %cl,%bpl
+   1a19e:	40 80 fd 01          	cmp    $0x1,%bpl
+   1a1a2:	4c 89 7c 24 08       	mov    %r15,0x8(%rsp)
+   1a1a7:	0f 85 77 01 00 00    	jne    1a324 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x624>
+   1a1ad:	49 83 c0 fd          	add    $0xfffffffffffffffd,%r8
+   1a1b1:	49 39 c0             	cmp    %rax,%r8
+   1a1b4:	4c 0f 43 c0          	cmovae %rax,%r8
+   1a1b8:	4d 01 f8             	add    %r15,%r8
+   1a1bb:	4d 39 c8             	cmp    %r9,%r8
+   1a1be:	0f 87 4d 05 00 00    	ja     1a711 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xa11>
+   1a1c4:	4d 39 c7             	cmp    %r8,%r15
+   1a1c7:	76 08                	jbe    1a1d1 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x4d1>
+   1a1c9:	4c 89 fd             	mov    %r15,%rbp
+   1a1cc:	e9 41 01 00 00       	jmp    1a312 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x612>
+   1a1d1:	0f b6 0d 18 d7 04 00 	movzbl 0x4d718(%rip),%ecx        # 678f0 <.dynarrayStorage.2197>
+   1a1d8:	84 c9                	test   %cl,%cl
+   1a1da:	48 c7 c0 ff ff ff ff 	mov    $0xffffffffffffffff,%rax
+   1a1e1:	49 0f 45 c7          	cmovne %r15,%rax
+   1a1e5:	4d 39 c7             	cmp    %r8,%r15
+   1a1e8:	0f 83 d8 00 00 00    	jae    1a2c6 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x5c6>
+   1a1ee:	88 0c 24             	mov    %cl,(%rsp)
+   1a1f1:	4d 89 fe             	mov    %r15,%r14
+   1a1f4:	4c 8b 7f 10          	mov    0x10(%rdi),%r15
+   1a1f8:	31 c9                	xor    %ecx,%ecx
+   1a1fa:	0f b6 c9             	movzbl %cl,%ecx
+   1a1fd:	4c 89 f5             	mov    %r14,%rbp
+   1a200:	48 89 4c 24 38       	mov    %rcx,0x38(%rsp)
+   1a205:	41 89 ce             	mov    %ecx,%r14d
+   1a208:	41 c1 e6 05          	shl    $0x5,%r14d
+   1a20c:	48 8d 0d bd 30 03 00 	lea    0x330bd(%rip),%rcx        # 4d2d0 <npegged.dfa.DfaStorage!(benchmark.diagnostics.empty_sp.EmptySP._dfa_Sp_1).DfaStorage.loops>
+   1a213:	42 0f 10 04 31       	movups (%rcx,%r14,1),%xmm0
+   1a218:	42 0f 10 4c 31 10    	movups 0x10(%rcx,%r14,1),%xmm1
+   1a21e:	0f 29 4c 24 70       	movaps %xmm1,0x70(%rsp)
+   1a223:	0f 29 44 24 60       	movaps %xmm0,0x60(%rsp)
+   1a228:	48 89 6c 24 10       	mov    %rbp,0x10(%rsp)
+   1a22d:	41 0f b6 0c 2f       	movzbl (%r15,%rbp,1),%ecx
+   1a232:	41 89 ce             	mov    %ecx,%r14d
+   1a235:	41 c1 ee 06          	shr    $0x6,%r14d
+   1a239:	4e 8b 74 f4 60       	mov    0x60(%rsp,%r14,8),%r14
+   1a23e:	49 0f a3 ce          	bt     %rcx,%r14
+   1a242:	73 0d                	jae    1a251 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x551>
+   1a244:	48 ff c5             	inc    %rbp
+   1a247:	4c 39 c5             	cmp    %r8,%rbp
+   1a24a:	72 e1                	jb     1a22d <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x52d>
+   1a24c:	e9 80 00 00 00       	jmp    1a2d1 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x5d1>
+   1a251:	f6 04 24 01          	testb  $0x1,(%rsp)
+   1a255:	48 0f 45 c5          	cmovne %rbp,%rax
+   1a259:	48 89 44 24 10       	mov    %rax,0x10(%rsp)
+   1a25e:	48 8b 44 24 38       	mov    0x38(%rsp),%rax
+   1a263:	c1 e0 08             	shl    $0x8,%eax
+   1a266:	4c 8d 35 83 d4 04 00 	lea    0x4d483(%rip),%r14        # 676f0 <.dynarrayStorage.2196>
+   1a26d:	4c 01 f0             	add    %r14,%rax
+   1a270:	0f b6 0c 01          	movzbl (%rcx,%rax,1),%ecx
+   1a274:	48 81 f9 ff 00 00 00 	cmp    $0xff,%rcx
+   1a27b:	0f 84 a4 03 00 00    	je     1a625 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x925>
+   1a281:	80 f9 01             	cmp    $0x1,%cl
+   1a284:	0f 87 b5 04 00 00    	ja     1a73f <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xa3f>
+   1a28a:	48 8d 45 01          	lea    0x1(%rbp),%rax
+   1a28e:	4c 8d 35 5b d6 04 00 	lea    0x4d65b(%rip),%r14        # 678f0 <.dynarrayStorage.2197>
+   1a295:	46 0f b6 34 31       	movzbl (%rcx,%r14,1),%r14d
+   1a29a:	44 88 34 24          	mov    %r14b,(%rsp)
+   1a29e:	45 84 f6             	test   %r14b,%r14b
+   1a2a1:	49 89 c6             	mov    %rax,%r14
+   1a2a4:	48 8b 44 24 10       	mov    0x10(%rsp),%rax
+   1a2a9:	49 0f 45 c6          	cmovne %r14,%rax
+   1a2ad:	4d 39 c6             	cmp    %r8,%r14
+   1a2b0:	0f 82 44 ff ff ff    	jb     1a1fa <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x4fa>
+   1a2b6:	48 ff c5             	inc    %rbp
+   1a2b9:	4c 8b 7c 24 08       	mov    0x8(%rsp),%r15
+   1a2be:	48 83 f8 ff          	cmp    $0xffffffffffffffff,%rax
+   1a2c2:	75 3c                	jne    1a300 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x600>
+   1a2c4:	eb 4c                	jmp    1a312 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x612>
+   1a2c6:	4c 89 fd             	mov    %r15,%rbp
+   1a2c9:	48 83 f8 ff          	cmp    $0xffffffffffffffff,%rax
+   1a2cd:	75 31                	jne    1a300 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x600>
+   1a2cf:	eb 41                	jmp    1a312 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x612>
+   1a2d1:	4c 8b 74 24 10       	mov    0x10(%rsp),%r14
+   1a2d6:	49 8d 4e 01          	lea    0x1(%r14),%rcx
+   1a2da:	49 39 c8             	cmp    %rcx,%r8
+   1a2dd:	49 0f 47 c8          	cmova  %r8,%rcx
+   1a2e1:	f6 04 24 01          	testb  $0x1,(%rsp)
+   1a2e5:	48 0f 45 c1          	cmovne %rcx,%rax
+   1a2e9:	4c 89 c5             	mov    %r8,%rbp
+   1a2ec:	4d 39 f0             	cmp    %r14,%r8
+   1a2ef:	4c 8b 7c 24 08       	mov    0x8(%rsp),%r15
+   1a2f4:	0f 86 2f 04 00 00    	jbe    1a729 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xa29>
+   1a2fa:	48 83 f8 ff          	cmp    $0xffffffffffffffff,%rax
+   1a2fe:	74 12                	je     1a312 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x612>
+   1a300:	4d 39 c8             	cmp    %r9,%r8
+   1a303:	0f 84 f6 01 00 00    	je     1a4ff <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x7ff>
+   1a309:	4c 39 c5             	cmp    %r8,%rbp
+   1a30c:	0f 82 ed 01 00 00    	jb     1a4ff <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x7ff>
+   1a312:	4d 39 c8             	cmp    %r9,%r8
+   1a315:	0f 84 5c 03 00 00    	je     1a677 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x977>
+   1a31b:	4c 39 c5             	cmp    %r8,%rbp
+   1a31e:	0f 82 53 03 00 00    	jb     1a677 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x977>
+   1a324:	4d 39 dc             	cmp    %r11,%r12
+   1a327:	0f 83 2c 03 00 00    	jae    1a659 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x959>
+   1a32d:	49 8d 42 03          	lea    0x3(%r10),%rax
+   1a331:	48 89 47 48          	mov    %rax,0x48(%rdi)
+   1a335:	4c 39 d8             	cmp    %r11,%rax
+   1a338:	0f 83 1b 03 00 00    	jae    1a659 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x959>
+   1a33e:	49 8d 42 04          	lea    0x4(%r10),%rax
+   1a342:	48 89 47 48          	mov    %rax,0x48(%rdi)
+   1a346:	4d 39 f9             	cmp    %r15,%r9
+   1a349:	0f 86 13 03 00 00    	jbe    1a662 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x962>
+   1a34f:	48 8b 4f 10          	mov    0x10(%rdi),%rcx
+   1a353:	42 80 3c 39 23       	cmpb   $0x23,(%rcx,%r15,1)
+   1a358:	0f 85 04 03 00 00    	jne    1a662 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x962>
+   1a35e:	4c 39 d8             	cmp    %r11,%rax
+   1a361:	0f 83 f2 02 00 00    	jae    1a659 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x959>
+   1a367:	49 8d 47 01          	lea    0x1(%r15),%rax
+   1a36b:	49 83 c2 05          	add    $0x5,%r10
+   1a36f:	4c 89 57 48          	mov    %r10,0x48(%rdi)
+   1a373:	49 89 fc             	mov    %rdi,%r12
+   1a376:	48 8d 7c 24 60       	lea    0x60(%rsp),%rdi
+   1a37b:	49 89 f6             	mov    %rsi,%r14
+   1a37e:	4c 89 e6             	mov    %r12,%rsi
+   1a381:	49 89 d7             	mov    %rdx,%r15
+   1a384:	48 89 c2             	mov    %rax,%rdx
+   1a387:	e8 f4 14 00 00       	call   1b880 <npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>
+   1a38c:	4c 89 e7             	mov    %r12,%rdi
+   1a38f:	4c 89 f6             	mov    %r14,%rsi
+   1a392:	4c 89 fa             	mov    %r15,%rdx
+   1a395:	4c 8b 7c 24 08       	mov    0x8(%rsp),%r15
+   1a39a:	80 7c 24 78 00       	cmpb   $0x0,0x78(%rsp)
+   1a39f:	0f 84 1d 03 00 00    	je     1a6c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9c2>
+   1a3a5:	83 7f 40 00          	cmpl   $0x0,0x40(%rdi)
+   1a3a9:	0f 85 13 03 00 00    	jne    1a6c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9c2>
+   1a3af:	48 8b 44 24 68       	mov    0x68(%rsp),%rax
+   1a3b4:	4c 8b 5f 20          	mov    0x20(%rdi),%r11
+   1a3b8:	4c 8b 57 48          	mov    0x48(%rdi),%r10
+   1a3bc:	4d 89 d8             	mov    %r11,%r8
+   1a3bf:	4d 29 d0             	sub    %r10,%r8
+   1a3c2:	0f 86 91 02 00 00    	jbe    1a659 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x959>
+   1a3c8:	49 ff c2             	inc    %r10
+   1a3cb:	4c 89 57 48          	mov    %r10,0x48(%rdi)
+   1a3cf:	4c 8b 4f 08          	mov    0x8(%rdi),%r9
+   1a3d3:	4c 89 c9             	mov    %r9,%rcx
+   1a3d6:	48 29 c1             	sub    %rax,%rcx
+   1a3d9:	40 0f 93 c5          	setae  %bpl
+   1a3dd:	4d 39 da             	cmp    %r11,%r10
+   1a3e0:	41 0f 92 c3          	setb   %r11b
+   1a3e4:	41 20 eb             	and    %bpl,%r11b
+   1a3e7:	41 80 fb 01          	cmp    $0x1,%r11b
+   1a3eb:	0f 85 98 01 00 00    	jne    1a589 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x889>
+   1a3f1:	49 83 c0 fe          	add    $0xfffffffffffffffe,%r8
+   1a3f5:	49 39 c8             	cmp    %rcx,%r8
+   1a3f8:	4c 0f 43 c1          	cmovae %rcx,%r8
+   1a3fc:	49 01 c0             	add    %rax,%r8
+   1a3ff:	4d 39 c8             	cmp    %r9,%r8
+   1a402:	0f 87 09 03 00 00    	ja     1a711 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xa11>
+   1a408:	49 89 c4             	mov    %rax,%r12
+   1a40b:	4c 39 c0             	cmp    %r8,%rax
+   1a40e:	0f 87 63 01 00 00    	ja     1a577 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x877>
+   1a414:	44 0f b6 35 e4 d5 04 	movzbl 0x4d5e4(%rip),%r14d        # 67a00 <.dynarrayStorage.2199>
+   1a41b:	00
+   1a41c:	44 89 f1             	mov    %r14d,%ecx
+   1a41f:	80 e1 01             	and    $0x1,%cl
+   1a422:	80 f9 01             	cmp    $0x1,%cl
+   1a425:	41 bb 00 00 00 00    	mov    $0x0,%r11d
+   1a42b:	4d 19 db             	sbb    %r11,%r11
+   1a42e:	49 09 c3             	or     %rax,%r11
+   1a431:	4c 39 c0             	cmp    %r8,%rax
+   1a434:	73 69                	jae    1a49f <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x79f>
+   1a436:	4c 89 2c 24          	mov    %r13,(%rsp)
+   1a43a:	48 8b 6f 10          	mov    0x10(%rdi),%rbp
+   1a43e:	48 89 c1             	mov    %rax,%rcx
+   1a441:	41 f6 c6 01          	test   $0x1,%r14b
+   1a445:	74 60                	je     1a4a7 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x7a7>
+   1a447:	49 89 c3             	mov    %rax,%r11
+   1a44a:	4d 89 dc             	mov    %r11,%r12
+   1a44d:	42 0f b6 4c 25 00    	movzbl 0x0(%rbp,%r12,1),%ecx
+   1a453:	41 89 ce             	mov    %ecx,%r14d
+   1a456:	41 c1 ee 06          	shr    $0x6,%r14d
+   1a45a:	4c 8d 2d af 2e 03 00 	lea    0x32eaf(%rip),%r13        # 4d310 <npegged.dfa.DfaStorage!(benchmark.diagnostics.empty_sp.EmptySP._dfa_Sp_2).DfaStorage.loops>
+   1a461:	4f 8b 74 f5 00       	mov    0x0(%r13,%r14,8),%r14
+   1a466:	49 0f a3 ce          	bt     %rcx,%r14
+   1a46a:	73 0d                	jae    1a479 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x779>
+   1a46c:	49 ff c4             	inc    %r12
+   1a46f:	4d 39 c4             	cmp    %r8,%r12
+   1a472:	72 d9                	jb     1a44d <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x74d>
+   1a474:	e9 c0 00 00 00       	jmp    1a539 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x839>
+   1a479:	4c 8d 1d 80 d4 04 00 	lea    0x4d480(%rip),%r11        # 67900 <.dynarrayStorage.2198>
+   1a480:	42 0f b6 0c 19       	movzbl (%rcx,%r11,1),%ecx
+   1a485:	85 c9                	test   %ecx,%ecx
+   1a487:	0f 85 b1 01 00 00    	jne    1a63e <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x93e>
+   1a48d:	4d 8d 5c 24 01       	lea    0x1(%r12),%r11
+   1a492:	4d 39 c3             	cmp    %r8,%r11
+   1a495:	72 b3                	jb     1a44a <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x74a>
+   1a497:	49 ff c4             	inc    %r12
+   1a49a:	4d 89 e3             	mov    %r12,%r11
+   1a49d:	eb 5a                	jmp    1a4f9 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x7f9>
+   1a49f:	49 89 c4             	mov    %rax,%r12
+   1a4a2:	e9 c0 00 00 00       	jmp    1a567 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x867>
+   1a4a7:	49 89 cc             	mov    %rcx,%r12
+   1a4aa:	46 0f b6 74 25 00    	movzbl 0x0(%rbp,%r12,1),%r14d
+   1a4b0:	45 89 f7             	mov    %r14d,%r15d
+   1a4b3:	41 c1 ef 06          	shr    $0x6,%r15d
+   1a4b7:	4c 8d 2d 52 2e 03 00 	lea    0x32e52(%rip),%r13        # 4d310 <npegged.dfa.DfaStorage!(benchmark.diagnostics.empty_sp.EmptySP._dfa_Sp_2).DfaStorage.loops>
+   1a4be:	4f 8b 7c fd 00       	mov    0x0(%r13,%r15,8),%r15
+   1a4c3:	4d 0f a3 f7          	bt     %r14,%r15
+   1a4c7:	73 0a                	jae    1a4d3 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x7d3>
+   1a4c9:	49 ff c4             	inc    %r12
+   1a4cc:	4d 39 c4             	cmp    %r8,%r12
+   1a4cf:	72 d9                	jb     1a4aa <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x7aa>
+   1a4d1:	eb 75                	jmp    1a548 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x848>
+   1a4d3:	48 8d 0d 26 d4 04 00 	lea    0x4d426(%rip),%rcx        # 67900 <.dynarrayStorage.2198>
+   1a4da:	41 0f b6 0c 0e       	movzbl (%r14,%rcx,1),%ecx
+   1a4df:	85 c9                	test   %ecx,%ecx
+   1a4e1:	4c 8b 7c 24 08       	mov    0x8(%rsp),%r15
+   1a4e6:	0f 85 55 01 00 00    	jne    1a641 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x941>
+   1a4ec:	49 8d 4c 24 01       	lea    0x1(%r12),%rcx
+   1a4f1:	4c 39 c1             	cmp    %r8,%rcx
+   1a4f4:	72 b1                	jb     1a4a7 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x7a7>
+   1a4f6:	49 ff c4             	inc    %r12
+   1a4f9:	4c 8b 2c 24          	mov    (%rsp),%r13
+   1a4fd:	eb 68                	jmp    1a567 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x867>
+   1a4ff:	4d 29 fc             	sub    %r15,%r12
+   1a502:	49 8d 0c 2c          	lea    (%r12,%rbp,1),%rcx
+   1a506:	48 ff c1             	inc    %rcx
+   1a509:	48 89 4f 48          	mov    %rcx,0x48(%rdi)
+   1a50d:	48 39 c5             	cmp    %rax,%rbp
+   1a510:	0f 86 9e fe ff ff    	jbe    1a3b4 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x6b4>
+   1a516:	80 bf 80 00 00 00 01 	cmpb   $0x1,0x80(%rdi)
+   1a51d:	75 0a                	jne    1a529 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x829>
+   1a51f:	48 3b 6f 78          	cmp    0x78(%rdi),%rbp
+   1a523:	0f 82 8b fe ff ff    	jb     1a3b4 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x6b4>
+   1a529:	48 89 6f 78          	mov    %rbp,0x78(%rdi)
+   1a52d:	c6 87 80 00 00 00 01 	movb   $0x1,0x80(%rdi)
+   1a534:	e9 7b fe ff ff       	jmp    1a3b4 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x6b4>
+   1a539:	49 ff c3             	inc    %r11
+   1a53c:	4d 39 d8             	cmp    %r11,%r8
+   1a53f:	4d 0f 47 d8          	cmova  %r8,%r11
+   1a543:	4c 89 d9             	mov    %r11,%rcx
+   1a546:	eb 0f                	jmp    1a557 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x857>
+   1a548:	48 ff c1             	inc    %rcx
+   1a54b:	49 39 c8             	cmp    %rcx,%r8
+   1a54e:	49 0f 47 c8          	cmova  %r8,%rcx
+   1a552:	4c 8b 7c 24 08       	mov    0x8(%rsp),%r15
+   1a557:	4d 89 c4             	mov    %r8,%r12
+   1a55a:	4c 39 c1             	cmp    %r8,%rcx
+   1a55d:	4c 8b 2c 24          	mov    (%rsp),%r13
+   1a561:	0f 85 c2 01 00 00    	jne    1a729 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0xa29>
+   1a567:	49 83 fb ff          	cmp    $0xffffffffffffffff,%r11
+   1a56b:	74 0a                	je     1a577 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x877>
+   1a56d:	4d 39 c8             	cmp    %r9,%r8
+   1a570:	74 5e                	je     1a5d0 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x8d0>
+   1a572:	4d 39 c4             	cmp    %r8,%r12
+   1a575:	72 59                	jb     1a5d0 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x8d0>
+   1a577:	4d 39 c8             	cmp    %r9,%r8
+   1a57a:	0f 84 1a 01 00 00    	je     1a69a <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x99a>
+   1a580:	4d 39 c4             	cmp    %r8,%r12
+   1a583:	0f 82 11 01 00 00    	jb     1a69a <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x99a>
+   1a589:	49 89 fc             	mov    %rdi,%r12
+   1a58c:	48 8d 7c 24 40       	lea    0x40(%rsp),%rdi
+   1a591:	49 89 f6             	mov    %rsi,%r14
+   1a594:	4c 89 e6             	mov    %r12,%rsi
+   1a597:	49 89 d7             	mov    %rdx,%r15
+   1a59a:	48 89 c2             	mov    %rax,%rdx
+   1a59d:	e8 7e 10 00 00       	call   1b620 <npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat.scan!(false, false, 1).scan(ref npegged.peg.State!(false, 1).State, ulong)>
+   1a5a2:	4c 89 e7             	mov    %r12,%rdi
+   1a5a5:	4c 89 f6             	mov    %r14,%rsi
+   1a5a8:	4c 89 fa             	mov    %r15,%rdx
+   1a5ab:	4c 8b 7c 24 08       	mov    0x8(%rsp),%r15
+   1a5b0:	0f b6 44 24 58       	movzbl 0x58(%rsp),%eax
+   1a5b5:	4c 8b 5c 24 48       	mov    0x48(%rsp),%r11
+   1a5ba:	84 c0                	test   %al,%al
+   1a5bc:	0f 84 00 01 00 00    	je     1a6c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9c2>
+   1a5c2:	4d 39 fb             	cmp    %r15,%r11
+   1a5c5:	0f 85 82 fb ff ff    	jne    1a14d <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x44d>
+   1a5cb:	e9 f2 00 00 00       	jmp    1a6c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9c2>
+   1a5d0:	49 29 c2             	sub    %rax,%r10
+   1a5d3:	4b 8d 0c 22          	lea    (%r10,%r12,1),%rcx
+   1a5d7:	48 ff c1             	inc    %rcx
+   1a5da:	48 89 4f 48          	mov    %rcx,0x48(%rdi)
+   1a5de:	4d 39 dc             	cmp    %r11,%r12
+   1a5e1:	76 1a                	jbe    1a5fd <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x8fd>
+   1a5e3:	80 bf 80 00 00 00 01 	cmpb   $0x1,0x80(%rdi)
+   1a5ea:	75 06                	jne    1a5f2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x8f2>
+   1a5ec:	4c 3b 67 78          	cmp    0x78(%rdi),%r12
+   1a5f0:	72 0b                	jb     1a5fd <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x8fd>
+   1a5f2:	4c 89 67 78          	mov    %r12,0x78(%rdi)
+   1a5f6:	c6 87 80 00 00 00 01 	movb   $0x1,0x80(%rdi)
+   1a5fd:	48 c7 44 24 58 00 00 	movq   $0x0,0x58(%rsp)
+   1a604:	00 00
+   1a606:	48 89 44 24 40       	mov    %rax,0x40(%rsp)
+   1a60b:	4c 89 5c 24 48       	mov    %r11,0x48(%rsp)
+   1a610:	4c 89 5c 24 50       	mov    %r11,0x50(%rsp)
+   1a615:	c6 44 24 58 01       	movb   $0x1,0x58(%rsp)
+   1a61a:	b0 01                	mov    $0x1,%al
+   1a61c:	84 c0                	test   %al,%al
+   1a61e:	75 a2                	jne    1a5c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x8c2>
+   1a620:	e9 9d 00 00 00       	jmp    1a6c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9c2>
+   1a625:	4c 8b 7c 24 08       	mov    0x8(%rsp),%r15
+   1a62a:	48 8b 44 24 10       	mov    0x10(%rsp),%rax
+   1a62f:	48 83 f8 ff          	cmp    $0xffffffffffffffff,%rax
+   1a633:	0f 85 c7 fc ff ff    	jne    1a300 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x600>
+   1a639:	e9 d4 fc ff ff       	jmp    1a312 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x612>
+   1a63e:	4d 89 e3             	mov    %r12,%r11
+   1a641:	81 f9 ff 00 00 00    	cmp    $0xff,%ecx
+   1a647:	4c 8b 2c 24          	mov    (%rsp),%r13
+   1a64b:	0f 84 16 ff ff ff    	je     1a567 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x867>
+   1a651:	0f b6 c9             	movzbl %cl,%ecx
+   1a654:	e9 9c 00 00 00       	jmp    1a6f5 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9f5>
+   1a659:	c7 47 40 03 00 00 00 	movl   $0x3,0x40(%rdi)
+   1a660:	eb 60                	jmp    1a6c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9c2>
+   1a662:	80 bf 80 00 00 00 01 	cmpb   $0x1,0x80(%rdi)
+   1a669:	75 06                	jne    1a671 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x971>
+   1a66b:	4c 3b 7f 78          	cmp    0x78(%rdi),%r15
+   1a66f:	72 51                	jb     1a6c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9c2>
+   1a671:	4c 89 7f 78          	mov    %r15,0x78(%rdi)
+   1a675:	eb 44                	jmp    1a6bb <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9bb>
+   1a677:	4d 29 fc             	sub    %r15,%r12
+   1a67a:	49 8d 04 2c          	lea    (%r12,%rbp,1),%rax
+   1a67e:	48 ff c0             	inc    %rax
+   1a681:	48 89 47 48          	mov    %rax,0x48(%rdi)
+   1a685:	80 bf 80 00 00 00 01 	cmpb   $0x1,0x80(%rdi)
+   1a68c:	75 06                	jne    1a694 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x994>
+   1a68e:	48 3b 6f 78          	cmp    0x78(%rdi),%rbp
+   1a692:	72 2e                	jb     1a6c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9c2>
+   1a694:	48 89 6f 78          	mov    %rbp,0x78(%rdi)
+   1a698:	eb 21                	jmp    1a6bb <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9bb>
+   1a69a:	49 29 c2             	sub    %rax,%r10
+   1a69d:	4b 8d 04 22          	lea    (%r10,%r12,1),%rax
+   1a6a1:	48 ff c0             	inc    %rax
+   1a6a4:	48 89 47 48          	mov    %rax,0x48(%rdi)
+   1a6a8:	80 bf 80 00 00 00 01 	cmpb   $0x1,0x80(%rdi)
+   1a6af:	75 06                	jne    1a6b7 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9b7>
+   1a6b1:	4c 3b 67 78          	cmp    0x78(%rdi),%r12
+   1a6b5:	72 0b                	jb     1a6c2 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9c2>
+   1a6b7:	4c 89 67 78          	mov    %r12,0x78(%rdi)
+   1a6bb:	c6 87 80 00 00 00 01 	movb   $0x1,0x80(%rdi)
+   1a6c2:	83 7f 40 00          	cmpl   $0x0,0x40(%rdi)
+   1a6c6:	74 0d                	je     1a6d5 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x9d5>
+   1a6c8:	31 c0                	xor    %eax,%eax
+   1a6ca:	4c 89 e9             	mov    %r13,%rcx
+   1a6cd:	4c 89 eb             	mov    %r13,%rbx
+   1a6d0:	e9 d0 f9 ff ff       	jmp    1a0a5 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3a5>
+   1a6d5:	b0 01                	mov    $0x1,%al
+   1a6d7:	48 89 d9             	mov    %rbx,%rcx
+   1a6da:	4c 89 fb             	mov    %r15,%rbx
+   1a6dd:	e9 c3 f9 ff ff       	jmp    1a0a5 <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x3a5>
+   1a6e2:	4d 89 d5             	mov    %r10,%r13
+   1a6e5:	81 fd ff 00 00 00    	cmp    $0xff,%ebp
+   1a6eb:	0f 84 5e f8 ff ff    	je     19f4f <benchmark.diagnostics.empty_sp.EmptySP._cursor_Sp(ref npegged.peg.State!(false, 1).State, ref ulong, ref ulong)+0x24f>
+   1a6f1:	40 0f b6 cd          	movzbl %bpl,%ecx
+   1a6f5:	48 8d 35 c4 f2 02 00 	lea    0x2f2c4(%rip),%rsi        # 499c0 <initializer for npegged.peg.ParseContext+0x2d40>
+   1a6fc:	bf 11 00 00 00       	mov    $0x11,%edi
+   1a701:	41 b8 01 00 00 00    	mov    $0x1,%r8d
+   1a707:	ba ba 01 00 00       	mov    $0x1ba,%edx
+   1a70c:	e8 bf f1 ff ff       	call   198d0 <_d_arraybounds_index>
+   1a711:	48 8d 35 a8 f2 02 00 	lea    0x2f2a8(%rip),%rsi        # 499c0 <initializer for npegged.peg.ParseContext+0x2d40>
+   1a718:	bf 11 00 00 00       	mov    $0x11,%edi
+   1a71d:	ba 29 02 00 00       	mov    $0x229,%edx
+   1a722:	31 c9                	xor    %ecx,%ecx
+   1a724:	e8 77 ef ff ff       	call   196a0 <_d_arraybounds_slice>
+   1a729:	48 8d 35 90 f2 02 00 	lea    0x2f290(%rip),%rsi        # 499c0 <initializer for npegged.peg.ParseContext+0x2d40>
+   1a730:	bf 11 00 00 00       	mov    $0x11,%edi
+   1a735:	ba b4 01 00 00       	mov    $0x1b4,%edx
+   1a73a:	e8 91 f1 ff ff       	call   198d0 <_d_arraybounds_index>
+   1a73f:	48 8d 35 7a f2 02 00 	lea    0x2f27a(%rip),%rsi        # 499c0 <initializer for npegged.peg.ParseContext+0x2d40>
+   1a746:	bf 11 00 00 00       	mov    $0x11,%edi
+   1a74b:	41 b8 02 00 00 00    	mov    $0x2,%r8d
+   1a751:	ba ba 01 00 00       	mov    $0x1ba,%edx
+   1a756:	e8 75 f1 ff ff       	call   198d0 <_d_arraybounds_index>
+   1a75b:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)

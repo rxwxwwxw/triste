@@ -77,3 +77,10 @@ Classify recursion as **output-dominated in the measured chains**: F04 shows
 quadratic snapshot/restore bytes and linear recognition invalidation/hash visits.
 Do not promote narrower invalidation based on historical scaling numbers. R04/R05
 are the evidence-backed recursion follow-ups; they remain outside Phase F.
+
+## H05 follow-up
+
+Fresh H05 source and optimized full-PEG evidence found that the existing empty-Sp
+batch guard already precedes scanner calls. The selected candidate was abandoned
+under the checkpoint's explicit stop condition; static scan call counts did not
+establish executed empty-path work. See [H05 evidence](../H05/README.md).

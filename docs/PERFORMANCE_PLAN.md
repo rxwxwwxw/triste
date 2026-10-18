@@ -178,7 +178,9 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 
 | H03 | 4f0f987; test-first 7ef4e0d | 36 DMD/LDC memo/projection oracle pairs + 2 uninstrumented pairs; 72 unchanged codegen goldens; >90% coverage; flagged differential/-vgc; ASan/LSan/Memcheck; 31,752 timing + 1,512 counter samples | performance/results/H02/README.md | performance/results/H03/README.md | pure public entry fast path; exact projection proof; 128-word check 0.0024–0.0028×; worst small finite-budget 1.792× | keep explicit experiment only; no defaults or memo policy change |
 
-| H04 | see git log; test-first 80cf8e4 | 8 DMD/LDC backend/flag oracle pairs; >90% candidate source coverage; flagged differential/-vgc; ASan/LSan/Memcheck; 8,568 timing + 408 counter samples | performance/results/H03/README.md | performance/results/H04/README.md | 1,024-token memo calls 4,101→1; native check 0.130–0.176×, but large guarded-off tree/finite controls ~2× repeatedly | rejected and production changes rolled back under scaling stop rule |
+| H04 | 72a6dfd; test-first 80cf8e4 | 8 DMD/LDC backend/flag oracle pairs; >90% candidate source coverage; flagged differential/-vgc; ASan/LSan/Memcheck; 8,568 timing + 408 counter samples | performance/results/H03/README.md | performance/results/H04/README.md | 1,024-token memo calls 4,101→1; native check 0.130–0.176×, but large guarded-off tree/finite controls ~2× repeatedly | rejected and production changes rolled back under scaling stop rule |
+
+| H05 | see git log | fresh optimized micro + full BenchPEG Sp path; 126 baseline samples and 3 whole-PEG probe runs; 39,681-line DMD/LDC/ASan/Memcheck equality; unchanged production coverage hashes | performance/results/F05/README.md | performance/results/H05/README.md | existing guard batches six work units before scanning on empty input; proposed duplicate guard is unnecessary | abandoned as already optimized; no new speedup or source change claimed |
 
 Checkpoint F: see [F05 findings](../performance/results/F05/README.md) and [verification](../performance/results/verification/README.md).
 

@@ -41,6 +41,7 @@ if [[ "$MODE" == "full" ]]; then
   COMPILERS="dmd ldc2" bash scripts/eligibility-check.sh
   COMPILERS="dmd ldc2" bash scripts/rule-effects-check.sh
   bash scripts/pure-islands-check.sh
+  bash scripts/empty-scanner-check.sh
   for compiler in dmd ldc2; do
     DC=$compiler scripts/build.sh
     DC=$compiler bash scripts/differential.sh
@@ -60,6 +61,7 @@ else
   COMPILERS=ldc2 bash scripts/eligibility-check.sh
   COMPILERS=ldc2 bash scripts/rule-effects-check.sh
   COMPILERS=ldc2 MEMOS=selective PROJECTIONS=all bash scripts/pure-islands-check.sh
+  COMPILERS=ldc2 bash scripts/empty-scanner-check.sh
   DC=ldc2 scripts/build.sh
   DC=ldc2 bash scripts/differential.sh
   DC=ldc2 scripts/examples.sh
