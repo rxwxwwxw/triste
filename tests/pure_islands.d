@@ -10,13 +10,23 @@ else version (NoMemo)
 else
     enum memo = Memoization.selective;
 uint selected(string name) @nogc nothrow pure {
+    version (StageProjection)
+        return name.length ? (__ctfe ? 1 : 2) : uint.max;
     version (RootOnly)
         return name.length >= 5 && name[$ - 5 .. $] == ".Root" ? 0 : uint.max;
     else version (LeafOnly)
         return name.length >= 11 && name[$ - 11 .. $] == ".Identifier" ? 1 : uint.max;
-    else
+    else version (AnonymousSelected)
         return 1;
+    else
+        return name.length ? 1 : uint.max;
 }
+
+version (LegacyProjection)
+    alias compiledSelector = void;
+else
+    alias compiledSelector = selected;
+alias runtimeSelector = selected;
 
 struct Event {
     string name, input;
@@ -56,7 +66,7 @@ private State!(CT, Check).Node opaque(bool CT, int Check)(ref State!(CT, Check) 
 }
 
 struct Suite(ParserBackend backend) {
-    mixin(grammar!(memo, selected, backend)(`
+    mixin(grammar!(memo, compiledSelector, backend)(`
 Islands:
     Root <- (Identifier Whitespace)* eoi
     Identifier <~ [a-z]+
@@ -77,6 +87,9 @@ alias Candidate = Suite!(ParserBackend.direct).Islands;
 version (NPeggedPureIslands) {
     static assert(__traits(hasMember, Candidate, "npeggedPureIslandEntries"));
     static assert(!__traits(hasMember, Reference, "npeggedPureIslandEntries"));
+    static assert(Candidate.npeggedPureIslandEntries == [
+        "Root", "Identifier", "Whitespace", "Kept", "Fused", "Look", "opCall"
+    ]);
 }
 
 private bool sameTree(scope const ref ParseTree a, scope const ref ParseTree b) @nogc nothrow {
@@ -110,7 +123,7 @@ private void compare(alias A, alias B)(string input, ParseContext context,
             else static if (mode == 3)
                 auto a = parse!A(context, input);
             else
-                auto a = parseRecords!(A, selected, mode == 2)(context, input, outputLimit);
+                auto a = parseRecords!(A, runtimeSelector, mode == 2)(context, input, outputLimit);
             context.userData = &second;
             version (NPeggedMetrics)
                 context.metrics = &candidateMetrics;
@@ -119,7 +132,7 @@ private void compare(alias A, alias B)(string input, ParseContext context,
             else static if (mode == 3)
                 auto b = parse!B(context, input);
             else
-                auto b = parseRecords!(B, selected, mode == 2)(context, input, outputLimit);
+                auto b = parseRecords!(B, runtimeSelector, mode == 2)(context, input, outputLimit);
             static foreach (field; ["status", "successful", "end", "failEnd"])
                 assert(__traits(getMember, a, field) == __traits(getMember, b, field));
             static if (mode == 3)
@@ -128,11 +141,15 @@ private void compare(alias A, alias B)(string input, ParseContext context,
                 assert(a.nodes == b.nodes);
             assert(first.events[0 .. first.length] == second.events[0 .. second.length]);
             const inactive = tracing || context.memoryLimit != size_t.max
-                || context.depthLimit != size_t.max
-                || context.stepLimit != size_t.max || outputLimit != size_t.max || mode == 3;
+                || context.depthLimit != size_t.max || context.stepLimit != size_t.max || ((mode == 1
+                        || mode == 2) && outputLimit != size_t.max) || mode == 3;
             if (inactive)
                 assert(a.arena.used == b.arena.used && a.arena.requestedBytes == b.arena
                         .requestedBytes);
+            static if (mode == 1 || mode == 2)
+                if (inactive)
+                    assert(a.outputArena.used == b.outputArena.used
+                            && a.outputArena.requestedBytes == b.outputArena.requestedBytes);
             printf("case %.*s %u %u %llu %llu %llu events=%llu", cast(int)__traits(identifier, B)
                     .length, __traits(identifier, B).ptr, cast(uint)mode, cast(uint)b.status,
                     cast(ulong)b.end, cast(ulong)b.failEnd, cast(ulong)input.length, cast(ulong)second
@@ -156,12 +173,12 @@ version (PureIslandsBenchmark) {
         ParseContext unlimited;
         unlimited.memoryLimit = unlimited.stepLimit = unlimited.depthLimit = size_t.max;
         foreach (input; [
-            "", "a", "abc def", "a ", "abc!", "reject", "swap a", "limit a", "a+b", "(a)", "a:b", "\0",
-            "é"
+            "", "a", "abc def", "abc def xyz", "abc reject xyz", "abc swap zz", "abc limit zz",
+            "a ", "abc!", "reject", "swap a", "limit a", "a+b", "(a)", "a:b", "\0", "é"
         ]) {
             static foreach (entry; [
-                "opCall", "Identifier", "Whitespace", "ActRoot", "Action", "OpaqueRoot", "Left",
-                "Cycle", "Kept", "Fused", "Look"
+                "opCall", "Root", "Identifier", "Whitespace", "ActRoot", "Action", "OpaqueRoot",
+                "Left", "Cycle", "Kept", "Fused", "Look"
             ]) {
                 static if (memo != Memoization.no || entry != "Left") {
                     compare!(__traits(getMember, Reference, entry), __traits(getMember, Candidate, entry))(
@@ -169,21 +186,23 @@ version (PureIslandsBenchmark) {
                     compare!(__traits(getMember, Reference, entry), __traits(getMember, Candidate, entry))(
                             input, unlimited, size_t.max, true);
                 }
-                foreach (limit; [0, 1, 4, 16, 64, 1024]) {
-                    auto context = unlimited;
-                    context.stepLimit = limit;
-                    compare!(Reference.opCall, Candidate.opCall)(input, context);
-                    context = unlimited;
-                    context.memoryLimit = limit;
-                    compare!(Reference.opCall, Candidate.opCall)(input, context);
-                    context = unlimited;
-                    context.depthLimit = limit;
-                    compare!(Reference.opCall, Candidate.opCall)(input, context);
-                    compare!(Reference.opCall, Candidate.opCall)(input, unlimited, limit);
-                }
-                compare!(and!(Reference.Identifier, Reference.Action), and!(Candidate.Identifier, Candidate
-                        .Action))(input, unlimited);
             }
+            foreach (limit; [0, 1, 4, 16, 64, 1024]) {
+                auto context = unlimited;
+                context.stepLimit = limit;
+                compare!(Reference.opCall, Candidate.opCall)(input, context);
+                context = unlimited;
+                context.memoryLimit = limit;
+                compare!(Reference.opCall, Candidate.opCall)(input, context);
+                context = unlimited;
+                context.depthLimit = limit;
+                compare!(Reference.opCall, Candidate.opCall)(input, context);
+                compare!(Reference.opCall, Candidate.opCall)(input, unlimited, limit);
+            }
+            compare!(and!(Reference.Identifier, Reference.Whitespace, Reference.Action,
+                    Reference.Whitespace, Reference.Identifier, eoi), and!(Candidate.Identifier,
+                    Candidate.Whitespace,
+                    Candidate.Action, Candidate.Whitespace, Candidate.Identifier, eoi))(input, unlimited);
         }
         version (NPeggedPureIslands)
             version (NPeggedMetrics) {
@@ -191,6 +210,18 @@ version (PureIslandsBenchmark) {
                 unlimited.metrics = &metrics;
                 auto result = check!(Candidate.Identifier)(unlimited, "abc");
                 assert(result.successful && metrics.pureIslandEntries > 0);
+                metrics = ParseMetrics.init;
+                auto records = parseRecords!(Candidate.Identifier, runtimeSelector)(unlimited, "abc", size_t
+                        .max);
+                assert(records.successful);
+                version (AnonymousSelected)
+                    assert(metrics.pureIslandEntries == 0);
+                else version (LegacyProjection)
+                    assert(metrics.pureIslandEntries == 0);
+                else version (StageProjection)
+                    assert(metrics.pureIslandEntries == 0);
+                else
+                    assert(metrics.pureIslandEntries > 0);
                 fprintf(stderr, "active=%llu fallback=%llu\n", metrics.pureIslandEntries, metrics
                         .pureIslandFallbacks);
             }

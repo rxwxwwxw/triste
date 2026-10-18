@@ -174,7 +174,9 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 
 | H01 | ac5f3cc; test-first aefd42d | 72 DMD/LDC + optimized LDC report/source pairs; valid deterministic JSON/text, forced-GC retention; >90% coverage; differential, -vgc, ASan/LSan and Memcheck | tests/eligibility_sources.json (R06 source) | performance/results/H01/README.md | actual scalar/direct/memo/record decisions exposed; all generated-source goldens unchanged; documented sanitizer/GC configuration limits | accepted diagnostic only; global barriers unchanged |
 
-| H02 | see git log; test-first 8e0bfa7 | DMD/LDC + optimized LDC local-effect oracle; 72 unchanged codegen goldens; >90% line/branch coverage; differential, -vgc, ASan/LSan and Memcheck | performance/results/H01/README.md | performance/results/H02/README.md | pure islands reported separately; unknown/action facts propagate through callers and cycles; global parser barriers retained | accepted diagnostic only; no policy change |
+| H02 | 4a8e12b; test-first 8e0bfa7 | DMD/LDC + optimized LDC local-effect oracle; 72 unchanged codegen goldens; >90% line/branch coverage; differential, -vgc, ASan/LSan and Memcheck | performance/results/H01/README.md | performance/results/H02/README.md | pure islands reported separately; unknown/action facts propagate through callers and cycles; global parser barriers retained | accepted diagnostic only; no policy change |
+
+| H03 | see git log; test-first 7ef4e0d | 36 DMD/LDC memo/projection oracle pairs + 2 uninstrumented pairs; 72 unchanged codegen goldens; >90% coverage; flagged differential/-vgc; ASan/LSan/Memcheck; 31,752 timing + 1,512 counter samples | performance/results/H02/README.md | performance/results/H03/README.md | pure public entry fast path; exact projection proof; 128-word check 0.0024–0.0028×; worst small finite-budget 1.792× | keep explicit experiment only; no defaults or memo policy change |
 
 Checkpoint F: see [F05 findings](../performance/results/F05/README.md) and [verification](../performance/results/verification/README.md).
 

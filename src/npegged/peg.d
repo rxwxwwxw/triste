@@ -78,6 +78,7 @@ version (NPeggedMetrics) {
     struct ParseMetrics {
         ulong memoCalls, memoHits, seedGrowths, invalidationVisits, invalidatedEntries;
         ulong snapshotBytes, outputSnapshotCount;
+        version (NPeggedPureIslands) ulong pureIslandEntries, pureIslandFallbacks;
         ulong memoBucketVisits, memoUnlinkVisits, memoRehashes, memoRehashedEntries;
         import npegged.records : RecordMetrics;
 
@@ -203,6 +204,97 @@ struct State(bool CT, int Check = 0) {
                 output.metrics = context.metrics is null ? null : &context.metrics.output;
         }
     }
+    version (NPeggedPureIslands) {
+        private bool pureIslandsEnabled;
+
+        /// An enclosing API entry, not an arbitrary leaf call, must carry proof.
+        pragma(inline, true) bool pureIslandAllowed() @nogc nothrow {
+            static if (CT || Check == 0)
+                return false;
+            else {
+                bool allowed = pureIslandsEnabled && status == Status.ok && context.trace is null
+                    && context.stepLimit == size_t.max
+                    && context.depthLimit == size_t.max && context.memoryLimit == size_t.max
+                    && arena !is null && arena.limit == size_t.max && arena.status == Status.ok
+                    && arena.allocator is Arena.init.allocator;
+                static if (Check == 2)
+                    allowed = allowed && records !is null && records.arena !is null
+                        && records.arena.limit == size_t.max && records.status == Status.ok
+                        && records.arena.allocator is Arena.init.allocator;
+                version (NPeggedMetrics)
+                    if (context.metrics !is null) {
+                        if (allowed)
+                            ++context.metrics.pureIslandEntries;
+                        else
+                            ++context.metrics.pureIslandFallbacks;
+                    }
+                return allowed;
+            }
+        }
+
+        @nogc nothrow unittest {
+            State!(CT, Check) state;
+            version (NPeggedMetrics) {
+                ParseMetrics metrics;
+                state.context.metrics = &metrics;
+            }
+            assert(!state.pureIslandAllowed());
+            static if (!CT && Check != 0) {
+                state.pureIslandsEnabled = true;
+                assert(!state.pureIslandAllowed());
+                Arena owner, output;
+                owner.limit = output.limit = size_t.max;
+                state.arena = &owner;
+                state.context.memoryLimit = state.context.depthLimit = state.context.stepLimit = size_t
+                    .max;
+                state.arena = null;
+                assert(!state.pureIslandAllowed());
+                state.arena = &owner;
+                RecordBuffer buffer;
+                buffer.arena = &output;
+                static if (Check == 2) {
+                    assert(!state.pureIslandAllowed());
+                    state.attachRecords(buffer);
+                }
+                assert(state.pureIslandAllowed());
+                static foreach (field; ["stepLimit", "depthLimit", "memoryLimit"]) {
+                    __traits(getMember, state.context, field) = 0;
+                    assert(!state.pureIslandAllowed());
+                    __traits(getMember, state.context, field) = size_t.max;
+                }
+                state.context.trace = (string, size_t, bool, void*) @nogc nothrow{};
+                assert(!state.pureIslandAllowed());
+                state.context.trace = null;
+                owner.limit = 0;
+                assert(!state.pureIslandAllowed());
+                owner.limit = size_t.max;
+                owner.allocator = (size_t) @nogc nothrow => cast(void*)null;
+                assert(!state.pureIslandAllowed());
+                owner.allocator = Arena.init.allocator;
+                owner.status = Status.outOfMemory;
+                assert(!state.pureIslandAllowed());
+                owner.status = Status.ok;
+                state.status = Status.resourceLimit;
+                assert(!state.pureIslandAllowed());
+                state.status = Status.ok;
+                static if (Check == 2) {
+                    output.limit = 0;
+                    assert(!state.pureIslandAllowed());
+                    output.limit = size_t.max;
+                    output.allocator = (size_t) @nogc nothrow => cast(void*)null;
+                    assert(!state.pureIslandAllowed());
+                    output.allocator = Arena.init.allocator;
+                    output.status = Status.outOfMemory;
+                    assert(!state.pureIslandAllowed());
+                    output.status = Status.ok;
+                }
+                assert(state.pureIslandAllowed());
+                version (NPeggedMetrics)
+                    assert(metrics.pureIslandEntries > 0 && metrics.pureIslandFallbacks > 0);
+            }
+        }
+    }
+
     version (NPeggedDependencyTrace) private Entry* currentMemo;
     private Entry* entries;
     private Entry*[] buckets;
@@ -1247,6 +1339,70 @@ struct CheckResult {
     @disable this(ref CheckResult);
 }
 
+version (NPeggedPureIslands) private template pureIslandEntry(alias parser, bool Records = false) {
+    private bool detect() @nogc nothrow pure {
+        static if (is(parser == struct)) {
+            alias Owner = parser;
+            enum name = "opCall";
+        } else {
+            alias Owner = __traits(parent, parser);
+            enum name = __traits(identifier, parser);
+        }
+        enum marker = Records ? "npeggedPureIslandRecordEntries" : "npeggedPureIslandEntries";
+        static if (__traits(hasMember, Owner, marker))
+            static foreach (entry; __traits(getMember, Owner, marker))
+                static if (entry == name)
+                    return true;
+        return false;
+    }
+
+    enum pureIslandEntry = detect();
+}
+
+version (NPeggedPureIslands) private bool pureIslandProjection(alias parser, alias selector)() @nogc nothrow pure {
+    static if (pureIslandEntry!(parser, true)) {
+        static if (is(parser == struct))
+            alias Owner = parser;
+        else
+            alias Owner = __traits(parent, parser);
+        if (selector("") != uint.max)
+            return false;
+        static foreach (i, name; Owner.compactRuleNames)
+            if (selector(name) != Owner.compactRuleKinds[i])
+                return false;
+        return true;
+    } else
+        return false;
+}
+
+version (NPeggedPureIslands) @nogc nothrow unittest {
+    struct Proof {
+        enum string[] npeggedPureIslandRecordEntries = ["entry"];
+        enum string[] compactRuleNames = ["Proof.entry"];
+        enum uint[] compactRuleKinds = [1];
+        static RecognitionNode entry(ref State!(false, 2) state, size_t pos) @nogc nothrow {
+            return RecognitionNode(pos, pos, pos, true);
+        }
+    }
+
+    static uint matching(string name) @nogc nothrow pure {
+        return name.length ? 1 : uint.max;
+    }
+
+    static uint anonymous(string name) @nogc nothrow pure {
+        return 1;
+    }
+
+    static uint different(string name) @nogc nothrow pure {
+        return name.length ? 2 : uint.max;
+    }
+
+    assert(pureIslandProjection!(Proof.entry, matching)());
+    assert(!pureIslandProjection!(Proof.entry, anonymous)());
+    assert(!pureIslandProjection!(Proof.entry, different)());
+    assert(!pureIslandProjection!(literal!"x", matching)());
+}
+
 pragma(inline, true) CheckResult check(alias parser)(ref ParseContext context, scope string input) @nogc nothrow {
     CheckResult result;
     result.arena.limit = context.memoryLimit;
@@ -1254,6 +1410,8 @@ pragma(inline, true) CheckResult check(alias parser)(ref ParseContext context, s
     state.arena = &result.arena;
     state.input = input;
     state.context = context;
+    version (NPeggedPureIslands)
+        state.pureIslandsEnabled = pureIslandEntry!parser;
     auto tree = state.finish(parser(state, 0));
     result.status = state.status != Status.ok ? state.status : (tree.successful ? Status.ok : Status
             .mismatch);
@@ -1336,6 +1494,9 @@ CompactResult parseRecords(alias parser, alias selector, bool OwnInput = true)(
         state.captureInput = parsedInput;
     state.context = context;
     state.attachRecords(records);
+    version (NPeggedPureIslands)
+        static if (__traits(hasMember, Owner, "compactRuleNames"))
+            state.pureIslandsEnabled = pureIslandProjection!(parser, selector)();
     static if (__traits(compiles, parser(state, 0)))
         auto node = state.finish(parser(state, 0));
     else

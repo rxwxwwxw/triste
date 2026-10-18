@@ -27,6 +27,10 @@ if [[ "${SHARED_OUTPUT_COVERAGE:-0}" == 1 ]]; then
  dmd_extra=(-version=NPeggedSharedOutput -version=NPeggedMetrics)
  gdc_extra=(-fversion=NPeggedSharedOutput -fversion=NPeggedMetrics)
 fi
+if [[ "${PURE_ISLANDS_COVERAGE:-0}" == 1 ]]; then
+ dmd_extra+=(-version=NPeggedPureIslands -version=NPeggedMetrics)
+ gdc_extra+=(-fversion=NPeggedPureIslands -fversion=NPeggedMetrics)
+fi
 DC=dmd scripts/build.sh -cov "${dmd_extra[@]}"
 scripts/collect_coverage.sh build/coverage build/dmd/tests dmd-unit
 COVERAGE_DIR=build/coverage DC=dmd scripts/examples.sh -cov "${dmd_extra[@]}"

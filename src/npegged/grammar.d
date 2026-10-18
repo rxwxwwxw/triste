@@ -148,6 +148,10 @@ nothrow unittest {
     assert(renderEligibility(value, EligibilityFormat.json).length);
 }
 
+version (NPeggedPureIslands) private template islandAnonymousSelection(alias Selector) {
+    enum islandAnonymousSelection = Selector("");
+}
+
 private string number(ulong value) pure nothrow {
     char[32] digits;
     size_t start = digits.length;
@@ -250,6 +254,7 @@ package struct Frontend {
     bool selective;
     ParserBackend backend;
     uint[] recordKinds;
+    version (NPeggedPureIslands) private bool islandOmitAnonymous;
     bool[] recordLeaves;
     bool[] recordSubtrees;
     string[] parameterNames;
@@ -1344,6 +1349,9 @@ package struct Frontend {
                     "Compact selectors must be pure @nogc nothrow uint functions");
             foreach (rule; rules)
                 recordKinds ~= Selector(name ~ "." ~ rule.name);
+            version (NPeggedPureIslands)
+                static if (__traits(compiles, islandAnonymousSelection!Selector))
+                    islandOmitAnonymous = islandAnonymousSelection!Selector == uint.max;
         }
     }
 
@@ -2140,11 +2148,147 @@ package struct Frontend {
         assert(!unknown[0].known && unknown[0].actionful);
     }
 
+    version (NPeggedPureIslands) {
+        /// Legacy parent combinators retain a named child only through its matches.
+        private bool islandHasMatches(size_t index) nothrow {
+            auto node = analyzed.expressions[index];
+            final switch (node.kind) {
+            case ExpressionKind.unknown:
+                return false;
+            case ExpressionKind.terminal:
+                return node.source == "eps" || analyzed.facts[index].nullable == Nullable.no;
+            case ExpressionKind.reference:
+                const target = analyzed.referenceRule(node);
+                return target != size_t.max && islandHasMatches(analyzed.roots[target]);
+            case ExpressionKind.sequence:
+                foreach (child; node.children)
+                    if (islandHasMatches(child))
+                        return true;
+                return false;
+            case ExpressionKind.choice:
+                foreach (child; node.children)
+                    if (!islandHasMatches(child))
+                        return false;
+                return node.children.length != 0;
+            case ExpressionKind.optional:
+            case ExpressionKind.repetition:
+            case ExpressionKind.predicate:
+                return false;
+            case ExpressionKind.wrapper:
+                return node.combinator != "discard" && node.children.length
+                    && islandHasMatches(node.children[0]);
+            }
+        }
+
+        nothrow unittest {
+            Frontend matches;
+            matches.input = "Matches: A <- 'a'";
+            matches.read();
+            matches.prepareAnalysis();
+            const expressions = [
+                `opaque!(A)`, `eps`, `eoi`, `A`, `missing`, `and!(eoi, A)`,
+                `and!(eoi, literal!(""))`, `or!(A, eps)`, `or!(A, eoi)`, `or!()`,
+                `option!(A)`,
+                `zeroOrMore!(A)`, `posLookahead!(A)`, `discard!(A)`, `oneOrMore!(A)`, `fuse!(A)`
+            ];
+            const expected = [
+                false, true, false, true, false, true, false, true, false, false, false, false,
+                false, false, true, true
+            ];
+            foreach (i, text; expressions) {
+                auto root = matches.expressionNode(matches.analyzed, text);
+                matches.analyzed.appendFacts(root);
+                assert(matches.islandHasMatches(root) == expected[i]);
+            }
+        }
+
+        private bool islandRecordShape(size_t index) nothrow {
+            auto node = analyzed.expressions[index];
+            if (node.kind == ExpressionKind.unknown)
+                return false;
+            if (node.kind == ExpressionKind.predicate)
+                return true; // Both modes suppress probe output.
+            if (node.kind == ExpressionKind.reference) {
+                const target = analyzed.referenceRule(node);
+                if (target == size_t.max)
+                    return false;
+                if (recordKinds[target] != uint.max && !islandHasMatches(analyzed.roots[target]))
+                    return false;
+                return islandRecordShape(analyzed.roots[target]);
+            }
+            if (node.combinator == "named" || node.combinator == "defined")
+                return false;
+            if (node.combinator == "discard" || node.combinator == "fuse" || node.combinator == "drop"
+                    || node.combinator == "propagate") {
+                auto visited = new bool[rules.length];
+                // Query descendants using the same selected-subtree graph, without
+                // pretending the transform preserves their legacy tree edges.
+                bool selected(size_t current) nothrow {
+                    auto item = analyzed.expressions[current];
+                    if (item.kind == ExpressionKind.reference) {
+                        const target = analyzed.referenceRule(item);
+                        if (target == size_t.max || recordKinds[target] != uint.max)
+                            return true;
+                        if (visited[target])
+                            return false;
+                        visited[target] = true;
+                        return selected(analyzed.roots[target]);
+                    }
+                    if (item.kind == ExpressionKind.predicate)
+                        return false;
+                    foreach (child; item.children)
+                        if (selected(child))
+                            return true;
+                    return false;
+                }
+
+                foreach (child; node.children)
+                    if (selected(child))
+                        return false;
+            }
+            foreach (child; node.children)
+                if (!islandRecordShape(child))
+                    return false;
+            return true;
+        }
+
+        nothrow unittest {
+            Frontend shape;
+            shape.input = "Shape: Root <- Item Space Item <~ [a-z]+ Space <: ' '*";
+            shape.read();
+            shape.prepareAnalysis();
+            shape.configureRecords!compactTag();
+            assert(!shape.islandRecordShape(shape.analyzed.roots[0]));
+            assert(shape.islandRecordShape(shape.analyzed.roots[1]));
+            assert(shape.islandRecordShape(shape.analyzed.roots[2]));
+            shape.recordKinds[2] = uint.max;
+            assert(shape.islandRecordShape(shape.analyzed.roots[0]));
+            foreach (text; [
+                `opaque!(Item)`, `missing`, `named!(Item, "custom")`, `fuse!(Item)`,
+                `discard!(Item)`, `drop!(Item)`, `propagate!(Item)`
+            ]) {
+                auto root = shape.expressionNode(shape.analyzed, text);
+                shape.analyzed.appendFacts(root);
+                assert(!shape.islandRecordShape(root));
+            }
+            auto repeated = shape.expressionNode(shape.analyzed, "fuse!(and!(Space, Space))");
+            shape.analyzed.appendFacts(repeated);
+            assert(shape.islandRecordShape(repeated));
+            auto probe = shape.expressionNode(shape.analyzed, "posLookahead!(Item)");
+            shape.analyzed.appendFacts(probe);
+            assert(shape.islandRecordShape(probe));
+        }
+    }
+
     string emit() nothrow {
         prepareAnalysis();
         RuleEffect[] localEffects;
+        version (NPeggedPureIslands)
+            if (backend == ParserBackend.direct)
+                localEffects = reportEffects();
         if (eligibility !is null) {
-            localEffects = reportEffects();
+            if (!localEffects.length)
+                localEffects = reportEffects();
             eligibility.grammarName = name;
             eligibility.conservative = analyzed.conservative;
             eligibility.unknownEvidence = analyzed.unknownEvidence();
@@ -2161,12 +2305,34 @@ package struct Frontend {
             if (eligibility !is null && actionInRule)
                 eligibility.actionRules ~= name ~ "." ~ rule.name;
         }
+        bool[] islands;
+        version (NPeggedPureIslands)
+            if (backend == ParserBackend.direct && actionGrammar) {
+                islands = new bool[rules.length];
+                foreach (i, rule; rules)
+                    islands[i] = localEffects[i].known && !localEffects[i].actionful
+                        && analyzed.shareable(analyzed.roots[i]);
+            }
         scalarRules = new bool[rules.length];
         foreach (i, rule; rules)
             scalarRules[i] = backend == ParserBackend.direct && !actionGrammar && !params.length
                 && !rule.params.length && !analyzed.leftRecursive[i] && !analyzed.conservative
                 && (!memoize || selective);
         string result = "struct " ~ name ~ params ~ " {\n";
+        if (islands.length) {
+            string[] entries;
+            foreach (i, eligible; islands)
+                if (eligible)
+                    entries ~= rules[i].name;
+            if (entries.length) {
+                if (islands[0])
+                    entries ~= "opCall";
+                result ~= "enum string[] npeggedPureIslandEntries = [";
+                foreach (i, entry; entries)
+                    result ~= (i ? ", " : "") ~ quoted(entry);
+                result ~= "];\n";
+            }
+        }
         if (recordKinds.length) {
             result ~= "enum string[] compactRuleNames = [";
             foreach (i, rule; rules)
@@ -2180,6 +2346,20 @@ package struct Frontend {
             recordLeaves = analyzed.selectedLeaves(recordKinds);
             recordSubtrees = analyzed.selectedSubtrees(recordKinds);
         }
+        version (NPeggedPureIslands)
+            if (islands.length && recordKinds.length && islandOmitAnonymous) {
+                string[] entries;
+                foreach (i, eligible; islands)
+                    if (eligible && islandRecordShape(analyzed.roots[i]))
+                        entries ~= rules[i].name;
+                // opCall renames the legacy tree root; named entries have exact tags.
+                if (entries.length) {
+                    result ~= "enum string[] npeggedPureIslandRecordEntries = [";
+                    foreach (i, entry; entries)
+                        result ~= (i ? ", " : "") ~ quoted(entry);
+                    result ~= "];\n";
+                }
+            }
         bool sharedEligible = memoize && !actionGrammar && !analyzed.conservative && !params.length;
         bool selectedRecursive;
         foreach (i, rule; rules) {
@@ -2199,6 +2379,7 @@ package struct Frontend {
         auto ruleChunks = new string[rules.length];
         foreach (ruleIndex, rule; rules) {
             string ruleOut;
+            const island = islands.length && islands[ruleIndex];
             bool cache = memoize && (!selective || analyzed.conservative || analyzed.leftRecursive[ruleIndex]);
             if (params.length || rule.params.length)
                 cache = memoize;
@@ -2228,7 +2409,7 @@ package struct Frontend {
             string declarations;
             const string body = emitTokens(analyzed, tokenRoot, r, count, declarations);
             ruleOut ~= declarations;
-            const directRule = backend == ParserBackend.direct && !actionGrammar
+            const directRule = backend == ParserBackend.direct && (!actionGrammar || island)
                 && !analyzed.leftRecursive[ruleIndex] && !params.length && !rule.params.length;
             bool useDirect, directRecords;
             if (directRule) {
@@ -2288,7 +2469,12 @@ package struct Frontend {
                 auto attributes = !startsWith(mode, "true") ? " @nogc nothrow" : " nothrow";
                 ruleOut ~= "static State!(" ~ mode ~ ").Node " ~ entryName ~ (startsWith(mode, "true")
                         ? "(CompileTime = void)" : "") ~ "(ref State!(" ~ mode ~ ") s, size_t p)" ~ attributes;
-                if (actionGrammar && (mode != "false, false" && mode != "true, false"))
+                if (island && (mode == "false, true" || mode == "false, 2"))
+                    ruleOut ~= " { if (s.pureIslandAllowed()) return s.rule!(_" ~ r ~ "!(" ~ mode
+                        ~ "), " ~ quoted(name ~ "." ~ r) ~ ", " ~ (cache
+                                ? "true" : "false") ~ recordTag ~ ")(p); return s.treeFallback!("
+                        ~ entryName ~ ")(p); }\n";
+                else if (actionGrammar && (mode != "false, false" && mode != "true, false"))
                     ruleOut ~= " { return s.treeFallback!(" ~ entryName ~ ")(p); }\n";
                 else
                     ruleOut ~= " { return s.rule!(_" ~ r ~ "!(" ~ mode ~ "), " ~ quoted(
@@ -2327,7 +2513,7 @@ package struct Frontend {
                     row.scalarBlockers ~= "full-memo";
                 assert(row.scalarEligible == !row.scalarBlockers.length);
                 row.directFallback = backend != ParserBackend.direct
-                    ? "backend-combinators" : actionGrammar
+                    ? "backend-combinators" : actionGrammar && !island
                     ? "grammar-action" : params.length
                     ? "grammar-parameters" : rule.params.length
                     ? "rule-parameters" : row.leftRecursive
@@ -2784,6 +2970,42 @@ version (unittest) private uint compactTag(string name) @nogc nothrow pure {
     if (name.length >= 8 && name[$ - 8 .. $] == ".Ignored")
         return uint.max;
     return 2;
+}
+
+version (NPeggedPureIslands) {
+    version (unittest) private uint islandUnitTag(string name) @nogc nothrow pure {
+        return name.length ? 1 : uint.max;
+    }
+
+    @nogc nothrow unittest {
+        assert(islandUnitTag("Root") == 1 && islandUnitTag("") == uint.max);
+    }
+
+    version (unittest) mixin(grammar!(Memoization.selective, islandUnitTag, ParserBackend.direct)(`
+IslandUnit:
+    Root <- Identifier eoi
+    Identifier <~ [a-z]+
+    Action <- Identifier{p => p}
+`));
+    @nogc nothrow unittest {
+        ParseContext context;
+        context.stepLimit = context.depthLimit = context.memoryLimit = size_t.max;
+        version (NPeggedMetrics) {
+            ParseMetrics metrics;
+            context.metrics = &metrics;
+        }
+        auto recognized = check!(IslandUnit.Identifier)(context, "abc");
+        assert(recognized.successful && recognized.end == 3);
+        auto root = check!IslandUnit(context, "abc");
+        assert(root.successful);
+        auto records = parseRecords!(IslandUnit.Identifier, islandUnitTag)(context, "abc", size_t.max);
+        assert(records.successful && records.nodes.length == 1);
+        version (NPeggedMetrics)
+            assert(metrics.pureIslandEntries > 0);
+        context.stepLimit = 0;
+        auto limited = check!(IslandUnit.Identifier)(context, "abc");
+        assert(limited.status == Status.resourceLimit);
+    }
 }
 
 version (NPeggedSharedOutput) {

@@ -1,0 +1,544 @@
+{
+  "decision": "retain explicit experiment; no default promotion: finite-budget small-case regression",
+  "timingSamples": 31752,
+  "counterSamples": 1512,
+  "cohorts": 24,
+  "sourceHashes": {
+    "src/npegged/analysis.d": "d7c52c41494cdd50a2f71a73d1272647c50713408add405ff17b282db038c12f",
+    "src/npegged/conversion.d": "56574a0dd8a74bd3b4ba28afd2163907194dbd8950f2dbb4204d8dd95e6921e4",
+    "src/npegged/definition.d": "bd4f31d355b30d17b6146d407554942b60a2032e30c01574979a1af21d5edcc4",
+    "src/npegged/dfa.d": "61624d10bf5db5c5943c2577c909fa7c15ef7140b8949339016d967d20f8d9e0",
+    "src/npegged/formatting.d": "283d0967311dfcd1b74a96de75f8407e644c1f5608fde607609f89771e008078",
+    "src/npegged/grammar.d": "fc2f8a189b031d0b581c42f5f5b499b48582d323f4ccfe1c5310fe38b25ef657",
+    "src/npegged/introspection.d": "56595354469328ef5ab0d912806b3ef0637eb2d7abb804b02d3eaca439b039cb",
+    "src/npegged/io.d": "0a01d47fc1eed72ddbcb0b52dfce28e4d345ac53bc869193e9041d203483f0e2",
+    "src/npegged/meta.d": "a89d3799c3201bc1ad7b73c4d1814032922c95670ee684f64c1e39bd8b98e6f2",
+    "src/npegged/parser.d": "d1a5509c68fdcba5ba72b2759022e62d9d501d27af340e4d93e06c8882073a1a",
+    "src/npegged/peg.d": "73f2efc53f0e227ed4b716d7a4715c6082a2007639c458fe515208220edb9579",
+    "src/npegged/records.d": "91e5c44fdb707366a0bdbf733c40fca1799aba0e441a20905badeb07b6e5aca7",
+    "src/npegged/storage.d": "65c7282acae4e6f8b79681fcccb6e99c6e76026f60d8c7434acace9bda9601f6",
+    "src/npegged/tester/grammartester.d": "4d5fd75ca6d648a8bfb873ca6706220397784b8a14e0fda14f5f411c44c20200",
+    "src/npegged/tester/testerparser.d": "fc3e6d735a45885f89b7ed0955d481cd376b9a262f7db975445afcbc77e32bd6",
+    "src/npegged/tohtml.d": "f0fb840a186b77948c122cfe5c7637be1e5d753eb14422ceef7196fada84fa9c",
+    "src/npegged/unicode.d": "d87bfacec181f02ed439ec244942359457ab5de28693bf044f3f2f008a00bebd",
+    "examples/json.d": "817fdcc78bb0d7eccea32a300bddbc9dbd02cac3fb98182418ee91d01d1e6290",
+    "examples/csv.d": "e258c3f5756d730b261d240e2a13d0a46ad567423a02d18accc70be3161d5273",
+    "examples/PEG.d": "7c4b76f3e31529ad9e6888e03bbbfa52f24b01298b9ea77564e2da28da457df7",
+    "benchmark/measurement.d": "b58735f758c86c371b8968a706f27addb625aeaf85a20bcf6fbb8e3a9bbbdf13",
+    "tests/pure_islands.d": "e2111537d9b454c069f3163b77125d05f169cef19f5ffec3ae76eb267a804d54",
+    "benchmark/diagnostics/pure_islands.d": "8df374ca158d6b146e3d92e19d0de709a4aec8e913a92ad295929a0304266114",
+    "scripts/pure-islands-benchmark.py": "01341126a8fb8b4d77fc9adb29880c1c54e42aad06b65aa69b1e5dc45ed8e5d0"
+  },
+  "worstCases": [
+    {
+      "memo": "full",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 16,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.7919935082499323,
+      "candidate_ns": 103.515625,
+      "reference_ns": 57.765625,
+      "runs": [
+        1.3765861645517805,
+        1.4197721392583178,
+        1.80063871712985
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 16,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.751513527993571,
+      "candidate_ns": 127.703125,
+      "reference_ns": 72.91015625,
+      "runs": [
+        1.4046248991664425,
+        1.406789310749742,
+        1.7704847007852695
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 2,
+      "size": 16,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.5463289261015871,
+      "candidate_ns": 227.96875,
+      "reference_ns": 147.42578125,
+      "runs": [
+        1.046246453289491,
+        1.0629543369327406,
+        1.5610278372591007
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 2,
+      "size": 16,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.537175247992442,
+      "candidate_ns": 127.1171875,
+      "reference_ns": 82.6953125,
+      "runs": [
+        1.08217164532954,
+        1.0535753818906355,
+        1.5540592168099332
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 1,
+      "size": 16,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.503601164631966,
+      "candidate_ns": 114.984375,
+      "reference_ns": 76.47265625,
+      "runs": [
+        1.150023080473919,
+        1.1979995846888627,
+        1.5206901895954952
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 1,
+      "size": 16,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.4775232585411617,
+      "candidate_ns": 221.47265625,
+      "reference_ns": 149.89453125,
+      "runs": [
+        1.064733015401454,
+        1.1111547035220686,
+        1.521617777300663
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 64,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.4404261067582693,
+      "candidate_ns": 145.78125,
+      "reference_ns": 101.20703125,
+      "runs": [
+        1.294631080766545,
+        1.4428840361445783,
+        1.4587580366943704
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 64,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.4101366896738394,
+      "candidate_ns": 81.40234375,
+      "reference_ns": 57.7265625,
+      "runs": [
+        1.407279848730416,
+        1.4610500443776884,
+        1.2461195842893777
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 1024,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.386266094420601,
+      "candidate_ns": 80.75,
+      "reference_ns": 58.25,
+      "runs": [
+        1.398068669527897,
+        1.386266094420601,
+        1.1740064446831364
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 64,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.3788710442501864,
+      "candidate_ns": 79.484375,
+      "reference_ns": 57.64453125,
+      "runs": [
+        1.1233014594866633,
+        1.394235399325858,
+        1.3815816222809514
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 1024,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.3676470588235294,
+      "candidate_ns": 81.375,
+      "reference_ns": 59.5,
+      "runs": [
+        1.3686974789915967,
+        1.3938428874734607,
+        1.1455301455301454
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 16,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.3668037144679945,
+      "candidate_ns": 150.63671875,
+      "reference_ns": 110.2109375,
+      "runs": [
+        1.0418724076634407,
+        1.2760762546667987,
+        1.8466865833785986
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 256,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.3648068669527897,
+      "candidate_ns": 79.5,
+      "reference_ns": 58.25,
+      "runs": [
+        1.3766094420600858,
+        1.3796095444685466,
+        0.9991474850809889
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 256,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.3503184713375795,
+      "candidate_ns": 79.5,
+      "reference_ns": 58.875,
+      "runs": [
+        1.361995753715499,
+        1.2029755579171095,
+        1.3715498938428874
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 256,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.3397027600849256,
+      "candidate_ns": 78.875,
+      "reference_ns": 58.875,
+      "runs": [
+        1.199579831932773,
+        1.3397027600849256,
+        1.4777070063694266
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 64,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.338615293576172,
+      "candidate_ns": 79.52734375,
+      "reference_ns": 59.41015625,
+      "runs": [
+        1.3843428493561354,
+        1.2384772174370438,
+        1.422213696527911
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 64,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.2943971281762512,
+      "candidate_ns": 143.66796875,
+      "reference_ns": 110.9921875,
+      "runs": [
+        0.9031203314823688,
+        1.299427642736009,
+        1.5996384476326013
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 64,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.2740371197320681,
+      "candidate_ns": 142.65234375,
+      "reference_ns": 111.96875,
+      "runs": [
+        1.4067953310990409,
+        1.6201662450307193,
+        1.1932737929109685
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 64,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.2569416363391293,
+      "candidate_ns": 145.70703125,
+      "reference_ns": 115.921875,
+      "runs": [
+        1.2405633152487592,
+        1.255223075886238,
+        1.0055198451575904
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 64,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.2351757445666756,
+      "candidate_ns": 71.9296875,
+      "reference_ns": 58.234375,
+      "runs": [
+        1.246041412911084,
+        1.2698352344740178,
+        1.1507254164427727
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 1024,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.2229299363057324,
+      "candidate_ns": 72.0,
+      "reference_ns": 58.875,
+      "runs": [
+        1.2113564668769716,
+        1.337539432176656,
+        1.1592356687898089
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 1024,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.203862660944206,
+      "candidate_ns": 70.125,
+      "reference_ns": 58.25,
+      "runs": [
+        1.372611464968153,
+        1.2169197396963123,
+        1.1824034334763949
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 16,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.1987630929825188,
+      "candidate_ns": 130.98828125,
+      "reference_ns": 109.26953125,
+      "runs": [
+        1.7345424567188787,
+        1.192246302273614,
+        1.2002641630671473
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "leaf",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 16,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.1947113647857814,
+      "candidate_ns": 129.1875,
+      "reference_ns": 108.1328125,
+      "runs": [
+        1.165436687018848,
+        1.7302200333061688,
+        1.1916978956471607
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 16,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.1927229833953361,
+      "candidate_ns": 102.6953125,
+      "reference_ns": 86.1015625,
+      "runs": [
+        0.913108309610953,
+        1.3806267548229327,
+        1.7389866384442387
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "root",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 64,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.1918201227648786,
+      "candidate_ns": 69.77734375,
+      "reference_ns": 58.546875,
+      "runs": [
+        1.1838137176407793,
+        1.5224979547313882,
+        1.1707510403593369
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "all",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 16,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.1895559949667445,
+      "candidate_ns": 103.3984375,
+      "reference_ns": 86.921875,
+      "runs": [
+        1.3982784533406203,
+        1.2095170137804931,
+        1.1895559949667445
+      ]
+    },
+    {
+      "memo": "full",
+      "projection": "root",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 256,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.1883454734651404,
+      "candidate_ns": 71.375,
+      "reference_ns": 60.0625,
+      "runs": [
+        1.1883454734651404,
+        1.2169197396963123,
+        1.177277179236043
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "all",
+      "case": "Whitespace",
+      "mode": 0,
+      "size": 0,
+      "valid": 1,
+      "finite": 1,
+      "ratio": 1.1808761904761904,
+      "candidate_ns": 60.54296875,
+      "reference_ns": 51.26953125,
+      "runs": [
+        1.1900190476190475,
+        1.17036479879654,
+        1.1745435016111707
+      ]
+    },
+    {
+      "memo": "selective",
+      "projection": "root",
+      "case": "Identifier",
+      "mode": 0,
+      "size": 256,
+      "valid": 0,
+      "finite": 1,
+      "ratio": 1.177939646201873,
+      "candidate_ns": 70.75,
+      "reference_ns": 60.0625,
+      "runs": [
+        1.177939646201873,
+        1.213375796178344,
+        1.154320987654321
+      ]
+    }
+  ]
+}
