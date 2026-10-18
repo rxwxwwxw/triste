@@ -31,13 +31,17 @@ if [[ "${PURE_ISLANDS_COVERAGE:-0}" == 1 ]]; then
  dmd_extra+=(-version=NPeggedPureIslands -version=NPeggedMetrics)
  gdc_extra+=(-fversion=NPeggedPureIslands -fversion=NPeggedMetrics)
 fi
+if [[ "${SCANNER_METRICS_COVERAGE:-0}" == 1 ]]; then
+ dmd_extra+=(-version=NPeggedScannerMetrics)
+ gdc_extra+=(-fversion=NPeggedScannerMetrics)
+fi
 DC=dmd scripts/build.sh -cov "${dmd_extra[@]}"
 scripts/collect_coverage.sh build/coverage build/dmd/tests dmd-unit
-COVERAGE_DIR=build/coverage DC=dmd scripts/examples.sh -cov "${dmd_extra[@]}"
+COVERAGE_DIR=build/coverage DC=dmd scripts/examples.sh -cov
 find build \( -name '*.gcda' -o -name '*.gcno' -o -name '*.profile' \) -delete
 DC=gdc scripts/build.sh --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno "${gdc_extra[@]}"
 scripts/collect_coverage.sh build/coverage build/gdc/tests gdc-unit
-COVERAGE_DIR=build/coverage DC=gdc scripts/examples.sh --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno "${gdc_extra[@]}"
+COVERAGE_DIR=build/coverage DC=gdc scripts/examples.sh --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno
 if [[ "${SHARED_OUTPUT_COVERAGE:-0}" == 1 ]]; then
  mapfile -t library < <(rg --files src -g '*.d' | sort)
  mkdir -p build/coverage-oracle
@@ -47,6 +51,16 @@ if [[ "${SHARED_OUTPUT_COVERAGE:-0}" == 1 ]]; then
  gdc -Isrc -nophoboslib -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -fcheckaction=halt -Wall -Werror -funittest --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno "${gdc_extra[@]}" "${library[@]}" tests/shared_output.d -o build/coverage-oracle/gdc-oracle -lgdruntime
  prlimit --as=4294967296 -- timeout --kill-after=2s 60s build/coverage-oracle/gdc-oracle --DRT-testmode=run-main > build/coverage-oracle/gdc.txt
  scripts/collect_coverage.sh build/coverage build/coverage-oracle/gdc-oracle gdc-shared-output
+fi
+if [[ "${SCANNER_METRICS_COVERAGE:-0}" == 1 ]]; then
+ mapfile -t library < <(rg --files src -g '*.d' | sort)
+ mkdir -p build/coverage-scanner
+ dmd -Isrc -J. -defaultlib=druntime -nothrow -w -unittest -cov -version=NPeggedScannerMetrics "${library[@]}" tests/scanner_report.d -of=build/coverage-scanner/dmd-scanner
+ prlimit --as=4294967296 -- timeout --kill-after=2s 60s build/coverage-scanner/dmd-scanner --DRT-testmode=run-main > build/coverage-scanner/dmd.txt
+ scripts/collect_coverage.sh build/coverage build/coverage-scanner/dmd-scanner dmd-scanner-report
+ gdc -Isrc -J. -nophoboslib -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -fcheckaction=halt -Wall -Werror -funittest --coverage -fprofile-abs-path -fdump-ipa-profile-details-blocks-lineno -fversion=NPeggedScannerMetrics "${library[@]}" tests/scanner_report.d -o build/coverage-scanner/gdc-scanner -lgdruntime
+ prlimit --as=4294967296 -- timeout --kill-after=2s 60s build/coverage-scanner/gdc-scanner --DRT-testmode=run-main > build/coverage-scanner/gdc.txt
+ scripts/collect_coverage.sh build/coverage build/coverage-scanner/gdc-scanner gdc-scanner-report
 fi
 while IFS= read -r -d '' notes; do
  directory=$(dirname "$notes")

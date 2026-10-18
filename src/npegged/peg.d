@@ -162,7 +162,131 @@ version (NPeggedDependencyTrace) {
     }
 }
 
+version (NPeggedScannerMetrics) {
+    enum ScannerReason {
+        none,
+        tree,
+        innerRecords,
+        invalidTable,
+        state,
+        position,
+        steps,
+        trace,
+        depth,
+        budgetEdge,
+        failureDiagnostic,
+        primitiveScan,
+        recordLowering,
+        count
+    }
+
+    /// Frontier spans exclude an inspected stopping byte at the frontier itself.
+    struct ScannerEvent {
+        string rule;
+        ScannerReason reason;
+        bool eligible, attempted, scanAccepted, fastSuccess, fastFailure, original;
+        size_t examinedBytes, originalBytes, replayedBytes;
+    }
+
+    struct ScannerStats {
+        string rule;
+        ulong calls, eligible, scanCalls, scanSuccess, scanFailure, fastSuccess, fastFailure;
+        ulong originalCalls, replays, examinedBytes, originalBytes, replayedBytes;
+        ulong[ScannerReason.count] reasons;
+
+        void add(scope const ref ScannerEvent event) @nogc nothrow {
+            ++calls;
+            eligible += event.eligible;
+            scanCalls += event.attempted;
+            scanSuccess += event.attempted && event.scanAccepted;
+            scanFailure += event.attempted && !event.scanAccepted;
+            fastSuccess += event.fastSuccess;
+            fastFailure += event.fastFailure;
+            originalCalls += event.original;
+            replays += event.attempted && event.original;
+            examinedBytes += event.examinedBytes;
+            originalBytes += event.originalBytes;
+            replayedBytes += event.replayedBytes;
+            ++reasons[event.reason];
+        }
+    }
+
+    @nogc nothrow unittest {
+        ScannerStats stats;
+        ScannerEvent event;
+        event.eligible = event.attempted = event.scanAccepted = event.fastSuccess = true;
+        event.examinedBytes = 3;
+        stats.add(event);
+        event.scanAccepted = event.fastSuccess = false;
+        event.original = event.fastFailure = true;
+        event.originalBytes = 5;
+        event.replayedBytes = 3;
+        event.reason = ScannerReason.budgetEdge;
+        stats.add(event);
+        assert(stats.calls == 2 && stats.eligible == 2 && stats.scanCalls == 2);
+        assert(stats.scanSuccess == 1 && stats.scanFailure == 1 && stats.fastSuccess == 1);
+        assert(stats.fastFailure == 1 && stats.originalCalls == 1 && stats.replays == 1);
+        assert(stats.examinedBytes == 6 && stats.originalBytes == 5 && stats.replayedBytes == 3);
+        assert(stats.reasons[ScannerReason.none] == 1 && stats.reasons[ScannerReason.budgetEdge] == 1);
+    }
+
+    /// Borrowed fixed-capacity storage; totals remain complete when rows truncate.
+    struct ScannerReport {
+        ScannerStats total;
+        ScannerStats[] rows;
+        size_t length;
+        bool truncated;
+
+        void record(scope const ref ScannerEvent event) @nogc nothrow {
+            total.add(event);
+            foreach (i; 0 .. length)
+                if (rows[i].rule == event.rule) {
+                    rows[i].add(event);
+                    return;
+                }
+            if (length == rows.length) {
+                truncated = true;
+                return;
+            }
+            rows[length] = ScannerStats.init;
+            rows[length].rule = event.rule;
+            rows[length++].add(event);
+        }
+    }
+
+    @nogc nothrow unittest {
+        ScannerReport empty;
+        ScannerEvent event;
+        event.rule = "A";
+        empty.record(event);
+        assert(empty.truncated && empty.length == 0 && empty.total.calls == 1);
+        ScannerStats[2] fullRows;
+        ScannerReport full;
+        full.rows = fullRows[];
+        full.record(event);
+        event.rule = "B";
+        event.examinedBytes = 4;
+        full.record(event);
+        assert(!full.truncated && full.length == 2);
+        assert(full.rows[0].calls + full.rows[1].calls == full.total.calls);
+        assert(full.rows[0].examinedBytes + full.rows[1].examinedBytes == full.total.examinedBytes);
+        ScannerStats[1] rows;
+        ScannerReport report;
+        report.rows = rows[];
+        event.rule = "A";
+        report.record(event);
+        report.record(event);
+        event.rule = "B";
+        report.record(event);
+        event.rule = "A";
+        report.record(event);
+        assert(report.length == 1 && report.truncated && report.total.calls == 4);
+        assert(rows[0].rule == "A" && rows[0].calls == 3);
+    }
+}
+
 struct ParseContext {
+    version (NPeggedScannerMetrics) ScannerReport* scannerReport;
     version (NPeggedSharedOutput) bool sharedOutput;
     version (NPeggedDependencyTrace) MemoTrace* memoTrace;
     version (NPeggedMetrics) ParseMetrics* metrics;
@@ -171,6 +295,13 @@ struct ParseContext {
     size_t depthLimit = 1024;
     void* userData;
     void function(string, size_t, bool, void*) @nogc nothrow trace;
+}
+
+@nogc nothrow unittest {
+    version (NPeggedScannerMetrics)
+        static assert(__traits(hasMember, ParseContext, "scannerReport"));
+    else
+        static assert(!__traits(hasMember, ParseContext, "scannerReport"));
 }
 
 /// Owns input and all runtime tree storage. Views expire when this owner is destroyed.

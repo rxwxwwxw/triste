@@ -4,6 +4,8 @@ module npegged.dfa;
 
 import npegged.peg : CharSetMask, State, Status;
 
+version (NPeggedScannerMetrics) import npegged.peg : ScannerEvent, ScannerReason;
+
 nothrow:
 
 enum RegularKind {
@@ -525,11 +527,46 @@ size_t scanDFA(alias Transitions, alias Accepting)(scope string input, size_t po
     assert(scanDFA!(table.transitions, table.accepting)("x", 0) == size_t.max);
 }
 
+version (NPeggedScannerMetrics) template scannerName(alias Table) {
+    static if (__traits(hasMember, Table, "diagnosticName"))
+        enum scannerName = Table.diagnosticName;
+    else
+        enum scannerName = "<anonymous DFA>";
+}
+
+version (NPeggedScannerMetrics) @nogc nothrow unittest {
+    struct Named {
+        enum diagnosticName = "Example.Token/_dfa_Token";
+    }
+
+    static assert(scannerName!Named == "Example.Token/_dfa_Token");
+    static assert(scannerName!Automaton == "<anonymous DFA>");
+}
+
 /// Generic tree capture retains the original combinator.
 /// A failed scan is replayed to produce the original failure structure.
 struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool HasInnerRecords = false) {
-    static if (__traits(hasMember, Original, "scan"))
-        alias scan = Original.scan;
+    version (NPeggedScannerMetrics) private enum diagnosticName = scannerName!Table;
+    static if (__traits(hasMember, Original, "scan")) {
+        version (NPeggedScannerMetrics) {
+            static State!(CT, Check).Node scan(bool Capture, bool CT, int Check = 0)(ref State!(CT,
+                    Check) s, size_t pos) nothrow {
+                ScannerEvent event;
+                event.rule = diagnosticName;
+                event.reason = ScannerReason.primitiveScan;
+                event.eligible = (Check == 1 || Check == 2 && !HasInnerRecords) && Table.valid;
+                event.original = true;
+                auto sink = s.context.scannerReport;
+                auto result = Original.scan!Capture(s, pos);
+                const frontier = result.end > result.failEnd ? result.end : result.failEnd;
+                event.originalBytes = frontier > pos ? frontier - pos : 0;
+                if (!__ctfe && sink !is null)
+                    sink.record(event);
+                return result;
+            }
+        } else
+            alias scan = Original.scan;
+    }
     static if (__traits(hasMember, Original, "byteScanner") && __traits(hasMember, Original,
             "byteMatches") && __traits(hasMember, Original, "byteSteps") && Original.byteScanner) {
         enum byteScanner = true;
@@ -538,7 +575,23 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
     }
     pragma(inline, true) static State!(CT, Check).Node opCall(bool CT, int Check = 0)(ref State!(CT,
             Check) s, size_t pos) nothrow {
+        version (NPeggedScannerMetrics) {
+            ScannerEvent event;
+            event.rule = diagnosticName;
+            auto sink = s.context.scannerReport;
+            scope (exit)
+                if (!__ctfe && sink !is null)
+                    sink.record(event);
+            static if (Check == 0)
+                event.reason = ScannerReason.tree;
+            else static if (Check == 2 && HasInnerRecords)
+                event.reason = ScannerReason.innerRecords;
+            else static if (!Table.valid)
+                event.reason = ScannerReason.invalidTable;
+        }
         static if ((Check == 1 || (Check == 2 && !HasInnerRecords)) && Table.valid) {
+            version (NPeggedScannerMetrics)
+                event.eligible = true;
             if (s.status == Status.ok && pos <= s.input.length && s.steps < s.context.stepLimit
                     && (!ReferenceDepth || s.context.trace is null) && (!ReferenceDepth
                         || s.depth <= s.context.depthLimit
@@ -551,7 +604,18 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                 size_t examined;
                 size_t lastEofEnd;
                 const end = scanDFA!Table(s.input[0 .. limit], pos, examined, lastEofEnd);
+                version (NPeggedScannerMetrics) {
+                    event.attempted = true;
+                    event.scanAccepted = end != size_t.max;
+                    event.examinedBytes = examined - pos;
+                    event.reason = examined < limit || limit == s.input.length
+                        ? ScannerReason.failureDiagnostic : ScannerReason.budgetEdge;
+                }
                 if (end != size_t.max && (examined < limit || limit == s.input.length)) {
+                    version (NPeggedScannerMetrics) {
+                        event.fastSuccess = true;
+                        event.reason = ScannerReason.none;
+                    }
                     s.steps += examined - pos + 1;
                     if (examined > end)
                         s.recordFailure(s.node(pos, examined, false));
@@ -559,6 +623,10 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                 } else static if (Check == 1) {
                     static if (Table.requireEnd) {
                         if (lastEofEnd != size_t.max && (examined < limit || limit == s.input.length)) {
+                            version (NPeggedScannerMetrics) {
+                                event.fastFailure = true;
+                                event.reason = ScannerReason.none;
+                            }
                             s.steps += examined - pos + 1;
                             auto result = s.node(pos, lastEofEnd, false);
                             result.failEnd = examined > lastEofEnd ? examined : lastEofEnd;
@@ -567,6 +635,10 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                         }
                     } else {
                         if (examined < limit || limit == s.input.length) {
+                            version (NPeggedScannerMetrics) {
+                                event.fastFailure = true;
+                                event.reason = ScannerReason.none;
+                            }
                             s.steps += examined - pos + 1;
                             auto result = s.node(pos, examined, false);
                             result.failEnd = examined;
@@ -575,9 +647,29 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                         }
                     }
                 }
+            } else version (NPeggedScannerMetrics) {
+                if (s.status != Status.ok)
+                    event.reason = ScannerReason.state;
+                else if (pos > s.input.length)
+                    event.reason = ScannerReason.position;
+                else if (s.steps >= s.context.stepLimit)
+                    event.reason = ScannerReason.steps;
+                else if (ReferenceDepth && s.context.trace !is null)
+                    event.reason = ScannerReason.trace;
+                else
+                    event.reason = ScannerReason.depth;
             }
         }
-        return Original(s, pos);
+        version (NPeggedScannerMetrics) {
+            event.original = true;
+            auto result = Original(s, pos);
+            const frontier = result.end > result.failEnd ? result.end : result.failEnd;
+            event.originalBytes = frontier > pos ? frontier - pos : 0;
+            event.replayedBytes = event.examinedBytes < event.originalBytes ? event.examinedBytes : event
+                .originalBytes;
+            return result;
+        } else
+            return Original(s, pos);
     }
 }
 
@@ -621,4 +713,190 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
     auto compiled = check!(dfaToken!(original, table))(context, "a!");
     assert(baseline.successful && compiled.successful);
     assert(baseline.end == compiled.end && baseline.failEnd == compiled.failEnd);
+}
+
+version (NPeggedScannerMetrics) @nogc nothrow unittest {
+    import npegged.peg : Arena, ParseContext, ScannerReason, ScannerReport, ScannerStats, State,
+        Status, and, digit, eoi, literal, oneOrMore;
+    import npegged.records : RecordBuffer;
+
+    static void noopTrace(string, size_t, bool, void*) @nogc nothrow {
+    }
+
+    struct DigitsTable {
+        enum automaton = () {
+            CharSetMask mask;
+            mask.addRange('0', '9');
+            return compileDFA([
+                RegularExpression(RegularKind.bytes, mask),
+                RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+                RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1])
+            ], 2);
+        }();
+        enum valid = automaton.valid;
+        enum requireEnd = automaton.requireEnd;
+        enum diagnosticName = "Unit.Digits/_dfa_Digits";
+    }
+
+    struct AnchoredTable {
+        enum automaton = () {
+            CharSetMask mask;
+            mask.addRange('0', '9');
+            return compileDFA([
+                RegularExpression(RegularKind.bytes, mask),
+                RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+                RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1])
+            ], 2, true);
+        }();
+        enum valid = automaton.valid;
+        enum requireEnd = automaton.requireEnd;
+        enum diagnosticName = "Unit.Anchored/_dfa_Anchored";
+    }
+
+    struct PairTable {
+        enum automaton = () {
+            CharSetMask digits;
+            digits.addRange('0', '9');
+            const bang = CharSetMask.fromChars('!');
+            return compileDFA([
+                RegularExpression(RegularKind.bytes, digits),
+                RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+                RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1]),
+                RegularExpression(RegularKind.bytes, bang),
+                RegularExpression(RegularKind.sequence, CharSetMask.init, [2, 3])
+            ], 4);
+        }();
+        enum valid = automaton.valid;
+        enum requireEnd = automaton.requireEnd;
+        enum diagnosticName = "Unit.Pair/_dfa_Pair";
+    }
+
+    struct InvalidTable {
+        enum automaton = Automaton.init;
+        enum valid = false;
+        enum requireEnd = false;
+        enum diagnosticName = "Unit.Invalid/_dfa_Invalid";
+    }
+
+    alias FastToken = dfaToken!(oneOrMore!digit, DigitsTable, 2, false);
+    alias InnerToken = dfaToken!(oneOrMore!digit, DigitsTable, 2, true);
+    alias BadTableToken = dfaToken!(oneOrMore!digit, InvalidTable, 0, false);
+    alias AnchoredToken = dfaToken!(and!(oneOrMore!digit, eoi), AnchoredTable, 0, false);
+    alias PairToken = dfaToken!(and!(oneOrMore!digit, literal!"!"), PairTable, 0, false);
+
+    ScannerStats[8] storage;
+    ScannerReport report;
+    report.rows = storage[];
+
+    Arena arena;
+    State!(false, 1) s1;
+    s1.arena = &arena;
+    s1.input = "123x";
+    assert(FastToken.scan!false(s1, 0).successful);
+    assert(FastToken(s1, 0).successful);
+
+    s1.context.scannerReport = &report;
+    assert(FastToken.scan!false(s1, 0).end == 3);
+    assert(!FastToken.scan!false(s1, 3).successful);
+    assert(report.total.reasons[ScannerReason.primitiveScan] == 2);
+    assert(report.total.originalBytes == 3);
+
+    State!(false, 0) s0;
+    s0.arena = &arena;
+    s0.input = "12";
+    s0.context.scannerReport = &report;
+    assert(FastToken(s0, 0).successful);
+    assert(report.total.reasons[ScannerReason.tree] == 1);
+
+    RecordBuffer records;
+    records.arena = &arena;
+    State!(false, 2) s2;
+    s2.arena = &arena;
+    s2.input = "12x";
+    s2.context.scannerReport = &report;
+    s2.attachRecords(records);
+    assert(InnerToken(s2, 0).successful);
+    assert(report.total.reasons[ScannerReason.innerRecords] == 1);
+    assert(!PairToken(s2, 0).successful);
+    assert(report.total.reasons[ScannerReason.failureDiagnostic] == 1);
+    assert(report.total.replays == 1 && report.total.replayedBytes == 2);
+
+    assert(BadTableToken(s1, 0).successful);
+    assert(report.total.reasons[ScannerReason.invalidTable] == 1);
+
+    // Guard reason precedence: state > position > steps > trace > depth.
+    s1 = State!(false, 1).init;
+    s1.arena = &arena;
+    s1.input = "12";
+    s1.context.scannerReport = &report;
+    s1.status = Status.resourceLimit;
+    s1.steps = s1.context.stepLimit;
+    s1.context.trace = &noopTrace;
+    s1.depth = s1.context.depthLimit + 1;
+    cast(void)FastToken(s1, 99);
+    assert(report.total.reasons[ScannerReason.state] == 1);
+
+    s1.status = Status.ok;
+    cast(void)FastToken(s1, 99);
+    assert(report.total.reasons[ScannerReason.position] == 1);
+
+    s1.status = Status.ok;
+    s1.steps = s1.context.stepLimit;
+    cast(void)FastToken(s1, 0);
+    assert(report.total.reasons[ScannerReason.steps] == 1);
+
+    s1.steps = 0;
+    s1.status = Status.ok;
+    cast(void)FastToken(s1, 0);
+    assert(report.total.reasons[ScannerReason.trace] == 1);
+
+    s1.context.trace = null;
+    s1.steps = 0;
+    s1.status = Status.ok;
+    cast(void)FastToken(s1, 0);
+    assert(report.total.reasons[ScannerReason.depth] == 1);
+
+    s1.depth = s1.context.depthLimit;
+    s1.steps = 0;
+    s1.status = Status.ok;
+    cast(void)FastToken(s1, 0);
+    assert(report.total.reasons[ScannerReason.depth] == 2);
+
+    // Terminal fastSuccess, fastFailure (anchored/unanchored), failureDiagnostic, and budgetEdge.
+    s1 = State!(false, 1).init;
+    s1.arena = &arena;
+    s1.context.scannerReport = &report;
+    s1.input = "123";
+    assert(FastToken(s1, 0).end == 3);
+    s1.input = "123x";
+    assert(FastToken(s1, 0).end == 3);
+    s1.input = "x";
+    assert(!FastToken(s1, 0).successful);
+    s1.input = "12x";
+    assert(!AnchoredToken(s1, 0).successful);
+    s1.input = "x";
+    assert(!AnchoredToken(s1, 0).successful);
+
+    s1.input = "1234";
+    s1.status = Status.ok;
+    s1.steps = 0;
+    s1.context.stepLimit = 3; // remaining = 2 < available = 4 -> budgetEdge
+    cast(void)FastToken(s1, 0);
+    s1.input = "12!";
+    s1.status = Status.ok;
+    s1.steps = 0;
+    s1.context.stepLimit = 2; // remaining = 1 < available = 3 -> budgetEdge on rejected scan
+    cast(void)PairToken(s1, 0);
+    s1.input = "12";
+    s1.status = Status.ok;
+    s1.steps = 0;
+    s1.context.stepLimit = 2;
+    cast(void)AnchoredToken(s1, 0);
+    assert(report.total.fastSuccess >= 2 && report.total.fastFailure >= 2);
+    assert(report.total.reasons[ScannerReason.budgetEdge] >= 3);
+    assert(!report.truncated);
+    ulong sumCalls;
+    foreach (row; report.rows[0 .. report.length])
+        sumCalls += row.calls;
+    assert(sumCalls == report.total.calls);
 }

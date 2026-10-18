@@ -28,8 +28,16 @@ ScannerFixture:
 alias Candidate = Suite!(ParserBackend.direct).ScannerFixture;
 alias Combinators = Suite!(ParserBackend.combinators).ScannerFixture;
 version (NPeggedScannerMetrics) {
-    static assert(Candidate.scannerRuleNames.length == Candidate.scannerRegionCounts.length);
-    static assert(Candidate.scannerRuleNames.length == Candidate.scannerRootProven.length);
+    static assert(Candidate.scannerRuleNames == [
+        "ScannerFixture.Root", "ScannerFixture.Digits", "ScannerFixture.Discard",
+        "ScannerFixture.Inner", "ScannerFixture.Eof", "ScannerFixture.Unsafe",
+        "ScannerFixture.Opaque", "ScannerFixture.Fixed"
+    ]);
+    static assert(Candidate.scannerRegionCounts == [1, 1, 1, 1, 1, 1, 0, 0]);
+    static assert(Candidate.scannerRootProven == [true, true, true, true, true, false, false, true]);
+    static assert(Combinators.scannerRuleNames == Candidate.scannerRuleNames);
+    static assert(Combinators.scannerRegionCounts == Candidate.scannerRegionCounts);
+    static assert(Combinators.scannerRootProven == Candidate.scannerRootProven);
 }
 private ulong treeHash(scope const ref ParseTree tree) @nogc nothrow {
     ulong hash = tree.begin * 3 + tree.end * 7 + tree.failEnd * 11 + tree.successful;
@@ -84,8 +92,28 @@ private void run(alias parser)(string input, ParseContext context) @nogc nothrow
                     cast(ulong)input.length, cast(uint)result.status, cast(ulong)result.end,
                     cast(ulong)result.failEnd, hash, traceHash, cast(ulong)result.arena.used,
                     cast(ulong)result.arena.requestedBytes);
-            version (NPeggedScannerMetrics)
+            version (NPeggedScannerMetrics) {
                 assert(!report.truncated);
+                ScannerStats summed;
+                foreach (row; report.rows[0 .. report.length]) {
+                    summed.calls += row.calls;
+                    summed.eligible += row.eligible;
+                    summed.scanCalls += row.scanCalls;
+                    summed.scanSuccess += row.scanSuccess;
+                    summed.scanFailure += row.scanFailure;
+                    summed.fastSuccess += row.fastSuccess;
+                    summed.fastFailure += row.fastFailure;
+                    summed.originalCalls += row.originalCalls;
+                    summed.replays += row.replays;
+                    summed.examinedBytes += row.examinedBytes;
+                    summed.originalBytes += row.originalBytes;
+                    summed.replayedBytes += row.replayedBytes;
+                    foreach (r; 0 .. cast(size_t)ScannerReason.count)
+                        summed.reasons[r] += row.reasons[r];
+                }
+                summed.rule = report.total.rule;
+                assert(summed == report.total);
+            }
         }
     }
 }
@@ -126,6 +154,14 @@ int main() @nogc nothrow {
         assert(result.successful && report.total.calls > 0);
         assert(report.total.scanCalls > 0 || report.total.originalCalls > 0);
         assert(!report.truncated && report.length > 0);
+        ScannerStats[1] tinyStorage;
+        ScannerReport tiny;
+        tiny.rows = tinyStorage[];
+        context.scannerReport = &tiny;
+        assert(parseRecords!(Candidate.Root, selected, false)(context, "123").successful);
+        assert(tiny.truncated && tiny.length == 1 && tiny.total.calls >= 2);
+        context.scannerReport = null;
+        assert(check!(Candidate.Root)(context, "123").successful);
     }
     printf("scanner report oracle passed\n");
     return 0;

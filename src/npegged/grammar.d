@@ -1526,6 +1526,42 @@ package struct Frontend {
         assert(frontend.emit().length);
     }
 
+    version (NPeggedScannerMetrics) {
+        private bool scannerWholeRegular(ref GrammarAnalysis graph, size_t root) nothrow {
+            const saved = graph.expressions.length;
+            scope (exit)
+                graph.truncate(saved);
+            auto node = graph.expressions[root];
+            bool anchored;
+            if (node.combinator == "and" && node.children.length) {
+                const last = graph.expressions[node.children[$ - 1]].source;
+                if (last == "eoi" || last == "endOfInput") {
+                    node.children = node.children[0 .. $ - 1].dup;
+                    root = graph.appendExpression(node);
+                    graph.appendFacts(root);
+                    anchored = true;
+                }
+            }
+            return graph.regularLeaf(root, anchored);
+        }
+
+        nothrow unittest {
+            Frontend frontend;
+            GrammarAnalysis graph;
+            foreach (text; [
+                "literal!(\"a\")", "and!(oneOrMore!(literal!(\"a\")), eoi)",
+                "and!(oneOrMore!(literal!(\"a\")), endOfInput)"
+            ]) {
+                auto root = frontend.expressionNode(graph, text);
+                graph.appendFacts(root);
+                assert(frontend.scannerWholeRegular(graph, root));
+            }
+            auto root = frontend.expressionNode(graph, "and!(zeroOrMore!(literal!(\"a\")), literal!(\"a\"))");
+            graph.appendFacts(root);
+            assert(!frontend.scannerWholeRegular(graph, root));
+        }
+    }
+
     /// Compile maximal eligible regions even when their enclosing rule is not regular.
     private string emitTokens(ref GrammarAnalysis graph, size_t index, string rule, ref size_t count,
             ref string declarations) nothrow {
@@ -1547,7 +1583,10 @@ package struct Frontend {
                 const symbol = "_dfa_" ~ rule ~ (count ? "_" ~ number(count) : "");
                 ++count;
                 declarations ~= "struct " ~ symbol ~ " { enum automaton = " ~ table
-                    ~ "; enum valid = automaton.valid; enum requireEnd = automaton.requireEnd; }\n";
+                    ~ "; enum valid = automaton.valid; enum requireEnd = automaton.requireEnd;";
+                version (NPeggedScannerMetrics)
+                    declarations ~= " enum diagnosticName = " ~ quoted(name ~ "." ~ rule ~ "/" ~ symbol) ~ ";";
+                declarations ~= " }\n";
                 return "dfaToken!(" ~ emitExpression(graph,
                         index) ~ ", " ~ symbol ~ ", " ~ number(referenceDepth) ~ ", " ~ (hasRecords
                         ? "true" : "false") ~ ")";
@@ -1604,7 +1643,11 @@ package struct Frontend {
                 } else {
                     const symbol = "_dfa_" ~ rule ~ (count ? "_" ~ number(count) : "");
                     ++count;
-                    declarations ~= "struct " ~ symbol ~ " { enum automaton = " ~ selectedTable ~ "; enum valid = automaton.valid; enum requireEnd = automaton.requireEnd; }\n";
+                    declarations ~= "struct " ~ symbol ~ " { enum automaton = " ~ selectedTable
+                        ~ "; enum valid = automaton.valid; enum requireEnd = automaton.requireEnd;";
+                    version (NPeggedScannerMetrics)
+                        declarations ~= " enum diagnosticName = " ~ quoted(name ~ "." ~ rule ~ "/" ~ symbol) ~ ";";
+                    declarations ~= " }\n";
                     string original = "and!(";
                     foreach (i, child; node.children[start .. selected])
                         original ~= (i ? ", " : "") ~ emitExpression(graph, child);
@@ -1886,9 +1929,18 @@ package struct Frontend {
             while (innerRecords.length && (innerRecords[0] == ' ' || innerRecords[0] == '\t'))
                 innerRecords = innerRecords[1 .. $];
             const next = "_d" ~ number(serial++);
-            if (innerRecords == "true")
+            if (innerRecords == "true") {
                 code ~= emitDirect(graph, expression.children[0], position, next, serial, depth + 1, outputMode);
-            else
+                version (NPeggedScannerMetrics) {
+                    const event = "_scannerEvent" ~ number(serial++);
+                    code ~= "if (!__ctfe && s.context.scannerReport !is null) { ScannerEvent "
+                        ~ event ~ "; " ~ event ~ ".rule = scannerName!(" ~ expression.arguments[1]
+                        ~ "); " ~ event ~ ".reason = ScannerReason.recordLowering; "
+                        ~ event ~ ".original = true; " ~ event ~ ".originalBytes = (" ~ next ~ "End > "
+                        ~ next ~ "Fail ? " ~ next ~ "End : " ~ next ~ "Fail) - "
+                        ~ position ~ "; s.context.scannerReport.record(" ~ event ~ "); }\n";
+                }
+            } else
                 code ~= "auto " ~ next ~ " = " ~ expression.source ~ "(s, " ~ position ~ ");\n";
             if (innerRecords == "true")
                 code ~= target ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target
@@ -2376,6 +2428,10 @@ package struct Frontend {
                 spacingDefined = true;
         if (!spacingDefined)
             result ~= "alias Spacing = npegged.peg.spacing;\n";
+        version (NPeggedScannerMetrics) {
+            auto scannerCounts = new size_t[rules.length];
+            auto scannerProof = new bool[rules.length];
+        }
         auto ruleChunks = new string[rules.length];
         foreach (ruleIndex, rule; rules) {
             string ruleOut;
@@ -2408,6 +2464,10 @@ package struct Frontend {
             size_t count;
             string declarations;
             const string body = emitTokens(analyzed, tokenRoot, r, count, declarations);
+            version (NPeggedScannerMetrics) {
+                scannerCounts[ruleIndex] = count;
+                scannerProof[ruleIndex] = scannerWholeRegular(analyzed, tokenRoot);
+            }
             ruleOut ~= declarations;
             const directRule = backend == ParserBackend.direct && (!actionGrammar || island)
                 && !analyzed.leftRecursive[ruleIndex] && !params.length && !rule.params.length;
@@ -2540,6 +2600,18 @@ package struct Frontend {
             outPos += chunk.length;
         }
         result = cast(string)outBuf[0 .. outPos];
+        version (NPeggedScannerMetrics) {
+            result ~= "enum string[] scannerRuleNames = [";
+            foreach (i, rule; rules)
+                result ~= (i ? ", " : "") ~ quoted(name ~ "." ~ rule.name);
+            result ~= "];\nenum size_t[] scannerRegionCounts = [";
+            foreach (i, count; scannerCounts)
+                result ~= (i ? ", " : "") ~ number(count);
+            result ~= "];\nenum bool[] scannerRootProven = [";
+            foreach (i, proof; scannerProof)
+                result ~= (i ? ", " : "") ~ (proof ? "true" : "false");
+            result ~= "];\n";
+        }
         if (!rules[0].params.length) {
             auto first = rules[0].name;
             foreach (mode; [
@@ -3038,6 +3110,51 @@ SharedOutputUnit:
                 cast(string)input[0 .. 255], size_t.max);
         assert(guarded.status == ordinary.status && guarded.end == ordinary.end && guarded.failEnd == ordinary
                 .failEnd);
+    }
+}
+
+version (NPeggedScannerMetrics) {
+    version (unittest) mixin(grammar!(Memoization.selective, compactTag, ParserBackend.direct)(`
+ScannerUnit:
+    Root <- Leaf+ eoi
+    Leaf <~ [0-9]+
+    Merged <- [a-b]+ [c-d]+ !'x' [0-9]+
+    Partial <- 'a'* 'a'
+    Single <- 'x'
+`));
+    @nogc nothrow unittest {
+        static assert(ScannerUnit.scannerRuleNames == [
+            "ScannerUnit.Root", "ScannerUnit.Leaf", "ScannerUnit.Merged", "ScannerUnit.Partial",
+            "ScannerUnit.Single"
+        ]);
+        static assert(ScannerUnit.scannerRegionCounts == [1, 1, 2, 1, 0]);
+        static assert(ScannerUnit.scannerRootProven == [true, true, false, false, true]);
+        ParseContext context;
+        assert(parseRecords!(ScannerUnit.Root, compactTag, false)(context, "12").successful);
+        ScannerStats[8] storage;
+        ScannerReport report;
+        report.rows = storage[];
+        context.scannerReport = &report;
+        assert(parseRecords!(ScannerUnit.Root, compactTag, false)(context, "12").successful);
+        assert(!parseRecords!(ScannerUnit.Root, compactTag, false)(context, "12!").successful);
+        assert(check!(ScannerUnit.Merged)(context, "ac7").successful);
+        assert(report.total.reasons[ScannerReason.recordLowering] == 2);
+        assert(report.total.fastSuccess >= 2);
+        assert(!report.truncated);
+    }
+
+    nothrow unittest {
+        Frontend parser;
+        parser.input = `ScannerEmitTest:
+    Root <- Leaf+ eoi
+    Leaf <~ [0-9]+
+    Merged <- [a-b]+ [c-d]+ !'x' [0-9]+
+    Partial <- 'a'* 'a'
+    Single <- 'x'`;
+        parser.read();
+        assert(!parser.error.message.length);
+        auto emitted = parser.emit();
+        assert(emitted.length > 0);
     }
 }
 

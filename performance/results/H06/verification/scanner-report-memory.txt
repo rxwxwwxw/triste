@@ -1,0 +1,1 @@
+ldc2-diagnostic and asan transcripts match
