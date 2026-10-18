@@ -38,8 +38,14 @@ private State!(CT, Check).Node external(bool CT, int Check)(ref State!(CT, Check
     return literal!"!"(state, pos);
 }
 
-struct Suite(Memoization memo) {
-    mixin(grammar!(memo, selected, ParserBackend.direct)(`
+version (Combinators)
+    enum backend = ParserBackend.combinators;
+else
+    enum backend = ParserBackend.direct;
+
+struct Suite(Memoization memo, bool Actions = false) {
+    enum effects = Actions ? `Effect <- Atom{observe} EffectCaller <- Atom Effect Atom` : "";
+    mixin(grammar!(memo, selected, backend)(`
 LocalMemo:
     Root <- (Pair / Single)* eoi
     Pair <- Atom ':' Atom ';'
@@ -54,13 +60,13 @@ LocalMemo:
     Cycle <- 'x' Cycle / Atom
     Opaque <- external
     UnknownCaller <- Opaque Atom
-    Effect <- Atom{observe}
-    EffectCaller <- Atom Effect Atom
-`));
+` ~ effects));
 }
 
 alias Reference = Suite!(Memoization.yes).LocalMemo;
 alias Candidate = Suite!(Memoization.selective).LocalMemo;
+alias ActionReference = Suite!(Memoization.yes, true).LocalMemo;
+alias ActionCandidate = Suite!(Memoization.selective, true).LocalMemo;
 
 version (NPeggedLocalMemo) {
     static assert(__traits(hasMember, Candidate, "npeggedLocalMemoRules"));
@@ -113,7 +119,7 @@ private void compare(alias A, alias B)(string input, ParseContext context, size_
                     assert(a.nodes == b.nodes);
             }
             assert(first.data[0 .. first.length] == second.data[0 .. second.length]);
-            bool inactive = context.trace !is null || context.stepLimit != size_t.max
+            bool inactive = mode == 3 || context.trace !is null || context.stepLimit != size_t.max
                 || context.depthLimit != size_t.max || context.memoryLimit != size_t.max;
             static if (mode == 1 || mode == 2)
                 inactive = inactive || outputLimit != size_t.max;
@@ -129,7 +135,9 @@ private void compare(alias A, alias B)(string input, ParseContext context, size_
     }
 }
 
-int main() @nogc nothrow {
+version (LocalMemoBenchmark) {
+} else
+    int main() @nogc nothrow {
     alarm(45);
     ParseContext context;
     context.stepLimit = context.depthLimit = context.memoryLimit = size_t.max;
@@ -139,7 +147,7 @@ int main() @nogc nothrow {
     ]) {
         static foreach (entry; [
             "opCall", "Root", "Atom", "Pair", "Single", "Long", "Overlap", "Probe", "Recursive",
-            "IndirectA", "Cycle", "Opaque", "UnknownCaller", "Effect", "EffectCaller"
+            "IndirectA", "Cycle", "Opaque", "UnknownCaller"
         ]) {
             {
                 compare!(__traits(getMember, Reference, entry), __traits(getMember, Candidate, entry))(
@@ -162,8 +170,10 @@ int main() @nogc nothrow {
             compare!(Reference.Root, Candidate.Root)(input, limited);
             compare!(Reference.Root, Candidate.Root)(input, context, limit);
         }
-        compare!(and!(Reference.Atom, Reference.Effect, Reference.Atom), and!(Candidate.Atom,
-                Candidate.Effect, Candidate.Atom))(input, context);
+        compare!(and!(Candidate.Atom, ActionReference.Effect, Candidate.Atom),
+                and!(Candidate.Atom, ActionCandidate.Effect, Candidate.Atom))(input, context);
+        compare!(ActionReference.EffectCaller, ActionCandidate.EffectCaller)(input, context);
+        compare!(ActionReference.Root, ActionCandidate.Root)(input, context);
     }
     version (NPeggedLocalMemo) {
         ParseMetrics before, after;

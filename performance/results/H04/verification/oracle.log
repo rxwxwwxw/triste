@@ -1,0 +1,4 @@
+dmd-direct: exact local memo oracle passed
+dmd-combinators: exact local memo oracle passed
+ldc2-direct: exact local memo oracle passed
+ldc2-combinators: exact local memo oracle passed

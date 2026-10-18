@@ -1,0 +1,34 @@
+{
+  "oracle/dmd/direct": {
+    "lines": 2969,
+    "sha256": "cf267a6cb15c936f9d270283531e48624b1cc0a2367d8c1d52b2dce3b0f01ff4"
+  },
+  "oracle/dmd/combinators": {
+    "lines": 2969,
+    "sha256": "cf267a6cb15c936f9d270283531e48624b1cc0a2367d8c1d52b2dce3b0f01ff4"
+  },
+  "oracle/ldc2/direct": {
+    "lines": 2969,
+    "sha256": "cf267a6cb15c936f9d270283531e48624b1cc0a2367d8c1d52b2dce3b0f01ff4"
+  },
+  "oracle/ldc2/combinators": {
+    "lines": 2969,
+    "sha256": "cf267a6cb15c936f9d270283531e48624b1cc0a2367d8c1d52b2dce3b0f01ff4"
+  },
+  "combined/dmd/direct": {
+    "lines": 2969,
+    "sha256": "cf267a6cb15c936f9d270283531e48624b1cc0a2367d8c1d52b2dce3b0f01ff4"
+  },
+  "combined/dmd/combinators": {
+    "lines": 2969,
+    "sha256": "cf267a6cb15c936f9d270283531e48624b1cc0a2367d8c1d52b2dce3b0f01ff4"
+  },
+  "combined/ldc2/direct": {
+    "lines": 2969,
+    "sha256": "cf267a6cb15c936f9d270283531e48624b1cc0a2367d8c1d52b2dce3b0f01ff4"
+  },
+  "combined/ldc2/combinators": {
+    "lines": 2969,
+    "sha256": "cf267a6cb15c936f9d270283531e48624b1cc0a2367d8c1d52b2dce3b0f01ff4"
+  }
+}
