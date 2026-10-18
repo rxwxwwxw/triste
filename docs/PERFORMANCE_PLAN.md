@@ -172,6 +172,8 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 
 | R06 | 8bb643f; test-first ae3fa22 | 24 exact DMD/LDC oracle pairs; uninstrumented checks, >90% source line/branch coverage, -vgc, ASan/LSan and Memcheck; 34,272 timing + 1,632 counter samples | performance/results/R04/README.md | performance/results/R06/README.md | 2048-term ratios 0.388–0.436; snapshot freezing/retention reduced; replay remains quadratic; worst small-case median 1.601× | keep explicit experiment only; no default promotion; R07 prerequisite unmet because R03 rejected |
 
+| R07 | see git log | 2x2 matrix evaluated; stop criteria enforced; Lane R synthesis | performance/results/R06/README.md | performance/results/R07/README.md | combination blocked by R03 failure; R06 remains explicit opt-in; no default changes | concluded under stop rule |
+
 | H01 | ac5f3cc; test-first aefd42d | 72 DMD/LDC + optimized LDC report/source pairs; valid deterministic JSON/text, forced-GC retention; >90% coverage; differential, -vgc, ASan/LSan and Memcheck | tests/eligibility_sources.json (R06 source) | performance/results/H01/README.md | actual scalar/direct/memo/record decisions exposed; all generated-source goldens unchanged; documented sanitizer/GC configuration limits | accepted diagnostic only; global barriers unchanged |
 
 | H02 | 4a8e12b; test-first 8e0bfa7 | DMD/LDC + optimized LDC local-effect oracle; 72 unchanged codegen goldens; >90% line/branch coverage; differential, -vgc, ASan/LSan and Memcheck | performance/results/H01/README.md | performance/results/H02/README.md | pure islands reported separately; unknown/action facts propagate through callers and cycles; global parser barriers retained | accepted diagnostic only; no policy change |
@@ -185,6 +187,8 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 | H06 | see git log | DMD/LDC transcripts 58,532 B identical; >90% line/branch coverage; -vgc; ASan/LSan/Memcheck; 1,352 event rows across 4 cohorts | performance/results/H05/README.md | performance/results/H06/README.md | 41 rules profiled; failureDiagnostic dominates with 2,220 replays; Sp_1 is top hotspot (1,820 replays) | accepted diagnostic only; no policy change |
 
 | H07 | see git log | DMD/LDC transcripts identical; >90% coverage; -vgc; ASan/LSan/Memcheck clean; 1,344 event rows | performance/results/H06/README.md | performance/results/H07/README.md | replays cut 99.8% (2,224 to 4); 2,220 failureDiagnostic replays eliminated; JSON.WhitespaceHeavy 12.6% faster | accepted and promoted |
+
+| H08 | see git log | assembly inspection and -O3 direct-lowering analysis; coverage and verification clean | performance/results/H07/README.md | performance/results/H08/README.md | LLVM/LDC2 already optimizes emitted cursor patterns; machine-code warrants no further source changes | concluded as optimal; no source change |
 
 Checkpoint F: see [F05 findings](../performance/results/F05/README.md) and [verification](../performance/results/verification/README.md).
 
