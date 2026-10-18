@@ -1,0 +1,24 @@
+{
+  "milestone": "P06",
+  "title": "Prototype Conservative Fast-Path Budget Guard Behind Opt-In",
+  "disposition": "accept_option_b_guard_keep_opt_in",
+  "reverted_option": "option_a_synthetic_work_units",
+  "revert_reason": "Option A requires reconstructing generic PEG evaluation, violating the zero-overhead lowered parser model",
+  "source_hashes": {
+    "src/npegged/peg.d": "805227f3f31dbd1842155f8011395cfb6e6694887dcbdd150ea72de99b653bf6",
+    "tests/pure_islands_budget.d": "5e81f1fcadff67f8976a47a13d7c34b8252277d07945d9472d2f70b4a8e63da3"
+  },
+  "object_metrics": {
+    "text_bytes": 8914,
+    "data_bytes": 1292,
+    "total_bytes": 10206
+  },
+  "verification": {
+    "budget_suite_passed": true,
+    "oracle_configurations_tested": 36,
+    "oracle_configurations_passed": 36,
+    "asan_clean": true,
+    "valgrind_clean": true,
+    "pre_commit_clean": true
+  }
+}

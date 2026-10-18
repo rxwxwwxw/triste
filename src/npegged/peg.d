@@ -343,8 +343,13 @@ struct State(bool CT, int Check = 0) {
             static if (CT || Check == 0)
                 return false;
             else {
-                bool allowed = pureIslandsEnabled && status == Status.ok && context.trace is null
-                    && context.stepLimit == size_t.max
+                if (!pureIslandsEnabled || status != Status.ok) {
+                    version (NPeggedMetrics)
+                        if (context.metrics !is null)
+                            ++context.metrics.pureIslandFallbacks;
+                    return false;
+                }
+                bool allowed = context.trace is null && context.stepLimit == size_t.max
                     && context.depthLimit == size_t.max && context.memoryLimit == size_t.max
                     && arena !is null && arena.limit == size_t.max && arena.status == Status.ok
                     && arena.allocator is Arena.init.allocator;
@@ -1541,8 +1546,12 @@ pragma(inline, true) CheckResult check(alias parser)(ref ParseContext context, s
     state.arena = &result.arena;
     state.input = input;
     state.context = context;
-    version (NPeggedPureIslands)
-        state.pureIslandsEnabled = pureIslandEntry!parser;
+    version (NPeggedPureIslands) {
+        static if (pureIslandEntry!parser)
+            state.pureIslandsEnabled = context.trace is null && context.stepLimit == size_t.max
+                && context.depthLimit == size_t.max && context.memoryLimit == size_t.max
+                && result.arena.limit == size_t.max;
+    }
     auto tree = state.finish(parser(state, 0));
     result.status = state.status != Status.ok ? state.status : (tree.successful ? Status.ok : Status
             .mismatch);
@@ -1625,9 +1634,13 @@ CompactResult parseRecords(alias parser, alias selector, bool OwnInput = true)(
         state.captureInput = parsedInput;
     state.context = context;
     state.attachRecords(records);
-    version (NPeggedPureIslands)
+    version (NPeggedPureIslands) {
         static if (__traits(hasMember, Owner, "compactRuleNames"))
-            state.pureIslandsEnabled = pureIslandProjection!(parser, selector)();
+            if (pureIslandProjection!(parser, selector)())
+                state.pureIslandsEnabled = context.trace is null && context.stepLimit == size_t.max
+                    && context.depthLimit == size_t.max && context.memoryLimit == size_t.max
+                    && result.arena.limit == size_t.max && result.outputArena.limit == size_t.max;
+    }
     static if (__traits(compiles, parser(state, 0)))
         auto node = state.finish(parser(state, 0));
     else
