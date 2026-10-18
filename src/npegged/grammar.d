@@ -5,7 +5,7 @@ public import npegged.peg;
 public import npegged.dfa;
 import npegged.io;
 public import npegged.analysis : RuleEligibility;
-import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts;
+import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
 nothrow:
 
@@ -110,7 +110,9 @@ private string renderEligibility(scope const ref EligibilityResult value, Eligib
         if (json)
             result ~= i ? ",{" : "{";
         result ~= field("name", jsonQuoted(row.name)) ~ separator ~ field("rootExpression",
-                jsonQuoted(row.rootExpression)) ~ separator ~ field("leftRecursive",
+                jsonQuoted(row.rootExpression)) ~ separator ~ field("known",
+                booleanText(row.known)) ~ separator ~ field("actionful",
+                booleanText(row.actionful)) ~ separator ~ field("leftRecursive",
                 booleanText(row.leftRecursive)) ~ separator ~ field("memoized",
                 booleanText(row.memoized)) ~ separator ~ field("scalarEligible",
                 booleanText(row.scalarEligible)) ~ separator ~ field("scalarBlockers",
@@ -2077,9 +2079,72 @@ package struct Frontend {
         }
     }
 
+    /// Build a separate diagnostic graph; keep the generator's analysis unchanged.
+    private RuleEffect[] reportEffects() nothrow {
+        GrammarAnalysis graph;
+        Frontend diagnostic;
+        foreach (rule; rules)
+            graph.names ~= rule.name;
+        auto parameterized = new bool[rules.length];
+        foreach (i, rule; rules) {
+            parameterized[i] = params.length != 0 || rule.params.length != 0;
+            graph.roots ~= parameterized[i]
+                ? graph.appendExpression(Expression.init) : diagnostic.expressionNode(graph, rule
+                        .body);
+        }
+        // Action operands are unknown to the production FIRST/memo analyzer.
+        // Only this graph opens them for diagnostic call/effect propagation.
+        for (size_t i; i < graph.expressions.length; ++i) {
+            auto node = graph.expressions[i];
+            size_t marker;
+            while (marker < node.source.length && node.source[marker] != '!')
+                ++marker;
+            if (marker < node.source.length && graph.ruleIndex(node.source[0 .. marker]) != size_t
+                    .max) {
+                node.kind = ExpressionKind.unknown;
+                node.children = null;
+                graph.expressions[i] = node;
+            } else if (node.kind == ExpressionKind.unknown && node.arguments.length >= 2
+                    && startsWith(node.source, "action!(")) {
+                const child = diagnostic.expressionNode(graph, node.arguments[0]);
+                node.kind = ExpressionKind.wrapper;
+                node.combinator = "action";
+                node.children = [child];
+                graph.expressions[i] = node;
+            }
+        }
+        return graph.ruleEffects(parameterized);
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        frontend.input = "Local: Root <- Pure Pure <- 'a' Op <- external Act <- Root{effect} Lit <- 'action!('";
+        frontend.read();
+        assert(!frontend.error.message.length);
+        auto effects = frontend.reportEffects();
+        assert(effects[0].known && !effects[0].actionful);
+        assert(effects[1].known && !effects[1].actionful);
+        assert(!effects[2].known && effects[2].actionful);
+        assert(effects[3].known && effects[3].actionful);
+        assert(effects[4].known && !effects[4].actionful);
+        // A parameter name in another rule must not taint a real rule reference.
+        Frontend scoped;
+        scoped.input = "Scoped: Root <- P P <- 'a' Param(P) <- P";
+        scoped.read();
+        auto local = scoped.reportEffects();
+        assert(local[0].known && local[1].known && !local[2].known);
+        Frontend shadow;
+        shadow.input = "Shadow: Root <- literal!('a') literal(P) <- P";
+        shadow.read();
+        auto unknown = shadow.reportEffects();
+        assert(!unknown[0].known && unknown[0].actionful);
+    }
+
     string emit() nothrow {
         prepareAnalysis();
+        RuleEffect[] localEffects;
         if (eligibility !is null) {
+            localEffects = reportEffects();
             eligibility.grammarName = name;
             eligibility.conservative = analyzed.conservative;
             eligibility.unknownEvidence = analyzed.unknownEvidence();
@@ -2238,6 +2303,8 @@ package struct Frontend {
             if (eligibility !is null) {
                 RuleEligibility row;
                 row.name = name ~ "." ~ r;
+                row.known = localEffects[ruleIndex].known;
+                row.actionful = localEffects[ruleIndex].actionful;
                 row.rootExpression = analyzed.expressions[analyzed.roots[ruleIndex]].source;
                 row.leftRecursive = analyzed.leftRecursive[ruleIndex];
                 row.memoized = cache;

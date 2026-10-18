@@ -52,9 +52,21 @@ struct EscapeLoop {
     bool doubled;
 }
 
+/// Report-only structural knowledge and conservative possibility of actions.
+struct RuleEffect {
+    bool known;
+    bool actionful = true;
+}
+
+@nogc nothrow unittest {
+    RuleEffect unknown;
+    assert(!unknown.known && unknown.actionful);
+}
+
 /// Cold diagnostics for actual emitter choices. H02 refines effect evidence separately.
 struct RuleEligibility {
     string name, rootExpression;
+    bool known, actionful = true;
     bool leftRecursive, memoized, scalarEligible, directRecognition, directRecords;
     string[] scalarBlockers;
     string directFallback;
@@ -169,6 +181,113 @@ nothrow:
         assert(graph.unknownEvidence() == ["External", action.source]);
         graph.expressions = null;
         assert(!graph.unknownEvidence().length);
+    }
+
+    /// Cold rule-local structural/effect facts. This does not modify solve() policy.
+    /// Unknown calls may execute actions. Closed cycles use a monotone fixed point;
+    /// structural knowledge is not a proof of termination or acyclicity.
+    RuleEffect[] ruleEffects(scope const(bool)[] parameterized = null) nothrow {
+        assert(names.length == roots.length);
+        assert(!parameterized.length || parameterized.length == names.length);
+        auto result = new RuleEffect[names.length];
+        auto calls = new size_t[][names.length];
+        auto seen = new size_t[expressions.length];
+        size_t caller;
+        void inspect(size_t index) nothrow {
+            assert(index < expressions.length);
+            if (seen[index] == caller + 1)
+                return;
+            seen[index] = caller + 1;
+            auto node = expressions[index];
+            if (node.kind == ExpressionKind.unknown) {
+                result[caller].known = false;
+                result[caller].actionful = true;
+            } else if (node.kind == ExpressionKind.reference) {
+                const callee = referenceRule(node);
+                if (callee == size_t.max) {
+                    result[caller].known = false;
+                    result[caller].actionful = true;
+                } else
+                    calls[caller] ~= callee;
+            } else {
+                if (node.combinator == "action")
+                    result[caller].actionful = true;
+                foreach (child; node.children)
+                    inspect(child);
+            }
+        }
+
+        foreach (i, root; roots) {
+            caller = i;
+            const unknown = parameterized.length && parameterized[i];
+            result[i] = RuleEffect(!unknown, unknown);
+            inspect(root);
+        }
+        bool changed = true;
+        while (changed) {
+            changed = false;
+            foreach (i, edges; calls)
+                foreach (callee; edges) {
+                    const known = result[i].known && result[callee].known;
+                    const actionful = result[i].actionful || result[callee].actionful;
+                    if (known != result[i].known || actionful != result[i].actionful) {
+                        result[i] = RuleEffect(known, actionful);
+                        changed = true;
+                    }
+                }
+        }
+        return result;
+    }
+
+    nothrow unittest {
+        GrammarAnalysis graph;
+        assert(!graph.ruleEffects().length);
+        graph.names = [
+            "Pure", "Opaque", "Caller", "Action", "ActionCaller", "CycleA", "CycleB", "PureCycle"
+        ];
+        auto action = Expression(ExpressionKind.wrapper, [0]);
+        action.combinator = "action";
+        graph.expressions = [
+            Expression(ExpressionKind.terminal),
+            Expression(ExpressionKind.reference, null, "external"),
+            Expression(ExpressionKind.reference, null, "Opaque"), action,
+            Expression(ExpressionKind.reference, null, "Action"),
+            Expression(ExpressionKind.reference, null, "CycleB"),
+            Expression(ExpressionKind.reference, null, "CycleA"),
+            Expression(ExpressionKind.sequence, [0, 2, 5]),
+            Expression(ExpressionKind.reference, null, "PureCycle"),
+            Expression(ExpressionKind.sequence, [0, 0]), Expression(ExpressionKind.unknown)
+        ];
+        graph.roots = [9, 1, 2, 3, 4, 7, 6, 8];
+        auto effects = graph.ruleEffects();
+        assert(effects[0].known && !effects[0].actionful);
+        foreach (i; [1, 2, 5, 6])
+            assert(!effects[i].known && effects[i].actionful);
+        foreach (i; [3, 4])
+            assert(effects[i].known && effects[i].actionful);
+        assert(effects[7].known && !effects[7].actionful);
+        bool[8] parameterized;
+        parameterized[0] = parameterized[3] = true;
+        auto guarded = graph.ruleEffects(parameterized[]);
+        assert(!guarded[0].known && guarded[0].actionful);
+        assert(!guarded[4].known && guarded[4].actionful);
+        graph.expressions[7].children = [0, 4, 5];
+        auto actionCycle = graph.ruleEffects();
+        assert(actionCycle[5].known && actionCycle[5].actionful);
+        assert(actionCycle[6].known && actionCycle[6].actionful);
+        graph.roots[0] = 10;
+        assert(!graph.ruleEffects()[0].known && graph.ruleEffects()[0].actionful);
+        // Ordinary analysis flags and arrays are not changed by diagnostic facts.
+        assert(!graph.conservative && !graph.leftRecursive.length);
+        GrammarAnalysis reverse;
+        reverse.names = ["First", "Second", "Unknown"];
+        reverse.roots = [0, 1, 2];
+        reverse.expressions = [
+            Expression(ExpressionKind.reference, null, "Second"),
+            Expression(ExpressionKind.reference, null, "Unknown"), Expression.init
+        ];
+        foreach (effect; reverse.ruleEffects())
+            assert(!effect.known && effect.actionful);
     }
 
     /// Only closed, acyclic expressions with understood effects may be shared.

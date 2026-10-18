@@ -14,6 +14,16 @@ for compiler in "${compilers[@]}"; do
  prlimit --as=4294967296 -- timeout --kill-after=2s 300s "$compiler" "${flags[@]}" "${library[@]}" tests/rule_effects.d "-of=build/H02/$compiler.runner"
  prlimit --as=4294967296 -- timeout --kill-after=2s 60s "build/H02/$compiler.runner" --DRT-testmode=run-main > "build/H02/$compiler.txt"
  test "$(tail -1 "build/H02/$compiler.txt")" = 'rule effects oracle passed'
+ python3 - "build/H02/$compiler.txt" <<'PYTHON'
+import json,sys
+from pathlib import Path
+lines=Path(sys.argv[1]).read_text().splitlines()
+report=json.loads(lines[0])
+expected=[(True,False),(True,False),(False,True),(False,True),(True,True),(True,True),
+          (False,True),(False,True),(True,False),(True,False),(True,False),(False,True),(True,False)]
+assert [(r['known'],r['actionful']) for r in report['rules']]==expected
+assert report['conservative'] and not report['rules'][1]['scalarEligible'] and report['rules'][1]['memoized']
+PYTHON
  echo "$compiler: rule-local effects passed"
 done
 if [[ " ${compilers[*]} " == *" dmd "* && " ${compilers[*]} " == *" ldc2 "* ]]; then

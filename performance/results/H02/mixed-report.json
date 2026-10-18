@@ -1,0 +1,297 @@
+{
+  "grammar": "MixedEffects",
+  "backend": "direct",
+  "memoPolicy": "selective",
+  "conservative": true,
+  "unknownEvidence": [
+    "external",
+    "action!(Pure, effect)",
+    "action!(action!(CallOpaque, inner), outer)"
+  ],
+  "actionRules": [
+    "MixedEffects.Effect",
+    "MixedEffects.Nested",
+    "MixedEffects.Literal"
+  ],
+  "fallbackModes": [
+    "trace",
+    "CTFE",
+    "full-tree"
+  ],
+  "rules": [
+    {
+      "name": "MixedEffects.Root",
+      "rootExpression": "and!(Pure, eoi)",
+      "known": true,
+      "actionful": false,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.Pure",
+      "rootExpression": "and!(literal!(\"a\"), option!(literal!(\"b\")))",
+      "known": true,
+      "actionful": false,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.Opaque",
+      "rootExpression": "external",
+      "known": false,
+      "actionful": true,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.CallOpaque",
+      "rootExpression": "and!(literal!(\"x\"), Opaque)",
+      "known": false,
+      "actionful": true,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.Effect",
+      "rootExpression": "action!(Pure, effect)",
+      "known": true,
+      "actionful": true,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.CallEffect",
+      "rootExpression": "or!(posLookahead!(Effect), Pure)",
+      "known": true,
+      "actionful": true,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.CycleA",
+      "rootExpression": "or!(and!(literal!(\"a\"), CycleB), Opaque)",
+      "known": false,
+      "actionful": true,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.CycleB",
+      "rootExpression": "or!(and!(literal!(\"b\"), CycleA), literal!(\"b\"))",
+      "known": false,
+      "actionful": true,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.PureA",
+      "rootExpression": "or!(and!(literal!(\"a\"), PureB), literal!(\"a\"))",
+      "known": true,
+      "actionful": false,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.PureB",
+      "rootExpression": "or!(and!(literal!(\"b\"), PureA), literal!(\"b\"))",
+      "known": true,
+      "actionful": false,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.Left",
+      "rootExpression": "or!(and!(Left, literal!(\"a\")), Pure)",
+      "known": true,
+      "actionful": false,
+      "leftRecursive": true,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "left-recursion",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.Nested",
+      "rootExpression": "action!(action!(CallOpaque, inner), outer)",
+      "known": false,
+      "actionful": true,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    },
+    {
+      "name": "MixedEffects.Literal",
+      "rootExpression": "literal!(\"action!(\")",
+      "known": true,
+      "actionful": false,
+      "leftRecursive": false,
+      "memoized": true,
+      "scalarEligible": false,
+      "scalarBlockers": [
+        "grammar-action",
+        "grammar-unknown"
+      ],
+      "directRecognition": false,
+      "directRecords": false,
+      "directFallback": "grammar-action",
+      "selectorConfigured": false,
+      "recordKind": 4294967295,
+      "recordSelected": false,
+      "recordLeaf": false,
+      "recordSubtree": false
+    }
+  ]
+}

@@ -172,7 +172,9 @@ Create `performance/tasks/` and `performance/results/` (or the checkout's curren
 
 | R06 | 8bb643f; test-first ae3fa22 | 24 exact DMD/LDC oracle pairs; uninstrumented checks, >90% source line/branch coverage, -vgc, ASan/LSan and Memcheck; 34,272 timing + 1,632 counter samples | performance/results/R04/README.md | performance/results/R06/README.md | 2048-term ratios 0.388–0.436; snapshot freezing/retention reduced; replay remains quadratic; worst small-case median 1.601× | keep explicit experiment only; no default promotion; R07 prerequisite unmet because R03 rejected |
 
-| H01 | see git log; test-first aefd42d | 72 DMD/LDC + optimized LDC report/source pairs; valid deterministic JSON/text, forced-GC retention; >90% coverage; differential, -vgc, ASan/LSan and Memcheck | tests/eligibility_sources.json (R06 source) | performance/results/H01/README.md | actual scalar/direct/memo/record decisions exposed; all generated-source goldens unchanged; documented sanitizer/GC configuration limits | accepted diagnostic only; global barriers unchanged |
+| H01 | ac5f3cc; test-first aefd42d | 72 DMD/LDC + optimized LDC report/source pairs; valid deterministic JSON/text, forced-GC retention; >90% coverage; differential, -vgc, ASan/LSan and Memcheck | tests/eligibility_sources.json (R06 source) | performance/results/H01/README.md | actual scalar/direct/memo/record decisions exposed; all generated-source goldens unchanged; documented sanitizer/GC configuration limits | accepted diagnostic only; global barriers unchanged |
+
+| H02 | see git log; test-first 8e0bfa7 | DMD/LDC + optimized LDC local-effect oracle; 72 unchanged codegen goldens; >90% line/branch coverage; differential, -vgc, ASan/LSan and Memcheck | performance/results/H01/README.md | performance/results/H02/README.md | pure islands reported separately; unknown/action facts propagate through callers and cycles; global parser barriers retained | accepted diagnostic only; no policy change |
 
 Checkpoint F: see [F05 findings](../performance/results/F05/README.md) and [verification](../performance/results/verification/README.md).
 

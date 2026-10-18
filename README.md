@@ -81,7 +81,9 @@ report of actual scalar/direct eligibility, memoization, fallback reasons and
 record selection. Pass `EligibilityFormat.text` for text. The result has explicit
 status and typed rule rows; requesting a report preserves parser generation
 policy. See the [eligibility report guide](performance/results/H01/README.md) for
-field meanings, examples and current whole-grammar barriers.
+field meanings, examples and current whole-grammar barriers. Reports also expose
+[rule-local knowledge and potential actions](performance/results/H02/README.md);
+these diagnostic facts do not change parser or memo policy.
 
 Unicode folding and alphabetic-property tables are generated from the vendored
 Unicode 17 database, independently of the process locale. As in Pegged, `.`
