@@ -1,0 +1,163 @@
+{
+  "milestone": "P03",
+  "description": "Profile of current gate distribution and latency breakdown for tiny-gate workloads",
+  "gateStatus": {
+    "checksPassed": 513,
+    "checksTotal": 513,
+    "failures": 0,
+    "targetRatio": 5.0
+  },
+  "cases": [
+    {
+      "name": "PEGGrammar.Permissive",
+      "input": "G: A <-- / []**",
+      "bytes": 15,
+      "f01RatioRange": [5.17, 5.75],
+      "currentRatioRange": [4.78, 4.82],
+      "meanRatio": 4.80,
+      "medianElapsedNs": 115.7,
+      "breakdown": {
+        "setupNs": 14.9,
+        "setupPct": 12.90,
+        "bodyNs": 86.5,
+        "bodyPct": 74.79,
+        "teardownNs": 14.2,
+        "teardownPct": 12.31
+      },
+      "handwrittenNs": 33.5,
+      "bodyToHandwrittenRatio": 2.58,
+      "traceCounts": {
+        "TopBoundary": 1,
+        "SequenceBoundary": 0,
+        "Sp": 4,
+        "Prefix": 1,
+        "Primary": 1,
+        "Definition": 2
+      },
+      "emptySpProbes": 1,
+      "memoHits": 0,
+      "dfaReplays": 0
+    },
+    {
+      "name": "PEGGrammar.Truncated",
+      "input": "G: A <- ('a'",
+      "bytes": 12,
+      "f01RatioRange": [4.85, 5.23],
+      "currentRatioRange": [4.29, 4.36],
+      "meanRatio": 4.34,
+      "medianElapsedNs": 125.2,
+      "breakdown": {
+        "setupNs": 15.1,
+        "setupPct": 12.10,
+        "bodyNs": 95.8,
+        "bodyPct": 76.50,
+        "teardownNs": 14.3,
+        "teardownPct": 11.41
+      },
+      "handwrittenNs": 46.9,
+      "bodyToHandwrittenRatio": 2.04,
+      "traceCounts": {
+        "TopBoundary": 0,
+        "SequenceBoundary": 1,
+        "Sp": 4,
+        "Prefix": 2,
+        "Primary": 2,
+        "Definition": 1
+      },
+      "emptySpProbes": 0,
+      "memoHits": 0,
+      "dfaReplays": 0
+    },
+    {
+      "name": "PEGGrammar.Trailing",
+      "input": "G: A <- 'a' )",
+      "bytes": 13,
+      "f01RatioRange": [4.90, 5.15],
+      "currentRatioRange": [4.29, 4.76],
+      "meanRatio": 4.62,
+      "medianElapsedNs": 127.7,
+      "breakdown": {
+        "setupNs": 15.6,
+        "setupPct": 12.26,
+        "bodyNs": 97.0,
+        "bodyPct": 75.99,
+        "teardownNs": 15.0,
+        "teardownPct": 11.74
+      },
+      "handwrittenNs": 36.3,
+      "bodyToHandwrittenRatio": 2.67,
+      "traceCounts": {
+        "TopBoundary": 1,
+        "SequenceBoundary": 0,
+        "Sp": 3,
+        "Prefix": 1,
+        "Primary": 1,
+        "Definition": 2
+      },
+      "emptySpProbes": 0,
+      "memoHits": 0,
+      "dfaReplays": 0
+    },
+    {
+      "name": "PEGGrammar.Deep",
+      "input": "G: R <- (((...('x')...)))",
+      "bytes": 139,
+      "f01RatioRange": [5.32, 5.42],
+      "currentRatioRange": [3.17, 4.61],
+      "meanRatio": 4.07,
+      "medianElapsedNs": 3480.7,
+      "breakdown": {
+        "setupNs": 22.3,
+        "setupPct": 0.64,
+        "bodyNs": 3437.2,
+        "bodyPct": 98.75,
+        "teardownNs": 21.2,
+        "teardownPct": 0.61
+      },
+      "handwrittenNs": 1267.5,
+      "bodyToHandwrittenRatio": 2.71,
+      "traceCounts": {
+        "TopBoundary": 1,
+        "SequenceBoundary": 64,
+        "Sp": 131,
+        "Prefix": 65,
+        "Primary": 65,
+        "Definition": 2
+      },
+      "emptySpProbes": 0,
+      "memoHits": 0,
+      "dfaReplays": 0
+    }
+  ],
+  "backendComparison": {
+    "directSelective": {
+      "Permissive": 115.7,
+      "Truncated": 125.2,
+      "Trailing": 127.7,
+      "Deep": 3480.7
+    },
+    "combinatorsSelective": {
+      "Permissive": 137.5,
+      "Truncated": 175.0,
+      "Trailing": 147.0,
+      "Deep": 4858.6
+    },
+    "combinatorsFull": {
+      "Permissive": 376.2,
+      "Truncated": 458.6,
+      "Trailing": 411.5,
+      "Deep": 12985.3
+    },
+    "directFull": {
+      "Permissive": 451.3,
+      "Truncated": 520.0,
+      "Trailing": 499.1,
+      "Deep": 14692.4
+    }
+  },
+  "conclusion": {
+    "lane": "tiny-gate",
+    "recommendation": "close lane without source churn",
+    "rationale": "All 513 gates pass with 0 failures; remaining gap is dominated by harness setup and safety limits rather than parser logic."
+  }
+}
