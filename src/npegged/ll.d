@@ -311,3 +311,122 @@ string renderRegions(const RuleRegion[] regions, bool json) nothrow {
     }
     return result ~ "]}";
 }
+
+// ---------------------------------------------------------------- L2: certified EBNF export
+
+private string hex2(ubyte value) nothrow {
+    enum digits = "0123456789abcdef";
+    string result = "\\x";
+    result ~= digits[value >> 4];
+    result ~= digits[value & 15];
+    return result;
+}
+
+private string ebnfLiteral(string text) nothrow {
+    string result = "\"";
+    foreach (c; text) {
+        if (c == '"' || c == '\\') {
+            result ~= '\\';
+            result ~= c;
+        } else if (c >= 0x20 && c < 0x7f)
+            result ~= c;
+        else
+            result ~= hex2(cast(ubyte)c);
+    }
+    return result ~ "\"";
+}
+
+private string ebnfClass(const CharSetMask mask) nothrow {
+    string result = "[";
+    size_t c;
+    while (c < 256) {
+        if (!mask.contains(cast(char)c)) {
+            ++c;
+            continue;
+        }
+        size_t last = c;
+        while (last + 1 < 256 && mask.contains(cast(char)(last + 1)))
+            ++last;
+        result ~= hex2(cast(ubyte)c);
+        if (last > c)
+            result ~= "-" ~ hex2(cast(ubyte)last);
+        c = last + 1;
+    }
+    return result ~ "]";
+}
+
+/// EBNF for one expression of a certified region. `level`: 0 choice context, 1 sequence element, 2 postfix operand.
+private string ebnfExpression(ref GrammarAnalysis graph, size_t index, int level) nothrow {
+    auto node = graph.expressions[index];
+    string group(string text, bool needed) nothrow {
+        return needed ? "( " ~ text ~ " )" : text;
+    }
+
+    final switch (node.kind) {
+    case ExpressionKind.unknown:
+    case ExpressionKind.predicate:
+        return "(* unexportable *)"; // unreachable for certified regions
+    case ExpressionKind.terminal:
+        if (node.source == "eps")
+            return "eps";
+        if (node.source == "eoi" || node.source == "endOfInput")
+            return "EOF";
+        if (auto text = BitesAnalysis.plainLiteral(node.source))
+            return ebnfLiteral(text);
+        return ebnfClass(node.alphabet);
+    case ExpressionKind.reference:
+        return node.reference;
+    case ExpressionKind.wrapper:
+        if (node.combinator == "oneOrMore")
+            return ebnfExpression(graph, node.children[0], 2) ~ "+";
+        return ebnfExpression(graph, node.children[0], level); // captures do not change the language
+    case ExpressionKind.optional:
+        return ebnfExpression(graph, node.children[0], 2) ~ "?";
+    case ExpressionKind.repetition:
+        return ebnfExpression(graph, node.children[0], 2) ~ "*";
+    case ExpressionKind.sequence:
+        if (!node.children.length)
+            return "eps";
+        string text;
+        foreach (i, child; node.children)
+            text ~= (i ? " " : "") ~ ebnfExpression(graph, child, 1);
+        return group(text, level == 2);
+    case ExpressionKind.choice:
+        string text;
+        foreach (i, child; node.children)
+            text ~= (i ? " | " : "") ~ ebnfExpression(graph, child, 0);
+        return group(text, level > 0);
+    }
+}
+
+/// Export converted rules as EBNF (text) or JSON with proof metadata. Only `certifiedLL1` regions are converted;
+/// every other rule gets a separate `not-convertible` (PEG-specific or unproven) or `unknown` entry with its reasons.
+string renderEbnf(ref GrammarAnalysis graph, bool json, Budget budget = Budget.init) nothrow {
+    const regions = classifyRegions(graph, budget);
+    string text = json ? "{\"scope\":\"certified LL(1) regions only; other rules are not converted\"," ~ "\"contract\":\"language of whole inputs; EOF is end of input; byte terminals\",\"rules\":[" : "";
+    foreach (i, region; regions) {
+        const converted = region.region == RegionClass.certifiedLL1;
+        const status = converted ? "converted" : region.region == RegionClass.unknown ? "unknown" : "not-convertible";
+        string reasons;
+        foreach (k, finding; region.findings)
+            reasons ~= (k ? "; " : "") ~ finding.reason;
+        string body = converted ? ebnfExpression(graph, graph.roots[region.ruleIndex], 0) : "";
+        if (json) {
+            text ~= (i ? "," : "") ~ "{\"rule\":" ~ quoted(region.rule) ~ ",\"ruleIndex\":" ~ number(
+                    region.ruleIndex) ~ ",\"status\":\"" ~ status ~ "\",\"class\":\"" ~ className(
+                    region.region) ~ "\"";
+            if (converted)
+                text ~= ",\"ebnf\":" ~ quoted(body) ~ ",\"proof\":{\"class\":\"certifiedLL1\",\"closedRegion\":[";
+            else
+                text ~= ",\"reasons\":" ~ quoted(reasons) ~ ",\"proof\":{\"closedRegion\":[";
+            foreach (k, name; region.reachable)
+                text ~= (k ? "," : "") ~ quoted(name);
+            text ~= "]}}";
+        } else if (converted)
+            text ~= region.rule ~ " ::= " ~ body ~ " ;\n";
+        else
+            text ~= "(* not converted: " ~ region.rule ~ " is " ~ className(region.region) ~ (
+                    reasons.length ? ": " ~ reasons : "") ~ " *)\n";
+    }
+    return json ? text ~ "]}" : text;
+}

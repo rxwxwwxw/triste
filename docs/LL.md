@@ -29,3 +29,19 @@ evidence, never proof.
 ## Limitation found while implementing
 F3's `firstFollowConflict` uses rule-level FOLLOW, which misses the continuation after a *nested* choice (for example
 `('a' / 'c'?) 'a'`). L1 therefore uses positional NEXTBITES for nullable alternatives; treat the F3 flag as advisory.
+
+# Certified EBNF export (L2)
+
+`ebnfExport(definition, format)` converts **only** rules whose closed region is `certifiedLL1`. Everything else gets its own
+entry — `not-convertible` (`PEGOnly`, `CFGCandidateUnproven`, `boundedLookaheadCandidate`) or `unknown` — with the reasons from
+L1 and no EBNF. Text form: `Rule ::= expr ;` plus `(* not converted: ... *)` comments; JSON form: per rule `ruleIndex`
+(original rule id), `status`, `class`, `ebnf`, and `proof` (class and closed region).
+
+Notation: `"text"` (escapes `\"`, `\\`, `\xNN`), `[\x61-\x7a]` byte classes, `eps`, `EOF` (end of input), `( a | b )`,
+postfix `?` `*` `+`, rule names as nonterminals. Captures/wrappers do not change the language and are dropped.
+
+Empirical evidence (`tests/ll_export.d`, 120 s alarm): an independent reader parses the exported text and matches it with real
+CFG semantics (all alternatives, all lengths); on every string up to length 6-7 over small alphabets (254,308 strings, both
+parser backends, five certified grammars) the exported CFG accepts exactly the inputs the PEG consumes completely. The same test
+shows the trap `'a'* 'a' eoi`: its naive CFG reading accepts `aa`, the PEG rejects it, and the export refuses the rule.
+Corpus agreement is additional evidence only; the certificate is the L1 proof contract.

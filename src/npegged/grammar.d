@@ -9,7 +9,7 @@ public import npegged.analysis : RuleEligibility, DiscriminationKind, BranchDisc
 import npegged.bites : renderBites, annotateBites, renderNextBites, renderCommitSites,
     unifiedDiagnostics, renderUnified;
 import npegged.language : Budget;
-import npegged.ll : classifyRegions, renderRegions;
+import npegged.ll : classifyRegions, renderRegions, renderEbnf;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
 nothrow:
@@ -3660,6 +3660,36 @@ BitesResult conversionReport(string definition, EligibilityFormat format = Eligi
     frontend.prepareAnalysis();
     result.report = renderRegions(classifyRegions(frontend.analyzed), format == EligibilityFormat
             .json);
+    result.status = Status.ok;
+    return result;
+}
+
+/// Certified CFG/EBNF export (L2): only `certifiedLL1` regions are converted; others get a not-convertible/unknown entry.
+BitesResult ebnfExport(string definition, EligibilityFormat format = EligibilityFormat.text) nothrow {
+    BitesResult result;
+    if (format != EligibilityFormat.json && format != EligibilityFormat.text) {
+        result.diagnostic = Diagnostic(0, "Unknown EBNF export format");
+        return result;
+    }
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.diagnostic = Diagnostic(begin, "EBNF export input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    result.grammarName = frontend.name;
+    frontend.prepareAnalysis();
+    result.report = renderEbnf(frontend.analyzed, format == EligibilityFormat.json);
     result.status = Status.ok;
     return result;
 }

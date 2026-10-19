@@ -41,7 +41,8 @@ Last updated 2026-10-19.
 | P2 literal-root direct lowering | done, parity, no measured gain | `milestones/P2/` |
 | B1 InputLanguage, B2 SUCC/NULL, B3 BITES, B4 disjointness diagnostics | done, report-only (no codegen change) | `docs/BITES.md`, `src/npegged/{language,bites}.d`, `tests/prefix_discrimination.d` |
 | B5 NEXTBITES + Prop. 10-13 premises, B6 commit-site candidates, B7 regular SUCC (opt-in, +2 pairs/+60% time), B8 unified diagnostics | done, report-only (no codegen change) | `docs/BITES.md`, `tests/{next_bites,diagnostics}.d`, `milestones/B7/` |
-| P3-P5, P7-P8, L*, G*, X* | not started | — |
+| L1 conversion contract, L2 certified EBNF export (254k-string corpus check) | done, report-only | `docs/LL.md`, `tests/{ll_regions,ll_export}.d` |
+| P3-P5, P7-P8, L3-L6, G*, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,
 CSV.Flat/validation -73%. Remaining >5% slowdowns: Numbers.BinaryLong/validation +5.2%,
