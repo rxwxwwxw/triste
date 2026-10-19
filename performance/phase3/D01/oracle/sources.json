@@ -1,0 +1,21 @@
+{
+  "src/npegged/analysis.d": "01373e35f59c47793f7a873bbbe25b9f6fe9429f90f5026cb68ffec66ad8416d",
+  "src/npegged/conversion.d": "56574a0dd8a74bd3b4ba28afd2163907194dbd8950f2dbb4204d8dd95e6921e4",
+  "src/npegged/definition.d": "bd4f31d355b30d17b6146d407554942b60a2032e30c01574979a1af21d5edcc4",
+  "src/npegged/dfa.d": "2e07ee2a132081878b8ad131b2ffef741fccb5fd2eb2b62e1be5f7c0e7674cc8",
+  "src/npegged/formatting.d": "283d0967311dfcd1b74a96de75f8407e644c1f5608fde607609f89771e008078",
+  "src/npegged/grammar.d": "be1b8de0c60f8d2c1ec9e750f70d8febb7607600068ad1530ce0a292b8b95c15",
+  "src/npegged/introspection.d": "56595354469328ef5ab0d912806b3ef0637eb2d7abb804b02d3eaca439b039cb",
+  "src/npegged/io.d": "0a01d47fc1eed72ddbcb0b52dfce28e4d345ac53bc869193e9041d203483f0e2",
+  "src/npegged/meta.d": "a89d3799c3201bc1ad7b73c4d1814032922c95670ee684f64c1e39bd8b98e6f2",
+  "src/npegged/parser.d": "d1a5509c68fdcba5ba72b2759022e62d9d501d27af340e4d93e06c8882073a1a",
+  "src/npegged/peg.d": "d387c020fc38d36078903791d3718d92ca0a97ad76ec7698c0c0b103696a1341",
+  "src/npegged/records.d": "9604a081d1be48b0c866bf48bef6d4faa38533421a5dda730650de467a0b91de",
+  "src/npegged/storage.d": "65c7282acae4e6f8b79681fcccb6e99c6e76026f60d8c7434acace9bda9601f6",
+  "src/npegged/tester/grammartester.d": "4d5fd75ca6d648a8bfb873ca6706220397784b8a14e0fda14f5f411c44c20200",
+  "src/npegged/tester/testerparser.d": "fc3e6d735a45885f89b7ed0955d481cd376b9a262f7db975445afcbc77e32bd6",
+  "src/npegged/tohtml.d": "f0fb840a186b77948c122cfe5c7637be1e5d753eb14422ceef7196fada84fa9c",
+  "src/npegged/unicode.d": "d87bfacec181f02ed439ec244942359457ab5de28693bf044f3f2f008a00bebd",
+  "tests/pure_islands.d": "e2111537d9b454c069f3163b77125d05f169cef19f5ffec3ae76eb267a804d54",
+  "scripts/pure-islands-check.sh": "c3c793584db92a1cb3b73b552f683782983848b12a60d4a0c6e7af15a2791cda"
+}

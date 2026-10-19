@@ -1,0 +1,6 @@
+dmd-selective-all: exact pure-island oracle passed
+dmd-selective-root: exact pure-island oracle passed
+dmd-selective-leaf: exact pure-island oracle passed
+ldc2-selective-all: exact pure-island oracle passed
+ldc2-selective-root: exact pure-island oracle passed
+ldc2-selective-leaf: exact pure-island oracle passed

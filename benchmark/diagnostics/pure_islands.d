@@ -1,11 +1,18 @@
 module benchmark.diagnostics.pure_islands;
-import tests.pure_islands : Candidate, selected, Effects;
+import tests.pure_islands : Candidate, selected, Effects, Event;
 import npegged.grammar;
 import npegged.examples.json : JSON;
 import npegged.examples.csv : CSV;
 import npegged.examples.PEG : PEG;
 import benchmark.measurement : opaqueInput, consume;
 import core.stdc.stdio : printf;
+import core.stdc.stdlib : getenv;
+
+private __gshared bool tracing;
+private void observeTrace(string name, size_t position, bool successful, void* data) @nogc nothrow {
+    (cast(Effects*)data).add(Event(name, null, position, 0, 0, false, successful));
+}
+
 import core.sys.posix.time : clock_gettime, CLOCK_MONOTONIC, timespec;
 
 private ulong now() @nogc nothrow {
@@ -22,8 +29,8 @@ private ulong bytesHash(string bytes) @nogc nothrow {
 }
 
 private ulong treeHash(scope const ref ParseTree tree) @nogc nothrow {
-    ulong hash = bytesHash(tree.name) + tree.begin * 3 + tree.end * 7 + tree.failEnd * 11 + tree
-        .successful;
+    ulong hash = bytesHash(tree.name) + bytesHash(
+            tree.input) + tree.begin * 3 + tree.end * 7 + tree.failEnd * 11 + tree.successful;
     foreach (match; tree.matches)
         hash = hash * 33 + bytesHash(match);
     foreach (child; tree.children)
@@ -48,16 +55,16 @@ private int run(alias parser, int mode)(string input, string label, size_t size,
         const warmup = size <= 64 ? 64 : 16;
     foreach (sample; 0 .. samples) {
         ParseContext context;
-        context.memoryLimit = finite ? 256 * 1024 * 1024 : size_t.max;
-        context.depthLimit = finite ? 1024 : size_t.max;
-        context.stepLimit = finite ? 1_000_000 : size_t.max;
+        if (!finite)
+            context.memoryLimit = context.depthLimit = context.stepLimit = size_t.max;
         Effects effects;
         context.userData = &effects;
+        context.trace = tracing ? &observeTrace : null;
         version (NPeggedMetrics) {
             ParseMetrics metrics;
             context.metrics = &metrics;
         }
-        size_t peak, requested, allocations, nodes, end, failEnd, actions;
+        size_t peak, requested, allocations, nodes, end, failEnd, actions, traceEvents;
         ulong hash, start;
         foreach (iteration; 0 .. iterations + warmup) {
             if (iteration == warmup)
@@ -87,10 +94,18 @@ private int run(alias parser, int mode)(string input, string label, size_t size,
                 hash = treeHash(result.tree);
             end = result.end;
             failEnd = result.failEnd;
-            actions = effects.length;
-            foreach (event; effects.events[0 .. effects.length])
-                hash = hash * 33 + bytesHash(event.name) + event.position + event.steps * 3 + event
-                    .depth * 7;
+            actions = traceEvents = 0;
+            foreach (event; effects.events[0 .. effects.length]) {
+                if (event.action)
+                    ++actions;
+                else
+                    ++traceEvents;
+                hash = hash * 33 + bytesHash(event.name) + bytesHash(
+                        event.input) + event.position + event.steps * 3 + event.depth * 7 + event.action
+                    * 13 + event.successful * 17;
+                foreach (match; event.matches)
+                    hash = hash * 33 + bytesHash(match);
+            }
             consume(result.successful, hash, nodes, result.status);
         }
         const stop = now();
@@ -101,6 +116,7 @@ private int run(alias parser, int mode)(string input, string label, size_t size,
                 cast(uint)finite, cast(uint)sample, cast(ulong)iterations, stop - start,
                 cast(ulong)peak, cast(ulong)requested, cast(ulong)allocations, cast(ulong)nodes,
                 cast(ulong)end, cast(ulong)failEnd, hash, cast(ulong)actions);
+        printf(",%u,%llu", cast(uint)tracing, cast(ulong)traceEvents);
         version (NPeggedMetrics) {
             ulong entries, fallbacks;
             version (NPeggedPureIslands) {
@@ -115,7 +131,9 @@ private int run(alias parser, int mode)(string input, string label, size_t size,
 }
 
 int main() @nogc nothrow {
-    printf("case,mode,size,valid,finite,sample,iterations,ns,peak,requested,allocations,nodes,end,fail_end,hash,actions");
+    auto traceChoice = getenv("NPEGGED_TRACE_PURE_ISLANDS");
+    tracing = traceChoice !is null && traceChoice[0] == '1';
+    printf("case,mode,size,valid,finite,sample,iterations,ns,peak,requested,allocations,nodes,end,fail_end,hash,actions,tracing,trace_events");
     version (NPeggedMetrics)
         printf(",island_entries,island_fallbacks,memo_calls,memo_hits");
     printf("\n");
@@ -147,8 +165,9 @@ int main() @nogc nothrow {
                 static foreach (mode; [0, 1, 2, 3])
                     if (auto error = run!(Candidate.Root, mode)(input, "Root", words, valid, finite))
                         return error;
-                if (auto error = run!(Candidate.ActRoot, 0)(input, "ActRoot", words, valid, finite))
-                    return error;
+                static foreach (mode; [0, 1, 2, 3])
+                    if (auto error = run!(Candidate.ActRoot, mode)(input, "ActRoot", words, valid, finite))
+                        return error;
             }
     enum json = `{"a":[1,true,null],"b":"x"}`;
     enum csv = "a,b,c\n1,2,3\n";

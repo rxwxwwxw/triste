@@ -45,14 +45,14 @@ for job,compile_seconds in zip(jobs,durations):
   path=folder/f'{name}-run{run}.csv'
   with path.open('w') as output:
    subprocess.run(['prlimit','--as=4294967296','--','timeout','--kill-after=2s','60s',str(binary)],stdout=output,check=True,timeout=65)
-  rows=list(csv.DictReader(path.open()));assert len(rows)==(126 if diagnostic else 882),len(rows)
+  rows=list(csv.DictReader(path.open()));assert len(rows)==(162 if diagnostic else 1134),len(rows)
   for row in rows:
    case=tuple(row[k] for k in ('case','mode','size','valid','finite'))
    key=(memo,projection,case)
    value=tuple(row[k] for k in ('nodes','end','fail_end','hash','actions'))
    assert signatures.setdefault(key,value)==value,('output',name,case)
    footprint=tuple(row[k] for k in ('peak','requested','allocations'))
-   inactive=row['finite']=='1' or row['case'] in ('ActRoot','JSON','CSV','PEG') or row['mode']=='3' or (row['case']=='Root' and projection=='all' and row['mode'] in ('1','2'))
+   inactive=row['tracing']=='1' or row['finite']=='1' or row['case'] in ('ActRoot','JSON','CSV','PEG') or row['mode']=='3' or (row['case']=='Root' and projection=='all' and row['mode'] in ('1','2'))
    if policy=='reference': memory[key]=footprint
    elif inactive: assert memory[key]==footprint,('inactive memory',name,case)
    if diagnostic and policy=='candidate':
