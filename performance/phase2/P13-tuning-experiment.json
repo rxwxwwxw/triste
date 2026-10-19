@@ -1,0 +1,31 @@
+{
+  "milestone": "P13",
+  "name": "Optional one-localized output-fragment tuning experiment",
+  "disposition": "revert_and_close",
+  "status": "completed",
+  "experiment": "batch_capacity_reservation_in_restoreUsing",
+  "benchmark_file": "benchmark/p13_tuning.d",
+  "results": {
+    "DirectChain_d256": {
+      "baseline_ns": 809572,
+      "candidate_ns": 859430,
+      "ratio": 1.0615
+    },
+    "DenseChain_d64": {
+      "baseline_ns": 172839,
+      "candidate_ns": 176538,
+      "ratio": 1.0214
+    },
+    "DenseChain_d256": {
+      "baseline_ns": 2825563,
+      "candidate_ns": 2793127,
+      "ratio": 0.9885
+    },
+    "CSV_control": {
+      "baseline_ns": 3435,
+      "candidate_ns": 3533,
+      "ratio": 1.0285
+    }
+  },
+  "conclusion": "Eager capacity checks in restoreUsing add overhead to frequent small seed replays without offsetting the cost in put(); existing geometric doubling is already near-optimal. Reverted and closed."
+}
