@@ -18,3 +18,18 @@ the acceptance oracle** and a generator must report failures instead of emitting
 
 Tests: `tests/generator.d` plus unit tests in `generator.d` (determinism, divergence, branch coverage, recursion stop, nullable loop,
 EOF, UTF-8 roundtrip, unsupported, budgets, splitmix64 reference value).
+
+## G2: full-acceptance oracle (`generateAccepted!(parser)(definition, startRule, count, options, maxAttempts)`)
+
+Every proposal is parsed by the real compiled rule (`parser`, e.g. `Fixture.Root` from `mixin(grammar!(...)(definition))`) with a fresh default
+`ParseContext`. A sample is listed in `AcceptedSet.texts` only if the parse succeeded **and consumed the whole input**; resource-limit
+statuses and partial consumption count as rejections. The definition/parser pairing is the caller's responsibility (it is not checked).
+
+`AcceptedSet` reports `proposed`, `rejected`, `generationFailures` (unsupported constructs, depth/output budgets, with distinct
+reasons) and `exhausted` (the `maxAttempts` budget ran out before `count` samples were accepted; the samples found so far are still
+verified). Nothing unverified is ever returned as valid. User actions are never run: a start rule that reaches an action fails
+generation as `unsupported` (the parse of a candidate never happens for it).
+
+Tests (`tests/acceptance_oracle.d`, 90 s alarm): the candidate trap `('a' / 'ab') 'c'` (proposes `abc`, which the PEG rejects; only
+`ac` is returned), the impossible branch `'a'* 'a' eoi` (budget exhausted, nothing listed), lookahead rejection, a disjoint grammar
+(no retries), attempt-budget exhaustion, unsupported actions, reproducibility, and an independent re-check of every returned sample.

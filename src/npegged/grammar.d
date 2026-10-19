@@ -3851,6 +3851,77 @@ CandidateStream generateCandidates(string definition, string startRule, size_t c
     return result;
 }
 
+/// Outcome of oracle-filtered generation (G2). Every entry of `texts` was accepted by the supplied parser with the
+/// whole input consumed; nothing else is ever listed as valid.
+struct AcceptedSet {
+    Status status = Status.invalidInput;
+    Diagnostic diagnostic;
+    string[] texts;
+    size_t proposed; /// candidates the walk produced
+    size_t rejected; /// proposals the parser rejected, including partial consumption and resource limits
+    size_t generationFailures; /// unsupported constructs and budget hits (no candidate existed)
+    bool exhausted; /// the attempt budget ran out before `count` samples were accepted
+    string[] failureReasons; /// distinct generation failure reasons, first occurrences
+}
+
+/// Full-acceptance oracle for generated inputs (G2). `parser` must be the compiled rule for `startRule` of the grammar
+/// given by `definition` (for example `Fixture.Root` from `mixin(grammar!(...)(definition))`); the pair is not
+/// checked. Parsing uses a fresh default `ParseContext` per candidate, so user actions are never run: a start rule that
+/// reaches an action fails generation as unsupported instead.
+AcceptedSet generateAccepted(alias parser)(string definition, string startRule, size_t count,
+        GeneratorOptions options = GeneratorOptions.init, size_t maxAttempts = 10_000) nothrow {
+    AcceptedSet result;
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.diagnostic = Diagnostic(begin, "Candidate generation input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    frontend.prepareAnalysis();
+    const rule = frontend.analyzed.ruleIndex(startRule);
+    if (rule == size_t.max) {
+        result.diagnostic = Diagnostic(0, "Unknown start rule");
+        return result;
+    }
+    auto generator = CandidateGenerator(frontend.analyzed, rule, options);
+    size_t attempts;
+    while (result.texts.length < count) {
+        if (attempts++ >= maxAttempts) {
+            result.exhausted = true;
+            break;
+        }
+        auto candidate = generator.next();
+        if (candidate.status != GenStatus.ok) {
+            ++result.generationFailures;
+            bool known;
+            foreach (reason; result.failureReasons)
+                known = known || reason == candidate.reason;
+            if (!known && result.failureReasons.length < 8)
+                result.failureReasons ~= candidate.reason;
+            continue;
+        }
+        ++result.proposed;
+        ParseContext context;
+        auto verdict = check!parser(context, candidate.text);
+        if (verdict.status == Status.ok && verdict.successful && verdict.end == candidate.text.length)
+            result.texts ~= candidate.text;
+        else
+            ++result.rejected;
+    }
+    result.status = Status.ok;
+    return result;
+}
+
 /// Bounded literal-prefix discrimination report for ordered choice alternatives.
 struct PrefixDiscriminationResult {
     Status status = Status.invalidInput;
