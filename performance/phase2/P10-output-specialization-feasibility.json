@@ -1,0 +1,29 @@
+{
+  "milestone": "P10",
+  "title": "Feasibility Analysis for Compile-Time Output Specialization",
+  "feasibility": "confirmed_feasible_and_sound",
+  "frontend_analysis_changes_required": false,
+  "classification_categories": [
+    {
+      "name": "provably_non_recursive",
+      "criteria": "!analyzed.hasLeftRecursion",
+      "specialization": "pure_flat_record_buffer"
+    },
+    {
+      "name": "recursive_sparse_output",
+      "criteria": "analyzed.hasLeftRecursion && !selectedRecursive",
+      "specialization": "pure_flat_record_buffer"
+    },
+    {
+      "name": "recursive_dense_output",
+      "criteria": "analyzed.hasLeftRecursion && selectedRecursive && !actionGrammar",
+      "specialization": "shared_capable_record_buffer"
+    },
+    {
+      "name": "conservative_fallback",
+      "criteria": "analyzed.conservative || params.length || rule.params.length",
+      "specialization": "safe_flat_fallback"
+    }
+  ],
+  "disposition": "proceed_to_p11_prototype"
+}
