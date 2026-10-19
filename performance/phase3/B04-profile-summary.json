@@ -1,0 +1,527 @@
+{
+  "milestone": "B04",
+  "profiles": [
+    {
+      "profile": "PEGGrammar.ManyRules-validation.annotation.txt",
+      "totalInstructions": 263581248,
+      "openKindSelfInstructions": 0,
+      "openKindProgramShare": 0.0,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 44049048,
+          "function": "npegged.peg.transform!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.workload_grammars.BenchPEG._dfa_Sp, 0uL, false).dfaToken, npegged.peg.repeat!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat).and, benchmark.workload_grammars.BenchPEG._dfa_Sp_1, 0uL, false).dfaToken, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.workload_grammars.BenchPEG._dfa_Sp_2, 0uL, false).dfaToken).and, 0uL, -1uL).repeat).and, ':').transform!(false, 1).transform(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 28743680,
+          "function": "benchmark.workload_grammars.BenchPEG._SimpleHeader!(false, 1)._SimpleHeader(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 26898278,
+          "function": "benchmark.workload_grammars.BenchPEG._TopBoundary!(false, 1)._TopBoundary(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 19299328,
+          "function": "benchmark.workload_grammars.BenchPEG._Class!(false, 1)._Class(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 19191058,
+          "function": "benchmark.workload_grammars.BenchPEG._Prefix!(false, 1)._Prefix(ref npegged.peg.State!(false, 1).State, ulong)"
+        }
+      ]
+    },
+    {
+      "profile": "PEGGrammar.ManyRules-spans.annotation.txt",
+      "totalInstructions": 364940648,
+      "openKindSelfInstructions": 14349895,
+      "openKindProgramShare": 0.039321174768122844,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 31129098,
+          "function": "npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.scalar_output.PegSpans.BenchPEG._dfa_Sp, 0uL, false).dfaToken, npegged.peg.repeat!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat).and, benchmark.scalar_output.PegSpans.BenchPEG._dfa_Sp_1, 0uL, false).dfaToken, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.scalar_output.PegSpans.BenchPEG._dfa_Sp_2, 0uL, false).dfaToken).and, 0uL, -1uL).repeat).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 28985088,
+          "function": "npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass, npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.literal!(\"<\").literal, npegged.peg.repeat!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.repeat!(npegged.peg.literal!(\"-\").literal, 1uL, -1uL).repeat, 35184372088832uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.peg.charClass!(864691265894088704uL, 4611686019501129728uL, 0uL, 0uL).charClass, 864691265894088704uL, 4611686019501129728uL, 0uL, 0uL, false)).predictiveChoice, 0uL, 1uL).repeat).and, benchmark.scalar_output.PegSpans.BenchPEG._dfa_SimpleHeader, 0uL, false).dfaToken, benchmark.scalar_output.PegSpans.BenchPEG.Sp).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 22231858,
+          "function": "npegged.peg.choice!(false, npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass, npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.literal!(\"<\").literal).and, benchmark.scalar_output.PegSpans.BenchPEG._dfa_TopBoundary, 0uL, false).dfaToken, npegged.peg.and!(npegged.peg.lookahead!(benchmark.scalar_output.PegSpans.BenchPEG.ParamGuard, true).lookahead, benchmark.scalar_output.PegSpans.BenchPEG.ParamAhead).and).choice.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 21228911,
+          "function": "npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat).and, benchmark.scalar_output.PegSpans.BenchPEG._dfa_Sp_1, 0uL, false).dfaToken, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.scalar_output.PegSpans.BenchPEG._dfa_Sp_2, 0uL, false).dfaToken).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 19220608,
+          "function": "benchmark.scalar_output.PegSpans.BenchPEG._Class!(false, 2)._Class(ref npegged.peg.State!(false, 2).State, ulong)"
+        }
+      ]
+    },
+    {
+      "profile": "PEGGrammar.ManyRules-tree.annotation.txt",
+      "totalInstructions": 467104747,
+      "openKindSelfInstructions": 56997852,
+      "openKindProgramShare": 0.12202370531678626,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 56997852,
+          "function": "npegged.records.RecordBuffer.openKind(uint, ulong)"
+        },
+        {
+          "selfInstructions": 31129098,
+          "function": "npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.scalar_output.PegTree.BenchPEG._dfa_Sp, 0uL, false).dfaToken, npegged.peg.repeat!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"#\").literal, npegged.peg.repeat!(npegged.peg.charClass!(-1025uL, -1uL, -1uL, -1uL).charClass, 0uL, -1uL).repeat).and, benchmark.scalar_output.PegTree.BenchPEG._dfa_Sp_1, 0uL, false).dfaToken, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.scalar_output.PegTree.BenchPEG._dfa_Sp_2, 0uL, false).dfaToken).and, 0uL, -1uL).repeat).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 28995725,
+          "function": "__memcpy_avx_unaligned_erms"
+        },
+        {
+          "selfInstructions": 28985088,
+          "function": "npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass, npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.literal!(\"<\").literal, npegged.peg.repeat!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.repeat!(npegged.peg.literal!(\"-\").literal, 1uL, -1uL).repeat, 35184372088832uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.peg.charClass!(864691265894088704uL, 4611686019501129728uL, 0uL, 0uL).charClass, 864691265894088704uL, 4611686019501129728uL, 0uL, 0uL, false)).predictiveChoice, 0uL, 1uL).repeat).and, benchmark.scalar_output.PegTree.BenchPEG._dfa_SimpleHeader, 0uL, false).dfaToken, benchmark.scalar_output.PegTree.BenchPEG.Sp).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 22231858,
+          "function": "npegged.peg.choice!(false, npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.charClass!(0uL, 576460745995190270uL, 0uL, 0uL).charClass, npegged.peg.repeat!(npegged.peg.charClass!(287948901175001088uL, 576460745995190270uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.repeat!(npegged.peg.charClass!(4294977024uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, npegged.peg.literal!(\"<\").literal).and, benchmark.scalar_output.PegTree.BenchPEG._dfa_TopBoundary, 0uL, false).dfaToken, npegged.peg.and!(npegged.peg.lookahead!(benchmark.scalar_output.PegTree.BenchPEG.ParamGuard, true).lookahead, benchmark.scalar_output.PegTree.BenchPEG.ParamAhead).and).choice.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        }
+      ]
+    },
+    {
+      "profile": "CSV.Flat-validation.annotation.txt",
+      "totalInstructions": 55194825,
+      "openKindSelfInstructions": 0,
+      "openKindProgramShare": 0.0,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 29646732,
+          "function": "benchmark.workload_grammars.BenchCSV._Root!(false, 1)._Root(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 15645652,
+          "function": "benchmark.handwritten.csv.CsvParser.parseLineItems()"
+        },
+        {
+          "selfInstructions": 3245334,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.collectAllRoots().__foreachbody_L2855_C9(ref core.gc.gcinterface.Range)"
+        },
+        {
+          "selfInstructions": 1548357,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.mark!(false, true, true).mark(core.internal.gc.impl.conservative.gc.Gcx.ScanRange!(false).ScanRange)"
+        },
+        {
+          "selfInstructions": 484032,
+          "function": "core.internal.gc.impl.conservative.gc.ConservativeGC.getStatsNoSync(out core.memory.GC.Stats)"
+        }
+      ]
+    },
+    {
+      "profile": "CSV.Flat-spans.annotation.txt",
+      "totalInstructions": 361162340,
+      "openKindSelfInstructions": 22806003,
+      "openKindProgramShare": 0.06314612702974513,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 54787887,
+          "function": "npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294967808uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.workload_output.CsvSpans.BenchCSV._dfa_Field, 0uL, false).dfaToken, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"\"\").literal, npegged.peg.repeat!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.literal!(\"\"\"\").literal, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.peg.charClass!(-17179869185uL, -1uL, -1uL, -1uL).charClass, -17179869185uL, -1uL, -1uL, -1uL, false)).predictiveChoice, 0uL, -1uL).repeat).and, benchmark.workload_output.CsvSpans.BenchCSV._dfa_Field_1, 0uL, false).dfaToken, npegged.peg.literal!(\"\"\").literal).and, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(-17613660890625uL, -1uL, -1uL, -1uL).charClass, 1uL, -1uL).repeat, benchmark.workload_output.CsvSpans.BenchCSV._dfa_Field_2, 0uL, false).dfaToken, -17613660890625uL, -1uL, -1uL, -1uL, false)).predictiveChoice, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294967808uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.workload_output.CsvSpans.BenchCSV._dfa_Field_3, 0uL, false).dfaToken).and, 0uL, 1uL).repeat).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 53530389,
+          "function": "npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"\"\").literal, npegged.peg.repeat!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.literal!(\"\"\"\").literal, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.peg.charClass!(-17179869185uL, -1uL, -1uL, -1uL).charClass, -17179869185uL, -1uL, -1uL, -1uL, false)).predictiveChoice, 0uL, -1uL).repeat).and, benchmark.workload_output.CsvSpans.BenchCSV._dfa_Field_1, 0uL, false).dfaToken, npegged.peg.literal!(\"\"\").literal).and, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(-17613660890625uL, -1uL, -1uL, -1uL).charClass, 1uL, -1uL).repeat, benchmark.workload_output.CsvSpans.BenchCSV._dfa_Field_2, 0uL, false).dfaToken, -17613660890625uL, -1uL, -1uL, -1uL, false)).predictiveChoice.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 50232468,
+          "function": "npegged.peg.and!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"\"\").literal, npegged.peg.repeat!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.literal!(\"\"\"\").literal, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.peg.charClass!(-17179869185uL, -1uL, -1uL, -1uL).charClass, -17179869185uL, -1uL, -1uL, -1uL, false)).predictiveChoice, 0uL, -1uL).repeat).and, benchmark.workload_output.CsvSpans.BenchCSV._dfa_Field_1, 0uL, false).dfaToken, npegged.peg.literal!(\"\"\").literal).and, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(-17613660890625uL, -1uL, -1uL, -1uL).charClass, 1uL, -1uL).repeat, benchmark.workload_output.CsvSpans.BenchCSV._dfa_Field_2, 0uL, false).dfaToken, -17613660890625uL, -1uL, -1uL, -1uL, false)).predictiveChoice, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294967808uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.workload_output.CsvSpans.BenchCSV._dfa_Field_3, 0uL, false).dfaToken).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 32131242,
+          "function": "benchmark.workload_output.CsvSpans.BenchCSV.Field(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 29846088,
+          "function": "benchmark.workload_output.csvOutput(immutable(char)[], benchmark.json_output.OutputMode, ulong)"
+        }
+      ]
+    },
+    {
+      "profile": "CSV.Flat-tree.annotation.txt",
+      "totalInstructions": 361223738,
+      "openKindSelfInstructions": 22850168,
+      "openKindProgramShare": 0.06325765888619424,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 54787887,
+          "function": "npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294967808uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.workload_output.CsvTree.BenchCSV._dfa_Field, 0uL, false).dfaToken, npegged.peg.repeat!(npegged.peg.and!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"\"\").literal, npegged.peg.repeat!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.literal!(\"\"\"\").literal, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.peg.charClass!(-17179869185uL, -1uL, -1uL, -1uL).charClass, -17179869185uL, -1uL, -1uL, -1uL, false)).predictiveChoice, 0uL, -1uL).repeat).and, benchmark.workload_output.CsvTree.BenchCSV._dfa_Field_1, 0uL, false).dfaToken, npegged.peg.literal!(\"\"\").literal).and, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(-17613660890625uL, -1uL, -1uL, -1uL).charClass, 1uL, -1uL).repeat, benchmark.workload_output.CsvTree.BenchCSV._dfa_Field_2, 0uL, false).dfaToken, -17613660890625uL, -1uL, -1uL, -1uL, false)).predictiveChoice, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294967808uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.workload_output.CsvTree.BenchCSV._dfa_Field_3, 0uL, false).dfaToken).and, 0uL, 1uL).repeat).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 53530389,
+          "function": "npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"\"\").literal, npegged.peg.repeat!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.literal!(\"\"\"\").literal, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.peg.charClass!(-17179869185uL, -1uL, -1uL, -1uL).charClass, -17179869185uL, -1uL, -1uL, -1uL, false)).predictiveChoice, 0uL, -1uL).repeat).and, benchmark.workload_output.CsvTree.BenchCSV._dfa_Field_1, 0uL, false).dfaToken, npegged.peg.literal!(\"\"\").literal).and, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(-17613660890625uL, -1uL, -1uL, -1uL).charClass, 1uL, -1uL).repeat, benchmark.workload_output.CsvTree.BenchCSV._dfa_Field_2, 0uL, false).dfaToken, -17613660890625uL, -1uL, -1uL, -1uL, false)).predictiveChoice.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 50232468,
+          "function": "npegged.peg.and!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.and!(npegged.dfa.dfaToken!(npegged.peg.and!(npegged.peg.literal!(\"\"\").literal, npegged.peg.repeat!(npegged.peg.predictiveChoice!(npegged.peg.branch!(npegged.peg.literal!(\"\"\"\").literal, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.peg.charClass!(-17179869185uL, -1uL, -1uL, -1uL).charClass, -17179869185uL, -1uL, -1uL, -1uL, false)).predictiveChoice, 0uL, -1uL).repeat).and, benchmark.workload_output.CsvTree.BenchCSV._dfa_Field_1, 0uL, false).dfaToken, npegged.peg.literal!(\"\"\").literal).and, 17179869184uL, 0uL, 0uL, 0uL, false), npegged.peg.branch!(npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(-17613660890625uL, -1uL, -1uL, -1uL).charClass, 1uL, -1uL).repeat, benchmark.workload_output.CsvTree.BenchCSV._dfa_Field_2, 0uL, false).dfaToken, -17613660890625uL, -1uL, -1uL, -1uL, false)).predictiveChoice, npegged.dfa.dfaToken!(npegged.peg.repeat!(npegged.peg.charClass!(4294967808uL, 0uL, 0uL, 0uL).charClass, 0uL, -1uL).repeat, benchmark.workload_output.CsvTree.BenchCSV._dfa_Field_3, 0uL, false).dfaToken).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 32131242,
+          "function": "benchmark.workload_output.CsvTree.BenchCSV.Field(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 29843676,
+          "function": "benchmark.workload_output.csvOutput(immutable(char)[], benchmark.json_output.OutputMode, ulong)"
+        }
+      ]
+    },
+    {
+      "profile": "Arithmetic.Flat-validation.annotation.txt",
+      "totalInstructions": 356784432,
+      "openKindSelfInstructions": 0,
+      "openKindProgramShare": 0.0,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 73208164,
+          "function": "benchmark.workload_grammars.BenchArithmetic._Space!(false, 1)._Space(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 50994368,
+          "function": "benchmark.workload_grammars.BenchArithmetic._Identifier!(false, 1)._Identifier(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 46071692,
+          "function": "benchmark.workload_grammars.BenchArithmetic._Factor!(false, 1)._Factor(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 41987264,
+          "function": "benchmark.handwritten.arithmetic.ArithmeticLexer.nextToken()"
+        },
+        {
+          "selfInstructions": 39085470,
+          "function": "benchmark.workload_grammars.BenchArithmetic._Primary!(false, 1)._Primary(ref npegged.peg.State!(false, 1).State, ulong)"
+        }
+      ]
+    },
+    {
+      "profile": "Arithmetic.Flat-spans.annotation.txt",
+      "totalInstructions": 614040301,
+      "openKindSelfInstructions": 51420363,
+      "openKindProgramShare": 0.08374102305053753,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 73299446,
+          "function": "benchmark.workload_output.ArithmeticSpans.BenchArithmetic._Space!(false, 2)._Space(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 51420363,
+          "function": "npegged.records.RecordBuffer.openKind(uint, ulong)"
+        },
+        {
+          "selfInstructions": 51058755,
+          "function": "benchmark.workload_output.ArithmeticSpans.BenchArithmetic._Identifier!(false, 2)._Identifier(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 42039552,
+          "function": "benchmark.handwritten.arithmetic.ArithmeticLexer.nextToken()"
+        },
+        {
+          "selfInstructions": 38358036,
+          "function": "benchmark.workload_output.ArithmeticWriter.primary()"
+        }
+      ]
+    },
+    {
+      "profile": "Arithmetic.Flat-tree.annotation.txt",
+      "totalInstructions": 802646734,
+      "openKindSelfInstructions": 136480860,
+      "openKindProgramShare": 0.17003851659601968,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 136480860,
+          "function": "npegged.records.RecordBuffer.openKind(uint, ulong)"
+        },
+        {
+          "selfInstructions": 81587185,
+          "function": "__memcpy_avx_unaligned_erms"
+        },
+        {
+          "selfInstructions": 73299446,
+          "function": "benchmark.workload_output.ArithmeticTree.BenchArithmetic._Space!(false, 2)._Space(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 51058755,
+          "function": "benchmark.workload_output.ArithmeticTree.BenchArithmetic._Identifier!(false, 2)._Identifier(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 42039552,
+          "function": "benchmark.handwritten.arithmetic.ArithmeticLexer.nextToken()"
+        }
+      ]
+    },
+    {
+      "profile": "JSON.WhitespaceHeavy-validation.annotation.txt",
+      "totalInstructions": 136530451,
+      "openKindSelfInstructions": 0,
+      "openKindProgramShare": 0.0,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 44884488,
+          "function": "benchmark.json_npegged.JSON._Spacing!(false, 1)._Spacing(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 44737789,
+          "function": "benchmark.handwritten.json.JsonLexer.nextToken()"
+        },
+        {
+          "selfInstructions": 6721573,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.mark!(false, true, true).mark(core.internal.gc.impl.conservative.gc.Gcx.ScanRange!(false).ScanRange)"
+        },
+        {
+          "selfInstructions": 3818040,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.collectAllRoots().__foreachbody_L2855_C9(ref core.gc.gcinterface.Range)"
+        },
+        {
+          "selfInstructions": 3422986,
+          "function": "core.internal.gc.impl.conservative.gc.ConservativeGC.malloc(ulong, uint, const(TypeInfo))"
+        }
+      ]
+    },
+    {
+      "profile": "JSON.WhitespaceHeavy-spans.annotation.txt",
+      "totalInstructions": 138030123,
+      "openKindSelfInstructions": 113223,
+      "openKindProgramShare": 0.0008202774694332482,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 44884488,
+          "function": "benchmark.json_npegged.SpanProjection.JSON._Spacing!(false, 2)._Spacing(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 44737789,
+          "function": "benchmark.handwritten.json.JsonLexer.nextToken()"
+        },
+        {
+          "selfInstructions": 6723558,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.mark!(false, true, true).mark(core.internal.gc.impl.conservative.gc.Gcx.ScanRange!(false).ScanRange)"
+        },
+        {
+          "selfInstructions": 3818040,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.collectAllRoots().__foreachbody_L2855_C9(ref core.gc.gcinterface.Range)"
+        },
+        {
+          "selfInstructions": 3422986,
+          "function": "core.internal.gc.impl.conservative.gc.ConservativeGC.malloc(ulong, uint, const(TypeInfo))"
+        }
+      ]
+    },
+    {
+      "profile": "JSON.WhitespaceHeavy-tree.annotation.txt",
+      "totalInstructions": 138137676,
+      "openKindSelfInstructions": 157388,
+      "openKindProgramShare": 0.0011393560725605374,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 44884488,
+          "function": "benchmark.json_npegged.TreeProjection.JSON._Spacing!(false, 2)._Spacing(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 44737789,
+          "function": "benchmark.handwritten.json.JsonLexer.nextToken()"
+        },
+        {
+          "selfInstructions": 6725728,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.mark!(false, true, true).mark(core.internal.gc.impl.conservative.gc.Gcx.ScanRange!(false).ScanRange)"
+        },
+        {
+          "selfInstructions": 3818040,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.collectAllRoots().__foreachbody_L2855_C9(ref core.gc.gcinterface.Range)"
+        },
+        {
+          "selfInstructions": 3422986,
+          "function": "core.internal.gc.impl.conservative.gc.ConservativeGC.malloc(ulong, uint, const(TypeInfo))"
+        }
+      ]
+    },
+    {
+      "profile": "Numbers.BinaryLong-validation.annotation.txt",
+      "totalInstructions": 141564311,
+      "openKindSelfInstructions": 0,
+      "openKindProgramShare": 0.0,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 72538859,
+          "function": "benchmark.workload_grammars.observeWorkload(immutable(char)[], immutable(char)[], bool)"
+        },
+        {
+          "selfInstructions": 59272612,
+          "function": "benchmark.workload_grammars.BenchNumbers._Binary!(false, 1)._Binary(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 3245334,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.collectAllRoots().__foreachbody_L2855_C9(ref core.gc.gcinterface.Range)"
+        },
+        {
+          "selfInstructions": 1548357,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.mark!(false, true, true).mark(core.internal.gc.impl.conservative.gc.Gcx.ScanRange!(false).ScanRange)"
+        },
+        {
+          "selfInstructions": 484032,
+          "function": "core.internal.gc.impl.conservative.gc.ConservativeGC.getStatsNoSync(out core.memory.GC.Stats)"
+        }
+      ]
+    },
+    {
+      "profile": "Numbers.BinaryLong-spans.annotation.txt",
+      "totalInstructions": 129674777,
+      "openKindSelfInstructions": 69058,
+      "openKindProgramShare": 0.0005325476673077294,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 59344912,
+          "function": "benchmark.scalar_output.NumbersTree.BenchNumbers._Binary!(false, 2)._Binary(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 59342436,
+          "function": "benchmark.scalar_output.handwrittenScalarOutput(immutable(char)[], immutable(char)[], benchmark.json_output.OutputMode, ulong)"
+        },
+        {
+          "selfInstructions": 3245334,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.collectAllRoots().__foreachbody_L2855_C9(ref core.gc.gcinterface.Range)"
+        },
+        {
+          "selfInstructions": 1548233,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.mark!(false, true, true).mark(core.internal.gc.impl.conservative.gc.Gcx.ScanRange!(false).ScanRange)"
+        },
+        {
+          "selfInstructions": 484032,
+          "function": "core.internal.gc.impl.conservative.gc.ConservativeGC.getStatsNoSync(out core.memory.GC.Stats)"
+        }
+      ]
+    },
+    {
+      "profile": "Numbers.BinaryLong-tree.annotation.txt",
+      "totalInstructions": 129670762,
+      "openKindSelfInstructions": 69058,
+      "openKindProgramShare": 0.0005325641565983856,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 59344912,
+          "function": "benchmark.scalar_output.NumbersTree.BenchNumbers._Binary!(false, 2)._Binary(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 59342436,
+          "function": "benchmark.scalar_output.handwrittenScalarOutput(immutable(char)[], immutable(char)[], benchmark.json_output.OutputMode, ulong)"
+        },
+        {
+          "selfInstructions": 3245334,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.collectAllRoots().__foreachbody_L2855_C9(ref core.gc.gcinterface.Range)"
+        },
+        {
+          "selfInstructions": 1548233,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.mark!(false, true, true).mark(core.internal.gc.impl.conservative.gc.Gcx.ScanRange!(false).ScanRange)"
+        },
+        {
+          "selfInstructions": 484032,
+          "function": "core.internal.gc.impl.conservative.gc.ConservativeGC.getStatsNoSync(out core.memory.GC.Stats)"
+        }
+      ]
+    },
+    {
+      "profile": "Ambiguous.Retry-validation.annotation.txt",
+      "totalInstructions": 18984507,
+      "openKindSelfInstructions": 0,
+      "openKindProgramShare": 0.0,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 5019264,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.mark!(false, true, true).mark(core.internal.gc.impl.conservative.gc.Gcx.ScanRange!(false).ScanRange)"
+        },
+        {
+          "selfInstructions": 3245334,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.collectAllRoots().__foreachbody_L2855_C9(ref core.gc.gcinterface.Range)"
+        },
+        {
+          "selfInstructions": 2516520,
+          "function": "benchmark.json_output.ambiguousOutput(immutable(char)[], benchmark.json_output.OutputMode)"
+        },
+        {
+          "selfInstructions": 1929609,
+          "function": "benchmark.ambiguous_npegged.Ambiguous._Start!(false, 1)._Start(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 545952,
+          "function": "core.internal.gc.impl.conservative.gc.ConservativeGC.getStatsNoSync(out core.memory.GC.Stats)"
+        }
+      ]
+    },
+    {
+      "profile": "CSV.SingleLine-validation.annotation.txt",
+      "totalInstructions": 10916345,
+      "openKindSelfInstructions": 0,
+      "openKindProgramShare": 0.0,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 3245334,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.collectAllRoots().__foreachbody_L2855_C9(ref core.gc.gcinterface.Range)"
+        },
+        {
+          "selfInstructions": 1547732,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.mark!(false, true, true).mark(core.internal.gc.impl.conservative.gc.Gcx.ScanRange!(false).ScanRange)"
+        },
+        {
+          "selfInstructions": 644006,
+          "function": "benchmark.workload_grammars.BenchCSV._Root!(false, 1)._Root(ref npegged.peg.State!(false, 1).State, ulong)"
+        },
+        {
+          "selfInstructions": 484032,
+          "function": "core.internal.gc.impl.conservative.gc.ConservativeGC.getStatsNoSync(out core.memory.GC.Stats)"
+        },
+        {
+          "selfInstructions": 378213,
+          "function": "benchmark.handwritten.csv.CsvParser.parseLineItems()"
+        }
+      ]
+    },
+    {
+      "profile": "JSON.InvalidTruncated-spans.annotation.txt",
+      "totalInstructions": 99668398,
+      "openKindSelfInstructions": 69058,
+      "openKindProgramShare": 0.0006928775959657744,
+      "memoizedRuleOutOfLineSelfInstructions": 0,
+      "topFunctions": [
+        {
+          "selfInstructions": 26923480,
+          "function": "core.internal.gc.impl.conservative.gc.Gcx.mark!(false, true, true).mark(core.internal.gc.impl.conservative.gc.Gcx.ScanRange!(false).ScanRange)"
+        },
+        {
+          "selfInstructions": 13741739,
+          "function": "benchmark.json_npegged.SpanProjection.JSON._Spacing!(false, 2)._Spacing(ref npegged.peg.State!(false, 2).State, ulong)"
+        },
+        {
+          "selfInstructions": 6775321,
+          "function": "benchmark.handwritten.json.JsonLexer.nextToken()"
+        },
+        {
+          "selfInstructions": 5615379,
+          "function": "npegged.peg.and!(npegged.peg.literal!(\"[\").literal, benchmark.json_npegged.SpanProjection.JSON.Spacing, npegged.peg.repeat!(npegged.peg.and!(benchmark.json_npegged.SpanProjection.JSON.Value, npegged.peg.repeat!(npegged.peg.and!(benchmark.json_npegged.SpanProjection.JSON.Spacing, npegged.peg.literal!(\",\").literal, benchmark.json_npegged.SpanProjection.JSON.Spacing, benchmark.json_npegged.SpanProjection.JSON.Value).and, 0uL, -1uL).repeat).and, 0uL, 1uL).repeat, benchmark.json_npegged.SpanProjection.JSON.Spacing, npegged.peg.literal!(\"]\").literal).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)'2"
+        },
+        {
+          "selfInstructions": 3953169,
+          "function": "npegged.peg.and!(benchmark.json_npegged.SpanProjection.JSON.Spacing, npegged.peg.literal!(\",\").literal, benchmark.json_npegged.SpanProjection.JSON.Spacing, benchmark.json_npegged.SpanProjection.JSON.Value).and.opCall!(false, 2).opCall(ref npegged.peg.State!(false, 2).State, ulong)"
+        }
+      ]
+    }
+  ]
+}

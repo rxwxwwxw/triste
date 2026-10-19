@@ -1,0 +1,11 @@
+==746766== Callgrind, a call-graph generating cache profiler
+==746766== Copyright (C) 2002-2017, and GNU GPL'd, by Josef Weidendorfer et al.
+==746766== Using Valgrind-3.25.1 and LibVEX; rerun with -h for copyright info
+==746766== Command: /home/alex-work/repos/triste/build/B03/before-runner --target-engines --filter=CSV.Flat --mode=validation --iterations=100 --samples=7 --json --workloads
+==746766== 
+==746766== For interactive control, run 'callgrind_control -h'.
+==746766== 
+==746766== Events    : Ir
+==746766== Collected : 55194825
+==746766== 
+==746766== I   refs:      55,194,825

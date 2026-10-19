@@ -1,0 +1,1260 @@
+{
+  "milestone": "B04",
+  "command": [
+    "ldc2",
+    "-Isrc",
+    "-defaultlib=druntime-ldc",
+    "-fno-exceptions",
+    "-w",
+    "/home/alex-work/repos/triste/src/npegged/analysis.d",
+    "/home/alex-work/repos/triste/src/npegged/conversion.d",
+    "/home/alex-work/repos/triste/src/npegged/definition.d",
+    "/home/alex-work/repos/triste/src/npegged/dfa.d",
+    "/home/alex-work/repos/triste/src/npegged/formatting.d",
+    "/home/alex-work/repos/triste/src/npegged/grammar.d",
+    "/home/alex-work/repos/triste/src/npegged/introspection.d",
+    "/home/alex-work/repos/triste/src/npegged/io.d",
+    "/home/alex-work/repos/triste/src/npegged/meta.d",
+    "/home/alex-work/repos/triste/src/npegged/parser.d",
+    "/home/alex-work/repos/triste/src/npegged/peg.d",
+    "/home/alex-work/repos/triste/src/npegged/records.d",
+    "/home/alex-work/repos/triste/src/npegged/storage.d",
+    "/home/alex-work/repos/triste/src/npegged/tester/grammartester.d",
+    "/home/alex-work/repos/triste/src/npegged/tester/testerparser.d",
+    "/home/alex-work/repos/triste/src/npegged/tohtml.d",
+    "/home/alex-work/repos/triste/src/npegged/unicode.d",
+    "/home/alex-work/repos/triste/build/B04/eligibility.d",
+    "-of=/home/alex-work/repos/triste/build/B04/eligibility"
+  ],
+  "grammars": [
+    {
+      "file": "benchmark/workload_grammars.d",
+      "symbol": "arithmeticGrammar",
+      "definition": "\nBenchArithmetic:\n    Root <- Space Term eoi\n    Term <- Factor (('+' / '-') Space Factor)*\n    Factor <- Primary (('*' / '/') Space Primary)*\n    Primary <- ('(' Space Term ')' / ('+' / '-') Space Primary / Number / Identifier) Space\n    Number <- [0-9]+ ('.' [0-9]+)?\n    Identifier <- [a-zA-Z_] [a-zA-Z_0-9]*\n    Space <: [ \\t\\r\\n]*\n"
+    },
+    {
+      "file": "benchmark/workload_grammars.d",
+      "symbol": "csvGrammar",
+      "definition": "\nBenchCSV:\n    Root <- Field (Sep Field)* eoi\n    Sep <- ',' / '\\r' '\\n'? / '\\n'\n    Field <- [ \\t]* (('\"' ('\"\"' / !'\"' .)* '\"' / (![,\" \\t\\r\\n] .)+) [ \\t]*)?\n"
+    },
+    {
+      "file": "benchmark/workload_grammars.d",
+      "symbol": "numbersGrammar",
+      "definition": "\nBenchNumbers:\n    Scientific <- [+-]? [0-9]+ ('.' [0-9]+)? ([eE] [+-]? [0-9]+)? eoi\n    Hexa <- [0-9a-fA-F]+ eoi\n    Binary <- '0b' [01] [01_]* eoi\n"
+    },
+    {
+      "file": "benchmark/workload_grammars.d",
+      "symbol": "pegGrammar",
+      "definition": "\nBenchPEG:\n    Root <- (SimpleGrammarHeader / &GrammarHeaderGuard FullGrammarHeader) Definition+ eoi\n    GrammarHeaderGuard <- [ \\t\\r\\n]* ('#' / [a-zA-Z_] [a-zA-Z0-9_]* [ \\t\\r\\n]* [(#])\n    SimpleGrammarHeader <- [ \\t\\r\\n]* [a-zA-Z_] [a-zA-Z0-9_]* [ \\t\\r\\n]* ':' Sp\n    FullGrammarHeader <- Sp Ident Sp (&'(' Params Sp)? ':' Sp\n\n    Definition <- !eoi DefHeader TopExpression\n    DefHeader <- SimpleHeader / &DefHeaderGuard FullHeader\n    DefHeaderGuard <- [ \\t\\r\\n]* [a-zA-Z_] [a-zA-Z0-9_]* [ \\t\\r\\n]* [({#]\n    SimpleHeader <- [ \\t\\r\\n]* [a-zA-Z_] [a-zA-Z0-9_]* [ \\t\\r\\n]* '<' ('-'+ / [~:^;%])? Sp\n    FullHeader <- Sp Ident Sp (&'(' Params Sp)? '<' ('-'+ / [~:^;%] / Action)? Sp\n\n    TopExpression <- ([\\/|] Sp)? TopSequence ([\\/|] Sp TopSequence)*\n    TopSequence <- Prefix Sp (!TopBoundary Prefix Sp)*\n    TopBoundary <- eoi / [)/|] / &[a-zA-Z_] ([a-zA-Z_] [a-zA-Z0-9_]* [ \\t\\r\\n]* '<' / (&ParamGuard ParamAhead))\n    ParamGuard <- [a-zA-Z_] [a-zA-Z0-9_]* [ \\t\\r\\n]* '('\n    ParamAhead <- Ident Sp '(' ((![()] .)+ / ParamAhead)* ')' Sp '<'\n\n    Expression <- ([\\/|] Sp)? Sequence ([\\/|] Sp Sequence)*\n    Sequence <- Prefix Sp (!SequenceBoundary Prefix Sp)*\n    SequenceBoundary <- [)/|] / eoi\n\n    Prefix <- ([&!~:^;%] Sp)* Primary ([*+?] / &'{' Action)*\n    Primary <- (Class / '(' Sp Expression ')' / Literal / Ident (&([.(]) (Params / ('.' &[a-zA-Z_] Ident)+))?) / '.'\n    Ident <- [a-zA-Z_] [a-zA-Z0-9_]*\n    Params <- '(' (Quoted / Params / (![()'\\\"] .)+)* ')'\n    Action <- '{' (Quoted / Action / (![{}'\\\"] .)+)* '}'\n    Quoted <- '\\'' ('\\\\' . / (!'\\'' .))* '\\'' / '\"' ('\\\\' . / (!'\"' .))* '\"'\n    Literal <- Quoted 'i'?\n    Class <- '[' '^'? ('\\\\' . / (!']' .))* ']'\n    Sp <: [ \\t\\r\\n]* ('#' (!'\\n' .)* [ \\t\\r\\n]*)*\n"
+    },
+    {
+      "file": "benchmark/json_grammar.d",
+      "symbol": "jsonGrammar",
+      "definition": "\nJSON:\n    Document <- Spacing Value Spacing eoi\n    Value <- Object / Array / String / Number / True / False / Null\n    True <- 'true'\n    False <- 'false'\n    Null <- 'null'\n    Object <- '{' Spacing (Pair (Spacing ',' Spacing Pair)*)? Spacing '}'\n    Pair <- String Spacing ':' Spacing Value\n    Array <- '[' Spacing (Value (Spacing ',' Spacing Value)*)? Spacing ']'\n    String <- doublequote (backslash (doublequote / backslash / '/' / [bfnrt]\n              / 'u' [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]) / Unescaped)* doublequote\n    Unescaped <~ (!(doublequote / backslash / [\\u0000-\\u001f]) .)+\n    Number <- '-'? ('0' / [1-9] [0-9]*) ('.' [0-9]+)? ([eE] ('+' / '-')? [0-9]+)?\n    Spacing <: [ \\t\\r\\n]*\n"
+    },
+    {
+      "file": "benchmark/ambiguous_npegged.d",
+      "symbol": "ambiguousGrammar",
+      "definition": "Ambiguous:\n    Start <- ('a'* 'b' / 'a'* 'c') eoi\n"
+    }
+  ],
+  "generatedSource": "module b04_eligibility;\nimport npegged.grammar;\nimport core.stdc.stdio : printf;\n\nint main() nothrow {\n    immutable string[] definitions = [\n        \"\\nBenchArithmetic:\\n    Root <- Space Term eoi\\n    Term <- Factor (('+' / '-') Space Factor)*\\n    Factor <- Primary (('*' / '/') Space Primary)*\\n    Primary <- ('(' Space Term ')' / ('+' / '-') Space Primary / Number / Identifier) Space\\n    Number <- [0-9]+ ('.' [0-9]+)?\\n    Identifier <- [a-zA-Z_] [a-zA-Z_0-9]*\\n    Space <: [ \\\\t\\\\r\\\\n]*\\n\",\n        \"\\nBenchCSV:\\n    Root <- Field (Sep Field)* eoi\\n    Sep <- ',' / '\\\\r' '\\\\n'? / '\\\\n'\\n    Field <- [ \\\\t]* (('\\\"' ('\\\"\\\"' / !'\\\"' .)* '\\\"' / (![,\\\" \\\\t\\\\r\\\\n] .)+) [ \\\\t]*)?\\n\",\n        \"\\nBenchNumbers:\\n    Scientific <- [+-]? [0-9]+ ('.' [0-9]+)? ([eE] [+-]? [0-9]+)? eoi\\n    Hexa <- [0-9a-fA-F]+ eoi\\n    Binary <- '0b' [01] [01_]* eoi\\n\",\n        \"\\nBenchPEG:\\n    Root <- (SimpleGrammarHeader / &GrammarHeaderGuard FullGrammarHeader) Definition+ eoi\\n    GrammarHeaderGuard <- [ \\\\t\\\\r\\\\n]* ('#' / [a-zA-Z_] [a-zA-Z0-9_]* [ \\\\t\\\\r\\\\n]* [(#])\\n    SimpleGrammarHeader <- [ \\\\t\\\\r\\\\n]* [a-zA-Z_] [a-zA-Z0-9_]* [ \\\\t\\\\r\\\\n]* ':' Sp\\n    FullGrammarHeader <- Sp Ident Sp (&'(' Params Sp)? ':' Sp\\n\\n    Definition <- !eoi DefHeader TopExpression\\n    DefHeader <- SimpleHeader / &DefHeaderGuard FullHeader\\n    DefHeaderGuard <- [ \\\\t\\\\r\\\\n]* [a-zA-Z_] [a-zA-Z0-9_]* [ \\\\t\\\\r\\\\n]* [({#]\\n    SimpleHeader <- [ \\\\t\\\\r\\\\n]* [a-zA-Z_] [a-zA-Z0-9_]* [ \\\\t\\\\r\\\\n]* '<' ('-'+ / [~:^;%])? Sp\\n    FullHeader <- Sp Ident Sp (&'(' Params Sp)? '<' ('-'+ / [~:^;%] / Action)? Sp\\n\\n    TopExpression <- ([\\\\/|] Sp)? TopSequence ([\\\\/|] Sp TopSequence)*\\n    TopSequence <- Prefix Sp (!TopBoundary Prefix Sp)*\\n    TopBoundary <- eoi / [)/|] / &[a-zA-Z_] ([a-zA-Z_] [a-zA-Z0-9_]* [ \\\\t\\\\r\\\\n]* '<' / (&ParamGuard ParamAhead))\\n    ParamGuard <- [a-zA-Z_] [a-zA-Z0-9_]* [ \\\\t\\\\r\\\\n]* '('\\n    ParamAhead <- Ident Sp '(' ((![()] .)+ / ParamAhead)* ')' Sp '<'\\n\\n    Expression <- ([\\\\/|] Sp)? Sequence ([\\\\/|] Sp Sequence)*\\n    Sequence <- Prefix Sp (!SequenceBoundary Prefix Sp)*\\n    SequenceBoundary <- [)/|] / eoi\\n\\n    Prefix <- ([&!~:^;%] Sp)* Primary ([*+?] / &'{' Action)*\\n    Primary <- (Class / '(' Sp Expression ')' / Literal / Ident (&([.(]) (Params / ('.' &[a-zA-Z_] Ident)+))?) / '.'\\n    Ident <- [a-zA-Z_] [a-zA-Z0-9_]*\\n    Params <- '(' (Quoted / Params / (![()'\\\\\\\"] .)+)* ')'\\n    Action <- '{' (Quoted / Action / (![{}'\\\\\\\"] .)+)* '}'\\n    Quoted <- '\\\\'' ('\\\\\\\\' . / (!'\\\\'' .))* '\\\\'' / '\\\"' ('\\\\\\\\' . / (!'\\\"' .))* '\\\"'\\n    Literal <- Quoted 'i'?\\n    Class <- '[' '^'? ('\\\\\\\\' . / (!']' .))* ']'\\n    Sp <: [ \\\\t\\\\r\\\\n]* ('#' (!'\\\\n' .)* [ \\\\t\\\\r\\\\n]*)*\\n\",\n        \"\\nJSON:\\n    Document <- Spacing Value Spacing eoi\\n    Value <- Object / Array / String / Number / True / False / Null\\n    True <- 'true'\\n    False <- 'false'\\n    Null <- 'null'\\n    Object <- '{' Spacing (Pair (Spacing ',' Spacing Pair)*)? Spacing '}'\\n    Pair <- String Spacing ':' Spacing Value\\n    Array <- '[' Spacing (Value (Spacing ',' Spacing Value)*)? Spacing ']'\\n    String <- doublequote (backslash (doublequote / backslash / '/' / [bfnrt]\\n              / 'u' [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]) / Unescaped)* doublequote\\n    Unescaped <~ (!(doublequote / backslash / [\\\\u0000-\\\\u001f]) .)+\\n    Number <- '-'? ('0' / [1-9] [0-9]*) ('.' [0-9]+)? ([eE] ('+' / '-')? [0-9]+)?\\n    Spacing <: [ \\\\t\\\\r\\\\n]*\\n\",\n        \"Ambiguous:\\n    Start <- ('a'* 'b' / 'a'* 'c') eoi\\n\"\n    ];\n    printf(\"[\");\n    foreach (i, definition; definitions) {\n        auto result = eligibilityReport!(Memoization.selective)(definition);\n        if (result.status != Status.ok)\n            return 2;\n        if (i)\n            printf(\",\");\n        printf(\"%.*s\", cast(int)result.report.length, result.report.ptr);\n    }\n    printf(\"]\\n\");\n    return 0;\n}\n",
+  "summary": [
+    {
+      "grammar": "BenchArithmetic",
+      "rules": 7,
+      "memoized": [],
+      "leftRecursive": [],
+      "conservative": false
+    },
+    {
+      "grammar": "BenchCSV",
+      "rules": 3,
+      "memoized": [],
+      "leftRecursive": [],
+      "conservative": false
+    },
+    {
+      "grammar": "BenchNumbers",
+      "rules": 3,
+      "memoized": [],
+      "leftRecursive": [],
+      "conservative": false
+    },
+    {
+      "grammar": "BenchPEG",
+      "rules": 26,
+      "memoized": [],
+      "leftRecursive": [],
+      "conservative": false
+    },
+    {
+      "grammar": "JSON",
+      "rules": 12,
+      "memoized": [],
+      "leftRecursive": [],
+      "conservative": false
+    },
+    {
+      "grammar": "Ambiguous",
+      "rules": 1,
+      "memoized": [],
+      "leftRecursive": [],
+      "conservative": false
+    }
+  ],
+  "reports": [
+    {
+      "grammar": "BenchArithmetic",
+      "backend": "combinators",
+      "memoPolicy": "selective",
+      "conservative": false,
+      "unknownEvidence": [],
+      "actionRules": [],
+      "fallbackModes": [
+        "trace",
+        "CTFE",
+        "full-tree"
+      ],
+      "rules": [
+        {
+          "name": "BenchArithmetic.Root",
+          "rootExpression": "and!(Space, Term, eoi)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchArithmetic.Term",
+          "rootExpression": "and!(Factor, zeroOrMore!(and!(or!(literal!(\"+\"), literal!(\"-\")), Space, Factor)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchArithmetic.Factor",
+          "rootExpression": "and!(Primary, zeroOrMore!(and!(or!(literal!(\"*\"), literal!(\"/\")), Space, Primary)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchArithmetic.Primary",
+          "rootExpression": "and!(or!(and!(literal!(\"(\"), Space, Term, literal!(\")\")), and!(or!(literal!(\"+\"), literal!(\"-\")), Space, Primary), Number, Identifier), Space)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchArithmetic.Number",
+          "rootExpression": "and!(oneOrMore!(charRange!(48, 57)), option!(and!(literal!(\".\"), oneOrMore!(charRange!(48, 57)))))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchArithmetic.Identifier",
+          "rootExpression": "and!(charClass!(0x0UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL), zeroOrMore!(charClass!(0x3ff000000000000UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchArithmetic.Space",
+          "rootExpression": "discard!(zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        }
+      ]
+    },
+    {
+      "grammar": "BenchCSV",
+      "backend": "combinators",
+      "memoPolicy": "selective",
+      "conservative": false,
+      "unknownEvidence": [],
+      "actionRules": [],
+      "fallbackModes": [
+        "trace",
+        "CTFE",
+        "full-tree"
+      ],
+      "rules": [
+        {
+          "name": "BenchCSV.Root",
+          "rootExpression": "and!(Field, zeroOrMore!(and!(Sep, Field)), eoi)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchCSV.Sep",
+          "rootExpression": "or!(literal!(\",\"), and!(literal!(\"\\r\"), option!(literal!(\"\\n\"))), literal!(\"\\n\"))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchCSV.Field",
+          "rootExpression": "and!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), option!(and!(or!(and!(literal!(\"\\\"\"), zeroOrMore!(or!(literal!(\"\\\"\\\"\"), and!(negLookahead!(literal!(\"\\\"\")), any))), literal!(\"\\\"\")), oneOrMore!(and!(negLookahead!(charClass!(0x100500002600UL, 0x0UL, 0x0UL, 0x0UL)), any))), zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)))))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        }
+      ]
+    },
+    {
+      "grammar": "BenchNumbers",
+      "backend": "combinators",
+      "memoPolicy": "selective",
+      "conservative": false,
+      "unknownEvidence": [],
+      "actionRules": [],
+      "fallbackModes": [
+        "trace",
+        "CTFE",
+        "full-tree"
+      ],
+      "rules": [
+        {
+          "name": "BenchNumbers.Scientific",
+          "rootExpression": "and!(option!(charClass!(0x280000000000UL, 0x0UL, 0x0UL, 0x0UL)), oneOrMore!(charRange!(48, 57)), option!(and!(literal!(\".\"), oneOrMore!(charRange!(48, 57)))), option!(and!(charClass!(0x0UL, 0x2000000020UL, 0x0UL, 0x0UL), option!(charClass!(0x280000000000UL, 0x0UL, 0x0UL, 0x0UL)), oneOrMore!(charRange!(48, 57)))), eoi)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchNumbers.Hexa",
+          "rootExpression": "and!(oneOrMore!(charClass!(0x3ff000000000000UL, 0x7e0000007eUL, 0x0UL, 0x0UL)), eoi)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchNumbers.Binary",
+          "rootExpression": "and!(literal!(\"0b\"), charClass!(0x3000000000000UL, 0x0UL, 0x0UL, 0x0UL), zeroOrMore!(charClass!(0x3000000000000UL, 0x80000000UL, 0x0UL, 0x0UL)), eoi)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        }
+      ]
+    },
+    {
+      "grammar": "BenchPEG",
+      "backend": "combinators",
+      "memoPolicy": "selective",
+      "conservative": false,
+      "unknownEvidence": [],
+      "actionRules": [],
+      "fallbackModes": [
+        "trace",
+        "CTFE",
+        "full-tree"
+      ],
+      "rules": [
+        {
+          "name": "BenchPEG.Root",
+          "rootExpression": "and!(or!(SimpleGrammarHeader, and!(posLookahead!(GrammarHeaderGuard), FullGrammarHeader)), oneOrMore!(Definition), eoi)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.GrammarHeaderGuard",
+          "rootExpression": "and!(zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), or!(literal!(\"#\"), and!(charClass!(0x0UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL), zeroOrMore!(charClass!(0x3ff000000000000UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL)), zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), charClass!(0x10800000000UL, 0x0UL, 0x0UL, 0x0UL))))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.SimpleGrammarHeader",
+          "rootExpression": "and!(zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), charClass!(0x0UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL), zeroOrMore!(charClass!(0x3ff000000000000UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL)), zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), literal!(\":\"), Sp)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.FullGrammarHeader",
+          "rootExpression": "and!(Sp, Ident, Sp, option!(and!(posLookahead!(literal!(\"(\")), Params, Sp)), literal!(\":\"), Sp)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Definition",
+          "rootExpression": "and!(negLookahead!(eoi), DefHeader, TopExpression)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.DefHeader",
+          "rootExpression": "or!(SimpleHeader, and!(posLookahead!(DefHeaderGuard), FullHeader))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.DefHeaderGuard",
+          "rootExpression": "and!(zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), charClass!(0x0UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL), zeroOrMore!(charClass!(0x3ff000000000000UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL)), zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), charClass!(0x10800000000UL, 0x800000000000000UL, 0x0UL, 0x0UL))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.SimpleHeader",
+          "rootExpression": "and!(zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), charClass!(0x0UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL), zeroOrMore!(charClass!(0x3ff000000000000UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL)), zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), literal!(\"<\"), option!(or!(oneOrMore!(literal!(\"-\")), charClass!(0xc00002000000000UL, 0x4000000040000000UL, 0x0UL, 0x0UL))), Sp)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.FullHeader",
+          "rootExpression": "and!(Sp, Ident, Sp, option!(and!(posLookahead!(literal!(\"(\")), Params, Sp)), literal!(\"<\"), option!(or!(oneOrMore!(literal!(\"-\")), charClass!(0xc00002000000000UL, 0x4000000040000000UL, 0x0UL, 0x0UL), Action)), Sp)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.TopExpression",
+          "rootExpression": "and!(option!(and!(charClass!(0x800000000000UL, 0x1000000000000000UL, 0x0UL, 0x0UL), Sp)), TopSequence, zeroOrMore!(and!(charClass!(0x800000000000UL, 0x1000000000000000UL, 0x0UL, 0x0UL), Sp, TopSequence)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.TopSequence",
+          "rootExpression": "and!(Prefix, Sp, zeroOrMore!(and!(negLookahead!(TopBoundary), Prefix, Sp)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.TopBoundary",
+          "rootExpression": "or!(eoi, charClass!(0x820000000000UL, 0x1000000000000000UL, 0x0UL, 0x0UL), and!(posLookahead!(charClass!(0x0UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL)), or!(and!(charClass!(0x0UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL), zeroOrMore!(charClass!(0x3ff000000000000UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL)), zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), literal!(\"<\")), and!(posLookahead!(ParamGuard), ParamAhead))))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.ParamGuard",
+          "rootExpression": "and!(charClass!(0x0UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL), zeroOrMore!(charClass!(0x3ff000000000000UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL)), zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), literal!(\"(\"))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.ParamAhead",
+          "rootExpression": "and!(Ident, Sp, literal!(\"(\"), zeroOrMore!(or!(oneOrMore!(and!(negLookahead!(charClass!(0x30000000000UL, 0x0UL, 0x0UL, 0x0UL)), any)), ParamAhead)), literal!(\")\"), Sp, literal!(\"<\"))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Expression",
+          "rootExpression": "and!(option!(and!(charClass!(0x800000000000UL, 0x1000000000000000UL, 0x0UL, 0x0UL), Sp)), Sequence, zeroOrMore!(and!(charClass!(0x800000000000UL, 0x1000000000000000UL, 0x0UL, 0x0UL), Sp, Sequence)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Sequence",
+          "rootExpression": "and!(Prefix, Sp, zeroOrMore!(and!(negLookahead!(SequenceBoundary), Prefix, Sp)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.SequenceBoundary",
+          "rootExpression": "or!(charClass!(0x820000000000UL, 0x1000000000000000UL, 0x0UL, 0x0UL), eoi)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Prefix",
+          "rootExpression": "and!(zeroOrMore!(and!(charClass!(0xc00006200000000UL, 0x4000000040000000UL, 0x0UL, 0x0UL), Sp)), Primary, zeroOrMore!(or!(charClass!(0x80000c0000000000UL, 0x0UL, 0x0UL, 0x0UL), and!(posLookahead!(literal!(\"{\")), Action))))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Primary",
+          "rootExpression": "or!(or!(Class, and!(literal!(\"(\"), Sp, Expression, literal!(\")\")), Literal, and!(Ident, option!(and!(posLookahead!(charClass!(0x410000000000UL, 0x0UL, 0x0UL, 0x0UL)), or!(Params, oneOrMore!(and!(literal!(\".\"), posLookahead!(charClass!(0x0UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL)), Ident))))))), literal!(\".\"))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Ident",
+          "rootExpression": "and!(charClass!(0x0UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL), zeroOrMore!(charClass!(0x3ff000000000000UL, 0x7fffffe87fffffeUL, 0x0UL, 0x0UL)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Params",
+          "rootExpression": "and!(literal!(\"(\"), zeroOrMore!(or!(Quoted, Params, oneOrMore!(and!(negLookahead!(charClass!(0x38400000000UL, 0x0UL, 0x0UL, 0x0UL)), any)))), literal!(\")\"))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Action",
+          "rootExpression": "and!(literal!(\"{\"), zeroOrMore!(or!(Quoted, Action, oneOrMore!(and!(negLookahead!(charClass!(0x8400000000UL, 0x2800000000000000UL, 0x0UL, 0x0UL)), any)))), literal!(\"}\"))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Quoted",
+          "rootExpression": "or!(and!(literal!(\"'\"), zeroOrMore!(or!(and!(literal!(\"\\\\\"), any), and!(negLookahead!(literal!(\"'\")), any))), literal!(\"'\")), and!(literal!(\"\\\"\"), zeroOrMore!(or!(and!(literal!(\"\\\\\"), any), and!(negLookahead!(literal!(\"\\\"\")), any))), literal!(\"\\\"\")))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Literal",
+          "rootExpression": "and!(Quoted, option!(literal!(\"i\")))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Class",
+          "rootExpression": "and!(literal!(\"[\"), option!(literal!(\"^\")), zeroOrMore!(or!(and!(literal!(\"\\\\\"), any), and!(negLookahead!(literal!(\"]\")), any))), literal!(\"]\"))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "BenchPEG.Sp",
+          "rootExpression": "discard!(and!(zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)), zeroOrMore!(and!(literal!(\"#\"), zeroOrMore!(and!(negLookahead!(literal!(\"\\n\")), any)), zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL))))))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        }
+      ]
+    },
+    {
+      "grammar": "JSON",
+      "backend": "combinators",
+      "memoPolicy": "selective",
+      "conservative": false,
+      "unknownEvidence": [],
+      "actionRules": [],
+      "fallbackModes": [
+        "trace",
+        "CTFE",
+        "full-tree"
+      ],
+      "rules": [
+        {
+          "name": "JSON.Document",
+          "rootExpression": "and!(Spacing, Value, Spacing, eoi)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.Value",
+          "rootExpression": "or!(Object, Array, String, Number, True, False, Null)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.True",
+          "rootExpression": "literal!(\"true\")",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.False",
+          "rootExpression": "literal!(\"false\")",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.Null",
+          "rootExpression": "literal!(\"null\")",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.Object",
+          "rootExpression": "and!(literal!(\"{\"), Spacing, option!(and!(Pair, zeroOrMore!(and!(Spacing, literal!(\",\"), Spacing, Pair)))), Spacing, literal!(\"}\"))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.Pair",
+          "rootExpression": "and!(String, Spacing, literal!(\":\"), Spacing, Value)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.Array",
+          "rootExpression": "and!(literal!(\"[\"), Spacing, option!(and!(Value, zeroOrMore!(and!(Spacing, literal!(\",\"), Spacing, Value)))), Spacing, literal!(\"]\"))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.String",
+          "rootExpression": "and!(doublequote, zeroOrMore!(or!(and!(backslash, or!(doublequote, backslash, literal!(\"/\"), charClass!(0x0UL, 0x14404400000000UL, 0x0UL, 0x0UL), and!(literal!(\"u\"), charClass!(0x3ff000000000000UL, 0x7e0000007eUL, 0x0UL, 0x0UL), charClass!(0x3ff000000000000UL, 0x7e0000007eUL, 0x0UL, 0x0UL), charClass!(0x3ff000000000000UL, 0x7e0000007eUL, 0x0UL, 0x0UL), charClass!(0x3ff000000000000UL, 0x7e0000007eUL, 0x0UL, 0x0UL)))), Unescaped)), doublequote)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.Unescaped",
+          "rootExpression": "fuse!(oneOrMore!(and!(negLookahead!(or!(doublequote, backslash, charRange!(0, 31))), any)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.Number",
+          "rootExpression": "and!(option!(literal!(\"-\")), or!(literal!(\"0\"), and!(charRange!(49, 57), zeroOrMore!(charRange!(48, 57)))), option!(and!(literal!(\".\"), oneOrMore!(charRange!(48, 57)))), option!(and!(charClass!(0x0UL, 0x2000000020UL, 0x0UL, 0x0UL), option!(or!(literal!(\"+\"), literal!(\"-\"))), oneOrMore!(charRange!(48, 57)))))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        },
+        {
+          "name": "JSON.Spacing",
+          "rootExpression": "discard!(zeroOrMore!(charClass!(0x100002600UL, 0x0UL, 0x0UL, 0x0UL)))",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        }
+      ]
+    },
+    {
+      "grammar": "Ambiguous",
+      "backend": "combinators",
+      "memoPolicy": "selective",
+      "conservative": false,
+      "unknownEvidence": [],
+      "actionRules": [],
+      "fallbackModes": [
+        "trace",
+        "CTFE",
+        "full-tree"
+      ],
+      "rules": [
+        {
+          "name": "Ambiguous.Start",
+          "rootExpression": "and!(or!(and!(zeroOrMore!(literal!(\"a\")), literal!(\"b\")), and!(zeroOrMore!(literal!(\"a\")), literal!(\"c\"))), eoi)",
+          "known": true,
+          "actionful": false,
+          "leftRecursive": false,
+          "memoized": false,
+          "scalarEligible": false,
+          "scalarBlockers": [
+            "backend-combinators"
+          ],
+          "directRecognition": false,
+          "directRecords": false,
+          "directFallback": "backend-combinators",
+          "selectorConfigured": false,
+          "recordKind": 4294967295,
+          "recordSelected": false,
+          "recordLeaf": false,
+          "recordSubtree": false
+        }
+      ]
+    }
+  ],
+  "sourceHashes": {
+    "src/npegged/analysis.d": "01373e35f59c47793f7a873bbbe25b9f6fe9429f90f5026cb68ffec66ad8416d",
+    "src/npegged/conversion.d": "56574a0dd8a74bd3b4ba28afd2163907194dbd8950f2dbb4204d8dd95e6921e4",
+    "src/npegged/definition.d": "bd4f31d355b30d17b6146d407554942b60a2032e30c01574979a1af21d5edcc4",
+    "src/npegged/dfa.d": "2e07ee2a132081878b8ad131b2ffef741fccb5fd2eb2b62e1be5f7c0e7674cc8",
+    "src/npegged/formatting.d": "283d0967311dfcd1b74a96de75f8407e644c1f5608fde607609f89771e008078",
+    "src/npegged/grammar.d": "be1b8de0c60f8d2c1ec9e750f70d8febb7607600068ad1530ce0a292b8b95c15",
+    "src/npegged/introspection.d": "56595354469328ef5ab0d912806b3ef0637eb2d7abb804b02d3eaca439b039cb",
+    "src/npegged/io.d": "0a01d47fc1eed72ddbcb0b52dfce28e4d345ac53bc869193e9041d203483f0e2",
+    "src/npegged/meta.d": "a89d3799c3201bc1ad7b73c4d1814032922c95670ee684f64c1e39bd8b98e6f2",
+    "src/npegged/parser.d": "d1a5509c68fdcba5ba72b2759022e62d9d501d27af340e4d93e06c8882073a1a",
+    "src/npegged/peg.d": "d387c020fc38d36078903791d3718d92ca0a97ad76ec7698c0c0b103696a1341",
+    "src/npegged/records.d": "9604a081d1be48b0c866bf48bef6d4faa38533421a5dda730650de467a0b91de",
+    "src/npegged/storage.d": "65c7282acae4e6f8b79681fcccb6e99c6e76026f60d8c7434acace9bda9601f6",
+    "src/npegged/tester/grammartester.d": "4d5fd75ca6d648a8bfb873ca6706220397784b8a14e0fda14f5f411c44c20200",
+    "src/npegged/tester/testerparser.d": "fc3e6d735a45885f89b7ed0955d481cd376b9a262f7db975445afcbc77e32bd6",
+    "src/npegged/tohtml.d": "f0fb840a186b77948c122cfe5c7637be1e5d753eb14422ceef7196fada84fa9c",
+    "src/npegged/unicode.d": "d87bfacec181f02ed439ec244942359457ab5de28693bf044f3f2f008a00bebd",
+    "benchmark/workload_grammars.d": "ef81f58db4d26750d701fda7012ae04dd2533a2684b12138f3cc3097d5f8e431",
+    "benchmark/json_grammar.d": "1595833be230972469d57246a1f86396cd3c3563f082f4a6d5e3e8acbcbe4476",
+    "benchmark/ambiguous_npegged.d": "71145e8242240d6c1cfd3db500638b7d71066fa1e3b465f8058552421979397f"
+  }
+}
