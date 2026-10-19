@@ -34,6 +34,8 @@ struct Target {
 struct Coverage {
 nothrow:
     Target[] targets;
+    /// Exact repetition counts observed in accepted derivations: repeatCounts[node][n] = occurrences of n iterations.
+    ulong[][] repeatCounts;
     size_t attributed; // accepted samples the matcher could attribute
     size_t unattributed; // accepted samples the matcher could not follow (unknown nodes or disagreement)
 
@@ -62,6 +64,8 @@ nothrow:
 
 private struct Event {
     size_t target;
+    size_t node = size_t.max; // repetition node, for exact-count statistics
+    size_t count;
 }
 
 struct Attributor {
@@ -69,7 +73,7 @@ nothrow:
     GrammarAnalysis* graph;
     Coverage* coverage;
     private string input;
-    private size_t[] events; // target indices of the current derivation, rolled back on failure
+    private Event[] events; // targets of the current derivation, rolled back on failure
     private bool unsupported;
 
     private size_t depthLimit = 400;
@@ -130,7 +134,7 @@ nothrow:
                 if (end >= 0) {
                     const target = coverage.find(index, TargetKind.alternative, i);
                     if (target != size_t.max)
-                        events ~= target;
+                        events ~= Event(target);
                     return end;
                 }
                 events.length = mark;
@@ -145,7 +149,7 @@ nothrow:
             const target = coverage.find(index, taken ? TargetKind.optionalTaken : TargetKind
                     .optionalSkipped);
             if (target != size_t.max)
-                events ~= target;
+                events ~= Event(target);
             return taken ? end : cast(ptrdiff_t)pos;
         case ExpressionKind.repetition:
             return repeatLoop(index, node.children[0], pos, depth, 0);
@@ -181,8 +185,7 @@ nothrow:
         const kind = count == 0 ? TargetKind.repeatNone : count == 1 ? TargetKind.repeatOne : TargetKind
             .repeatMany;
         const target = coverage.find(index, kind);
-        if (target != size_t.max)
-            events ~= target;
+        events ~= Event(target, index, count);
         return at;
     }
 
@@ -196,8 +199,17 @@ nothrow:
             ++coverage.unattributed;
             return false;
         }
-        foreach (target; events)
-            ++coverage.targets[target].hits;
+        foreach (event; events) {
+            if (event.target != size_t.max)
+                ++coverage.targets[event.target].hits;
+            if (event.node != size_t.max) {
+                auto histogram = &coverage.repeatCounts[event.node];
+                const bucket = event.count < 4096 ? event.count : 4096;
+                if (histogram.length <= bucket)
+                    histogram.length = bucket + 1;
+                ++(*histogram)[bucket];
+            }
+        }
         ++coverage.attributed;
         return true;
     }
@@ -207,6 +219,7 @@ nothrow:
 Coverage buildTargets(ref GrammarAnalysis graph, size_t startRule) nothrow {
     Coverage coverage;
     const count = graph.expressions.length;
+    coverage.repeatCounts = new ulong[][count];
     auto reachable = new bool[count];
     void reach(size_t index) nothrow {
         if (index >= count || reachable[index])

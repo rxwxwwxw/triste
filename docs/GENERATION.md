@@ -78,3 +78,22 @@ corpus records how it was made. Same grammar, seed and policy reproduce the stre
 
 Tests (`tests/policy_generation.d`): 80%/10% distribution, disabled branch, malformed and unbound policies, long-tail histogram, optional
 probability (0.9 and 0), attenuation shortening recursive derivations, and output-budget failures (not truncated samples).
+
+## G5: learning weights from representative inputs (`learnPolicy!(parser)`, `compareToHoldout!(parser)`, `src/npegged/learning.d`)
+
+Every corpus input is parsed with the real rule; only inputs accepted with the whole input consumed are learned from, and each is
+replayed through the reference derivation (the G3 `Attributor`) to count which alternative each choice took, whether each `e?` was
+taken, and exact repetition counts. `LearnedModel` reports `accepted` (used), `invalid` (rejected by the parser, ignored),
+`unattributable` (accepted but not followable, e.g. actions or left recursion; ignored; no action is ever executed), a G4 `policyText`
+(alternative weights = counts + smoothing, default 1, optional probabilities in thousandths, histograms of observed counts), and a
+`provenance` string.
+
+Limits, stated in the model: it is a **marginal** model. Each construct is modeled independently of context (a rule reached from
+two parents shares one statistic; correlations between neighbors, token classes or depth are lost), so it does not reproduce the
+joint distribution of real inputs, and it inherits the corpus's sampling bias. Counts are commutative: replaying a corpus in any
+order gives the same text.
+
+`compareToHoldout` gives holdout distances (permille): mean absolute difference of alternative shares and total variation of
+power-of-two length buckets, plus mean lengths. Test (`tests/learning.d`): from a 3000-input corpus with known weights, the learned
+`'a'` share is within ±6 points of 70%, the learned policy's regenerated samples are closer to a held-out corpus than default
+weights (share distance < 60 permille), noise (invalid, unattributable) is ignored with exact counts, and the model is reproducible.

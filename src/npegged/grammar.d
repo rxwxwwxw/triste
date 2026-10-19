@@ -12,6 +12,7 @@ import npegged.language : Budget;
 public import npegged.generator : CandidateGenerator, GeneratorOptions, GenStatus;
 import npegged.coverage : Coverage, Attributor, buildTargets, TargetKind;
 import npegged.policy : parsePolicy, applyPolicy, policyMetadata;
+import npegged.learning : Learner, shareDistance, lengthDistance;
 import npegged.ll : classifyRegions, renderRegions, renderEbnf, RegionClass, firstCertifiedRules;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
@@ -4118,6 +4119,99 @@ PolicyGeneration generateWithPolicy(alias parser)(string definition, string star
     }
     result.accepted.status = Status.ok;
     return result;
+}
+
+/// Weights learned from a corpus (G5). Marginal per-construct statistics; see `npegged.learning` for the limits.
+struct LearnedModel {
+    Status status = Status.invalidInput;
+    Diagnostic diagnostic;
+    size_t accepted; /// inputs the parser accepted and the derivation could follow (used for learning)
+    size_t invalid; /// inputs the parser rejected (ignored)
+    size_t unattributable; /// accepted inputs the derivation could not follow (ignored)
+    string policyText; /// G4 policy
+    string provenance;
+    ulong[] choiceShares; /// observed alternative shares in permille per choice, flattened
+}
+
+/// Learn a policy from `corpus` by parsing every input with the real rule `parser` (full acceptance required to learn from it).
+LearnedModel learnPolicy(alias parser)(string definition, string startRule, const string[] corpus, size_t smoothing = 1) nothrow {
+    LearnedModel result;
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    frontend.prepareAnalysis();
+    const rule = frontend.analyzed.ruleIndex(startRule);
+    if (rule == size_t.max) {
+        result.diagnostic = Diagnostic(0, "Unknown start rule");
+        return result;
+    }
+    auto learner = Learner(frontend.analyzed, rule);
+    foreach (text; corpus) {
+        ParseContext context;
+        auto verdict = check!parser(context, text);
+        learner.observe(text, verdict.status == Status.ok && verdict.successful && verdict.end == text
+                .length);
+    }
+    result.accepted = learner.learned();
+    result.invalid = learner.invalid;
+    result.unattributable = learner.ignoredUnattributed;
+    result.policyText = learner.policyText(smoothing);
+    result.choiceShares = learner.choiceShares();
+    result.provenance = "learned from " ~ number(corpus.length) ~ " input(s): " ~ number(
+            result.accepted) ~ " used, " ~ number(result.invalid) ~ " invalid ignored, " ~ number(
+            result.unattributable) ~ " unattributable ignored; smoothing " ~ number(
+            smoothing)
+        ~ "; marginal statistics (no context), sampling bias of the corpus is inherited";
+    result.status = Status.ok;
+    return result;
+}
+
+/// Holdout comparison (G5): how close generated samples are to real ones, in permille (0 = identical).
+struct HoldoutReport {
+    Status status = Status.invalidInput;
+    size_t choiceShareDistance; /// mean absolute difference of alternative shares
+    size_t lengthDistance; /// total variation distance of power-of-two length buckets
+    size_t realMeanLength, generatedMeanLength;
+}
+
+HoldoutReport compareToHoldout(alias parser)(string definition, string startRule,
+        const string[] holdout, const string[] generated) nothrow {
+    HoldoutReport report;
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length)
+        return report;
+    frontend.prepareAnalysis();
+    const rule = frontend.analyzed.ruleIndex(startRule);
+    if (rule == size_t.max)
+        return report;
+    auto observed = Learner(frontend.analyzed, rule);
+    auto synthetic = Learner(frontend.analyzed, rule);
+    foreach (text; holdout) {
+        ParseContext context;
+        auto verdict = check!parser(context, text);
+        observed.observe(text, verdict.status == Status.ok && verdict.successful && verdict.end == text
+                .length);
+        report.realMeanLength += text.length;
+    }
+    foreach (text; generated) {
+        ParseContext context;
+        auto verdict = check!parser(context, text);
+        synthetic.observe(text, verdict.status == Status.ok && verdict.successful && verdict.end == text
+                .length);
+        report.generatedMeanLength += text.length;
+    }
+    report.realMeanLength = holdout.length ? report.realMeanLength / holdout.length : 0;
+    report.generatedMeanLength = generated.length ? report.generatedMeanLength / generated.length : 0;
+    report.choiceShareDistance = shareDistance(observed.choiceShares(), synthetic.choiceShares());
+    report.lengthDistance = lengthDistance(holdout, generated);
+    report.status = Status.ok;
+    return report;
 }
 
 /// Bounded literal-prefix discrimination report for ordered choice alternatives.
