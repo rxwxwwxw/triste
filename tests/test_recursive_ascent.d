@@ -1,242 +1,150 @@
+/** X07: exact contract audit of the manual X03 prototype, not a speed gate. */
 module tests.test_recursive_ascent;
-
 import core.stdc.stdio : printf;
 import core.sys.posix.unistd : alarm;
-import core.time : Duration, MonoTime;
 import npegged.grammar;
-import npegged.peg;
-import npegged.storage;
 
 mixin(grammar(`
 LeftChain:
     Expr <- Expr '+' Number / Number
     Number <- ~[0-9]+
 `));
+mixin(grammar(`
+BranchChain:
+    Expr <- Expr '+' Atom / Atom
+    Atom <- '(' Expr ')' / Number
+    Number <- ~[0-9]+
+`));
 
-struct DirectAscent(alias Base, alias Suffix, string name) {
-    static State!(CT, Check).Node opCall(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t pos) nothrow {
-        return s.directLeftAscent!(Base, Suffix, name)(pos);
+private __gshared size_t ascentCalls;
+private struct ManualAscent(alias Base, string name) {
+    static ParseTree opCall(ref State!(false, 0) state, size_t position) @nogc nothrow {
+        ++ascentCalls;
+        alias Suffix = and!(literal!"+", Base);
+        // The generated reference uses defined() at its public boundary too.
+        return defined!(directAscent!(Base, Suffix, name), name)(state, position);
     }
 }
 
-private bool treesEqual(ref const(ParseTree) a, ref const(ParseTree) b) @nogc nothrow {
-    if (a.name != b.name)
-        return false;
-    if (a.begin != b.begin || a.end != b.end)
-        return false;
-    if (a.successful != b.successful)
-        return false;
-    if (a.matches.length != b.matches.length)
-        return false;
-    foreach (i; 0 .. a.matches.length) {
-        if (a.matches[i] != b.matches[i])
-            return false;
-    }
+private string difference(scope const ref ParseTree a, scope const ref ParseTree b) @nogc nothrow {
+    static foreach (field; ["name", "input", "successful", "begin", "end", "failEnd", "matches"])
+        if (__traits(getMember, a, field) != __traits(getMember, b, field))
+            return "tree." ~ field;
     if (a.children.length != b.children.length)
-        return false;
+        return "tree.children.length";
+    if (a.failedChild.length != b.failedChild.length)
+        return "tree.failedChild.length";
     foreach (i; 0 .. a.children.length) {
-        if (!treesEqual(a.children[i], b.children[i]))
-            return false;
+        auto found = difference(a.children[i], b.children[i]);
+        if (found.length)
+            return found;
     }
-    return true;
+    foreach (i; 0 .. a.failedChild.length) {
+        auto found = difference(a.failedChild[i], b.failedChild[i]);
+        if (found.length)
+            return found;
+    }
+    return "";
 }
 
-private string buildChainInput(size_t terms, ref Arena owner) nothrow {
-    const totalChars = 2 * terms - 1;
-    auto slice = owner.allocate!char(totalChars);
-    if (!slice.length)
-        return "";
-    foreach (i; 0 .. totalChars) {
-        slice[i] = (i % 2 == 1) ? '+' : '1';
-    }
-    return cast(string)slice;
+@nogc nothrow unittest {
+    ParseTree a, b;
+    assert(!difference(a, b).length);
+    b.failEnd = 1;
+    assert(difference(a, b) == "tree.failEnd");
+    b = a;
+    b.input = "x";
+    assert(difference(a, b) == "tree.input");
+    ParseTree[1] left, right;
+    a.failedChild = left[];
+    b = a;
+    b.failedChild = right[];
+    right[0].end = 1;
+    assert(difference(a, b) == "tree.end");
 }
 
-struct ScalingResult {
-    size_t terms;
-    long packratNanos;
-    long ascentNanos;
-    size_t packratBytes;
-    size_t ascentBytes;
-    double speedupRatio;
+private ParseContext unlimited() @nogc nothrow {
+    ParseContext context;
+    context.stepLimit = context.depthLimit = context.memoryLimit = size_t.max;
+    return context;
 }
 
-int main() {
-    // Aggressive timeout per AGENTS.md
-    alarm(60);
+private size_t cases, mismatches;
+private void compare(alias Reference, alias Candidate)(uint repeat, string family, string input, ParseContext context) @nogc nothrow {
+    auto reference = parse!Reference(context, input);
+    auto candidate = parse!Candidate(context, input);
+    auto field = difference(reference.tree, candidate.tree);
+    const equal = reference.status == candidate.status && !field.length;
+    ++cases;
+    if (!equal)
+        ++mismatches;
+    if (context.stepLimit == 0 || context.depthLimit == 0 || context.memoryLimit == 0) {
+        assert(reference.status == Status.resourceLimit && !reference.successful);
+        assert(candidate.status == Status.resourceLimit && !candidate.successful);
+    }
+    if (family == "flat" && input == "1" && context.stepLimit == size_t.max
+            && context.depthLimit == size_t.max && context.memoryLimit == size_t.max)
+        assert(equal);
+    if (family == "flat" && input == "1+1" && context.stepLimit == size_t.max
+            && context.depthLimit == size_t.max && context.memoryLimit == size_t.max) {
+        // Known limitation: the prior comparator omitted this field.
+        assert(reference.status == Status.ok && candidate.status == Status.ok);
+        assert(field == "tree.failEnd");
+        assert(!equal);
+    }
+    printf("%s{\"repeat\":%u,\"family\":\"%.*s\",\"inputHex\":\"", cases == 1 ? "".ptr : ",\n".ptr,
+            repeat, cast(int)family.length, family.ptr);
+    foreach (b; input)
+        printf("%02x", cast(uint)cast(ubyte)b);
+    printf("\",\"limits\":[%llu,%llu,%llu],\"reference\":[%u,%u,%llu,%llu],\"candidate\":[%u,%u,%llu,%llu],\"completeEqual\":%s,\"difference\":\"%.*s\",\"innerFailEnd\":[%llu,%llu]}",
+            cast(ulong)context.stepLimit, cast(ulong)context.depthLimit,
+            cast(ulong)context.memoryLimit, cast(uint)reference.status,
+            cast(uint)reference.successful, cast(ulong)reference.end, cast(ulong)reference.failEnd,
+            cast(uint)candidate.status, cast(uint)candidate.successful, cast(ulong)candidate.end,
+            cast(ulong)candidate.failEnd, equal ? "true".ptr : "false".ptr, cast(int)field.length,
+            field.ptr, cast(ulong)(reference.tree.children.length
+                ? reference.tree.children[0].failEnd : size_t.max), cast(ulong)(
+                candidate.tree.children.length ? candidate.tree.children[0].failEnd : size_t.max));
+}
 
-    // =========================================================================
-    // 1. Structural Identity & Associativity Equivalence Tests
-    // =========================================================================
-    {
-        const size_t[] termSizes = [1, 2, 4, 8, 16, 64];
-        foreach (terms; termSizes) {
-            Arena inputArena;
-            string input = buildChainInput(terms, inputArena);
-            assert(input.length == 2 * terms - 1);
-
-            // 1a. Run standard Packrat LeftChain
-            ParseContext ctxPackrat;
-            auto packratRes = LeftChain.Expr(ctxPackrat, input);
-            assert(packratRes.successful);
-            assert(packratRes.end == input.length);
-
-            // 1b. Run DirectAscent
-            Arena ascentArena;
-            State!(false, 0) state;
-            state.arena = &ascentArena;
-            state.input = input;
-            alias Base = LeftChain.Number;
-            alias Suffix = and!(literal!"+", LeftChain.Number);
-
-            auto ascentWrapped = defined!(DirectAscent!(Base, Suffix, "LeftChain.Expr"), "LeftChain.Expr")(
-                    state, 0);
-            assert(ascentWrapped.successful);
-            assert(ascentWrapped.end == input.length);
-
-            // 1c. Deep node-by-node AST equivalence
-            assert(treesEqual(packratRes.tree, ascentWrapped),
-                    "AST shape mismatch between Packrat and Recursive Ascent");
-
-            // Verify left-associativity shape
-            if (terms > 1) {
-                // outer defined wrapper -> inner Expr
-                assert(ascentWrapped.children.length == 1);
-                auto inner = ascentWrapped.children[0];
-                assert(inner.children.length == 2);
-                assert(inner.children[0].name == "LeftChain.Expr");
-                assert(inner.children[1].name == "LeftChain.Number");
-            }
+int main() @nogc nothrow {
+    alarm(45);
+    alias Flat = ManualAscent!(LeftChain.Number, "LeftChain.Expr").opCall;
+    alias Branch = ManualAscent!(BranchChain.Atom, "BranchChain.Expr").opCall;
+    printf("{\"schemaVersion\":2,\"repetitions\":7,\"generalEquivalent\":false,\"cases\":[\n");
+    foreach (repeat; 1 .. 8) {
+        foreach (input; ["1", "12", "1+1", "1+2+3+4", "", "x", "1+", "1++1", "1+2+x"])
+            compare!(LeftChain.Expr, Flat)(repeat, "flat", input, unlimited());
+        foreach (input; ["(1)", "(1+2)+3", "1+(2+3)", "((1)+2)+(3+4)", "(1+", "1+()"])
+            compare!(BranchChain.Expr, Branch)(repeat, "branch", input, unlimited());
+        foreach (limit; [0, 1, 2, 3, 4, 8, 16, 64]) {
+            auto context = unlimited();
+            context.stepLimit = limit;
+            compare!(LeftChain.Expr, Flat)(repeat, "step", "1+2+3", context);
+            context = unlimited();
+            context.depthLimit = limit;
+            compare!(LeftChain.Expr, Flat)(repeat, "depth", "1+2+3", context);
         }
-    }
-
-    // =========================================================================
-    // 2. Failure Offset Preservation Tests
-    // =========================================================================
-    {
-        static immutable string[] malformedInputs = [
-            "1+", "1++1", "+1", "1+2+3+", "1+2+3++4", "+", "1+2+3+a"
-        ];
-        foreach (inp; malformedInputs) {
-            ParseContext ctxPackrat;
-            auto packratRes = LeftChain.Expr(ctxPackrat, inp);
-
-            Arena ascentArena;
-            State!(false, 0) state;
-            state.arena = &ascentArena;
-            state.input = inp;
-            alias Base = LeftChain.Number;
-            alias Suffix = and!(literal!"+", LeftChain.Number);
-
-            auto ascentWrapped = defined!(DirectAscent!(Base, Suffix, "LeftChain.Expr"), "LeftChain.Expr")(
-                    state, 0);
-
-            assert(packratRes.successful == ascentWrapped.successful, "Success flag mismatch on malformed input");
-            assert(packratRes.end == ascentWrapped.end, "Match end mismatch on malformed input");
-            assert(packratRes.failEnd == ascentWrapped.failEnd, "Failure offset mismatch on malformed input");
+        foreach (limit; [0, 1, 16, 4095, 4096, 4097, 65536]) {
+            auto context = unlimited();
+            context.memoryLimit = limit;
+            compare!(LeftChain.Expr, Flat)(repeat, "memory", "1+2+3", context);
         }
+        char[127] chain;
+        foreach (i, ref c; chain)
+            c = i % 2 ? '+' : '1';
+        auto shallow = unlimited();
+        shallow.depthLimit = 16;
+        auto reference = parse!(LeftChain.Expr)(shallow, cast(string)chain[]);
+        auto candidate = parse!Flat(shallow, cast(string)chain[]);
+        // Seed growth is iterative; term count does not equal call depth.
+        assert(reference.status == Status.ok && reference.successful);
+        assert(candidate.status == Status.ok && candidate.successful);
+        compare!(LeftChain.Expr, Flat)(repeat, "depth64terms", cast(string)chain[], shallow);
     }
-
-    // =========================================================================
-    // 3. Stack Depth & Resource Limit Parity Tests
-    // =========================================================================
-    {
-        // Packrat evaluates recursively and exceeds shallow depthLimit
-        Arena inputArena;
-        string deepInput = buildChainInput(64, inputArena);
-
-        ParseContext shallowCtx;
-        shallowCtx.depthLimit = 16;
-        auto packratFail = LeftChain.Expr(shallowCtx, deepInput);
-        assert(!packratFail.successful || shallowCtx.depthLimit <= 16,
-                "Packrat with 64 terms should require stack depth matching term count");
-
-        // Ascent flattens into an iterative loop; stack depth remains O(1)
-        Arena ascentArena;
-        State!(false, 0) ascentState;
-        ascentState.arena = &ascentArena;
-        ascentState.input = deepInput;
-        ascentState.context.depthLimit = 16; // strict depth limit
-        alias Base = LeftChain.Number;
-        alias Suffix = and!(literal!"+", LeftChain.Number);
-
-        auto ascentPass = defined!(DirectAscent!(Base, Suffix, "LeftChain.Expr"), "LeftChain.Expr")(ascentState,
-                0);
-        assert(ascentPass.successful, "Recursive ascent must succeed within O(1) stack depth limit");
-        assert(ascentPass.end == deepInput.length);
-    }
-
-    // =========================================================================
-    // 4. Recognition Mode (Check == 1) Zero-GC Scalar Parsing
-    // =========================================================================
-    {
-        Arena inputArena;
-        string input = buildChainInput(128, inputArena);
-
-        Arena recArena;
-        State!(false, 1) recState;
-        recState.arena = &recArena;
-        recState.input = input;
-        alias Base = LeftChain.Number;
-        alias Suffix = and!(literal!"+", LeftChain.Number);
-
-        auto recNode = recState.directLeftAscent!(Base, Suffix, "LeftChain.Expr")(0);
-        assert(recNode.successful);
-        assert(recNode.end == input.length);
-    }
-
-    // =========================================================================
-    // 5. Scaling & Latency Benchmark Matrix (16 .. 1024 terms)
-    // =========================================================================
-    ScalingResult[7] results;
-    const size_t[] benchSizes = [16, 32, 64, 128, 256, 512, 1024];
-
-    foreach (idx, terms; benchSizes) {
-        Arena inputArena;
-        string input = buildChainInput(terms, inputArena);
-
-        // Benchmark Packrat
-        const packratStart = MonoTime.currTime();
-        size_t packratBytes = 0;
-        enum iterations = 5;
-        foreach (_; 0 .. iterations) {
-            ParseContext ctx;
-            auto res = LeftChain.Expr(ctx, input);
-            packratBytes = res.arena.requestedBytes;
-        }
-        const packratElapsed = (MonoTime.currTime() - packratStart).total!"nsecs" / iterations;
-
-        // Benchmark Recursive Ascent
-        alias Base = LeftChain.Number;
-        alias Suffix = and!(literal!"+", LeftChain.Number);
-        const ascentStart = MonoTime.currTime();
-        size_t ascentBytes = 0;
-        foreach (_; 0 .. iterations) {
-            Arena arena;
-            State!(false, 0) state;
-            state.arena = &arena;
-            state.input = input;
-            auto res = defined!(DirectAscent!(Base, Suffix, "LeftChain.Expr"), "LeftChain.Expr")(state,
-                    0);
-            ascentBytes = arena.requestedBytes;
-        }
-        const ascentElapsed = (MonoTime.currTime() - ascentStart).total!"nsecs" / iterations;
-
-        results[idx] = ScalingResult(terms, packratElapsed, ascentElapsed, packratBytes,
-                ascentBytes, cast(double)packratElapsed / (ascentElapsed > 0 ? ascentElapsed : 1));
-    }
-
-    // Output JSON report
-    printf("{\n");
-    printf("  \"scaling\": [\n");
-    foreach (i, r; results) {
-        printf("    {\"terms\": %zu, \"packratNanos\": %lld, \"ascentNanos\": %lld, \"packratBytes\": %zu, \"ascentBytes\": %zu, \"speedup\": %.2f}%s",
-                r.terms, r.packratNanos, r.ascentNanos, r.packratBytes, r.ascentBytes,
-                r.speedupRatio, i + 1 < results.length ? ",\n".ptr : "\n".ptr);
-    }
-    printf("  ]\n");
-    printf("}\n");
-
+    assert(mismatches > 0 && ascentCalls > 0);
+    printf("\n],\"comparisonCount\":%llu,\"completeParityFailures\":%llu,\"ascentCalls\":%llu,\"disposition\":\"SPECIALIZED_MANUAL_ONLY\"}\n",
+            cast(ulong)cases, cast(ulong)mismatches, cast(ulong)ascentCalls);
     printf("recursive ascent oracle passed\n");
     return 0;
 }

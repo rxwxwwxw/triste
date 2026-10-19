@@ -1,0 +1,40 @@
+==774798== Memcheck, a memory error detector
+==774798== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
+==774798== Using Valgrind-3.25.1 and LibVEX; rerun with -h for copyright info
+==774798== Command: build/X07/memcheck
+==774798== 
+==774798== 
+==774798== HEAP SUMMARY:
+==774798==     in use at exit: 120 bytes in 2 blocks
+==774798==   total heap usage: 2,635 allocs, 2,633 frees, 9,783,246 bytes allocated
+==774798== 
+==774798== 24 bytes in 1 blocks are still reachable in loss record 1 of 2
+==774798==    at 0x4908250: realloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==774798==    by 0x403B71D: core.internal.container.common.xrealloc(void*, ulong) (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x403B0EB: core.internal.container.array.Array!(core.gc.gcinterface.Range).Array.length(ulong) (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x403B519: core.internal.container.array.Array!(core.gc.gcinterface.Range).Array.insertBack!().insertBack(core.gc.gcinterface.Range) (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x404778C: _DThn16_4core8internal2gc4impl5protoQo7ProtoGC8addRangeMFNbNiPvmxC8TypeInfoZv (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x402EF3D: rt.memory.initStaticDataGC().__foreachbody_L21_C5(ref rt.sections_elf_shared.DSO) (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x40306A8: rt.sections_elf_shared.DSO.opApply(scope int(ref rt.sections_elf_shared.DSO) delegate) (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x402D4E3: rt_init (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x402D98C: rt.dmain2._d_run_main2(char[][], ulong, extern(C) int(char[][]) function).runAll() (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x402D8D1: _d_run_main2 (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x402D73C: _d_run_main (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x4A8ED0D: (below main) (libc_start_call_main.h:59)
+==774798== 
+==774798== 96 bytes in 1 blocks are still reachable in loss record 2 of 2
+==774798==    at 0x4908250: realloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==774798==    by 0x4037F40: core.gc.registry.registerGCFactory(immutable(char)[], core.gc.gcinterface.GC() function, void(core.thread.threadbase.ThreadBase) nothrow @nogc function) (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798==    by 0x4A8EEBE: call_init (libc-start.c:144)
+==774798==    by 0x4A8EEBE: __libc_start_main@@GLIBC_2.34 (libc-start.c:359)
+==774798==    by 0x4019C34: (below main) (in /home/alex-work/repos/triste/build/X07/memcheck)
+==774798== 
+==774798== LEAK SUMMARY:
+==774798==    definitely lost: 0 bytes in 0 blocks
+==774798==    indirectly lost: 0 bytes in 0 blocks
+==774798==      possibly lost: 0 bytes in 0 blocks
+==774798==    still reachable: 120 bytes in 2 blocks
+==774798==         suppressed: 0 bytes in 0 blocks
+==774798== 
+==774798== For lists of detected and suppressed errors, rerun with: -s
+==774798== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
