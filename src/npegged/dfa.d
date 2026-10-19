@@ -405,9 +405,123 @@ private struct DfaStorage(alias Table) {
     static immutable automaton = compiled;
 }
 
+/// Largest DFA lowered to straight-line state code; bigger tables use the generic loop.
+private enum codeScannerStateLimit = 48;
+
+private string unsignedText(size_t value) pure nothrow @safe {
+    char[20] digits;
+    size_t count;
+    do {
+        digits[count++] = cast(char)('0' + value % 10);
+        value /= 10;
+    }
+    while (value);
+    string result;
+    while (count)
+        result ~= digits[--count];
+    return result;
+}
+
+@safe pure nothrow unittest {
+    static assert(unsignedText(0) == "0" && unsignedText(7) == "7" && unsignedText(1204) == "1204");
+}
+
+private string hexText(ulong value) pure nothrow @safe {
+    string result;
+    foreach_reverse (nibble; 0 .. 16)
+        result ~= "0123456789abcdef"[(value >> (nibble * 4)) & 15];
+    return result;
+}
+
+@safe pure nothrow unittest {
+    static assert(hexText(0) == "0000000000000000" && hexText(0x1f2a) == "0000000000001f2a");
+}
+
+/// `case` labels (ranges for consecutive bytes) of every byte `state` sends to `target`.
+private string emitRuns(const Automaton automaton, size_t state, ubyte target) pure nothrow @safe {
+    string labels;
+    size_t c;
+    while (c < 256) {
+        if (automaton.transitions[state][c] != target) {
+            ++c;
+            continue;
+        }
+        size_t last = c;
+        while (last + 1 < 256 && automaton.transitions[state][last + 1] == target)
+            ++last;
+        labels ~= "case " ~ unsignedText(c) ~ ":" ~ (last > c ? " .. case " ~ unsignedText(last) ~ ":" : "") ~ "\n";
+        c = last + 1;
+    }
+    return labels;
+}
+
+/// CTFE source for a scanner that keeps the DFA state in the program counter.
+/// Each state label performs exactly the arrival bookkeeping of the table loop:
+/// accepting/EOF-accepting ends, the examined frontier, then one byte dispatch.
+/// Expects `input`, `pos`, `end`, `examined` and `lastEofEnd` in scope.
+private string codeScannerSource(const Automaton automaton) pure nothrow @safe {
+    string code = "const size_t scanLength = input.length;\n";
+    const hasEof = automaton.eofAccepting.length != 0;
+    foreach (state; 0 .. automaton.transitions.length) {
+        const name = unsignedText(state);
+        code ~= "dfaState" ~ name ~ ":\n";
+        // Self-loop bytes run in a tight loop; arrival bookkeeping then happens once,
+        // exactly as the table loop's hoisted self-loop does.
+        ulong[4] loopBits;
+        foreach (c; 0 .. 256)
+            if (automaton.transitions[state][c] == state)
+                loopBits[c >> 6] |= 1UL << (c & 63);
+        size_t runStart = 256, runEnd, loopRuns;
+        foreach (c; 0 .. 256)
+            if (automaton.transitions[state][c] == state) {
+                if (runStart == 256)
+                    runStart = c;
+                runEnd = c;
+                if (c == 0 || automaton.transitions[state][c - 1] != state)
+                    ++loopRuns;
+            }
+        if (loopRuns == 1) {
+            // One contiguous byte range: a single unsigned compare.
+            code ~= "while (pos < scanLength && cast(ubyte)(cast(ubyte)input[pos] - " ~ unsignedText(
+                    runStart) ~ ") <= " ~ unsignedText(runEnd - runStart) ~ ") ++pos;\n";
+        } else if (loopRuns) {
+            string literal;
+            foreach (word; loopBits)
+                literal ~= (literal.length ? ", 0x" : "0x") ~ hexText(word) ~ "UL";
+            code ~= "{ enum ulong[4] loopBits = [" ~ literal ~ "]; while (pos < scanLength) { const ubyte c = " ~ "cast(ubyte)input[pos]; if (!((loopBits[c >> 6] >> (c & 63)) & 1)) break; ++pos; } }\n";
+        }
+        if (automaton.accepting[state])
+            code ~= "end = pos;\n";
+        const eof = hasEof && automaton.eofAccepting[state];
+        if (eof)
+            code ~= "lastEofEnd = pos;\n";
+        code ~= "examined = pos;\n";
+        code ~= "if (pos == scanLength) {" ~ (eof ? " end = pos;" : "") ~ " goto dfaFinish; }\n";
+        code ~= "switch (cast(ubyte)input[pos]) {\n";
+        foreach (target; 0 .. automaton.transitions.length) {
+            if (target == state)
+                continue;
+            const runs = emitRuns(automaton, state, cast(ubyte)target);
+            if (runs.length)
+                code ~= runs ~ "++pos; goto dfaState" ~ unsignedText(target) ~ ";\n";
+        }
+        code ~= "default: goto dfaFinish;\n}\n";
+    }
+    code ~= "dfaFinish:;\n";
+    return code;
+}
+
 /// Hoist a state's self-loop byte class out of its inner scanner loop.
 /// This preserves DFA semantics while removing a dependent table read per byte.
 pragma(inline, true) size_t scanDFA(alias Table)(scope string input, size_t pos,
+        out size_t examined, out size_t lastEofEnd) @nogc pure nothrow @safe {
+    alias compiled = DfaStorage!Table.compiled;
+    return scanDFAWith!(Table, compiled.transitions.length <= codeScannerStateLimit)(input, pos, examined,
+            lastEofEnd);
+}
+
+/// `Code` selects the straight-line state scanner over the table loop; both are equivalent.
+pragma(inline, true) size_t scanDFAWith(alias Table, bool Code)(scope string input, size_t pos,
         out size_t examined, out size_t lastEofEnd) @nogc pure nothrow @safe {
     alias storage = DfaStorage!Table;
     alias compiled = storage.compiled;
@@ -420,39 +534,117 @@ pragma(inline, true) size_t scanDFA(alias Table)(scope string input, size_t pos,
     else {
         if (pos > input.length)
             return size_t.max;
-        ubyte state;
-        size_t end = automaton.accepting[0] ? pos : size_t.max;
-        if (automaton.eofAccepting.length && automaton.eofAccepting[0])
-            lastEofEnd = pos;
-        while (pos < input.length) {
-            const mask = loops[state];
-            while (pos < input.length && mask.contains(cast(ubyte)input[pos]))
+        size_t end = size_t.max;
+        static if (Code) {
+            mixin(codeScannerSource(compiled));
+            lastEofEnd = automaton.eofAccepting.length ? lastEofEnd : end;
+            return automaton.requireEnd && end != input.length ? size_t.max : end;
+        } else {
+            ubyte state;
+            end = automaton.accepting[0] ? pos : size_t.max;
+            if (automaton.eofAccepting.length && automaton.eofAccepting[0])
+                lastEofEnd = pos;
+            while (pos < input.length) {
+                const mask = loops[state];
+                while (pos < input.length && mask.contains(cast(ubyte)input[pos]))
+                    ++pos;
+                examined = pos;
+                if (automaton.accepting[state])
+                    end = pos;
+                if (automaton.eofAccepting.length && automaton.eofAccepting[state])
+                    lastEofEnd = pos;
+                if (pos == input.length)
+                    break;
+                const next = automaton.transitions[state][cast(ubyte)input[pos]];
+                if (next == ubyte.max)
+                    break;
+                state = next;
                 ++pos;
-            examined = pos;
-            if (automaton.accepting[state])
+                examined = pos;
+                if (automaton.accepting[state])
+                    end = pos;
+                if (automaton.eofAccepting.length && automaton.eofAccepting[state])
+                    lastEofEnd = pos;
+            }
+            if (pos == input.length && automaton.eofAccepting.length && automaton.eofAccepting[state]) {
                 end = pos;
-            if (automaton.eofAccepting.length && automaton.eofAccepting[state])
                 lastEofEnd = pos;
-            if (pos == input.length)
-                break;
-            const next = automaton.transitions[state][cast(ubyte)input[pos]];
-            if (next == ubyte.max)
-                break;
-            state = next;
-            ++pos;
-            examined = pos;
-            if (automaton.accepting[state])
-                end = pos;
-            if (automaton.eofAccepting.length && automaton.eofAccepting[state])
-                lastEofEnd = pos;
+            }
+            lastEofEnd = automaton.eofAccepting.length ? lastEofEnd : end;
+            return automaton.requireEnd && end != input.length ? size_t.max : end;
         }
-        if (pos == input.length && automaton.eofAccepting.length && automaton.eofAccepting[state]) {
-            end = pos;
-            lastEofEnd = pos;
-        }
-        lastEofEnd = automaton.eofAccepting.length ? lastEofEnd : end;
-        return automaton.requireEnd && end != input.length ? size_t.max : end;
     }
+}
+
+@nogc nothrow unittest {
+    // The state-code scanner must match the table loop on every observable output.
+    static void same(alias table)(string input) {
+        foreach (start; 0 .. input.length + 1) {
+            size_t examinedCode, examinedTable, eofCode, eofTable;
+            const code = scanDFAWith!(table, true)(input, start, examinedCode, eofCode);
+            const loop = scanDFAWith!(table, false)(input, start, examinedTable, eofTable);
+            assert(code == loop && examinedCode == examinedTable && eofCode == eofTable);
+        }
+    }
+
+    enum digits = () {
+        CharSetMask d;
+        d.addRange('0', '9');
+        return compileDFA([
+            RegularExpression(RegularKind.bytes, d),
+            RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+            RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1])
+        ], 2);
+    }();
+    enum anchoredDigits = () {
+        CharSetMask d;
+        d.addRange('0', '9');
+        return compileDFA([
+            RegularExpression(RegularKind.bytes, d),
+            RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+            RegularExpression(RegularKind.endOfInput, CharSetMask.init),
+            RegularExpression(RegularKind.sequence, CharSetMask.init, [1, 2])
+        ], 3);
+    }();
+    enum quoted = () {
+        CharSetMask q,
+        s,
+        other;
+        q.addChar('"');
+        s.addChar('\\');
+        other.addRange(0, 255);
+        CharSetMask plain;
+        foreach (c; 0 .. 256)
+            if (c != '"' && c != '\\')
+                plain.addChar(cast(ubyte)c);
+        return compileDFA([
+            RegularExpression(RegularKind.bytes, q), // 0
+            RegularExpression(RegularKind.bytes, s), // 1
+            RegularExpression(RegularKind.bytes, other), // 2
+            RegularExpression(RegularKind.sequence,
+                    CharSetMask.init,
+                    [1, 2]), // 3 escape
+            RegularExpression(RegularKind.bytes, plain), // 4
+            RegularExpression(RegularKind.choice,
+                    CharSetMask.init,
+                    [3, 4]), // 5
+            RegularExpression(RegularKind.repetition, CharSetMask.init, [5]), // 6
+            RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 6, 0]) // 7
+        ], 7);
+    }();
+    static foreach (table; [digits, anchoredDigits, quoted]) {
+        {
+            enum t = table;
+            static immutable string[] inputs = [
+                "", "1", "123", "123x", "x", "\"\"", "\"a\"", "\"a\\\"b\"", "\"a\\", "\"abc",
+                "\"a\\\"", "\"\\\\\"x", "\"\\n\\t\"", "12\"3"
+            ];
+            foreach (input; inputs)
+                same!t(input);
+        }
+    }
+    // A table past the state limit still takes the loop path in the public entry point.
+    static assert(codeScannerStateLimit < ubyte.max);
 }
 
 size_t scanDFA(alias Table)(scope string input, size_t pos, out size_t examined) @nogc pure nothrow @safe {

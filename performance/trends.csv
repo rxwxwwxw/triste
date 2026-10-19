@@ -1,2 +1,6 @@
 run_id,kind,compiler,commit,workloads,within_target,pct_within_target,p50,p90,p95,geomean,worst,worst_workload
 20261019T204823Z-9bba1f268,baseline,ldc2,9bba1f268169a722fbef45c91b257011dcf7b9d7,171,53,30.9942,2.0421,3.1598,3.5115,1.8061,4.8814,json-ambiguity/JSON.EscapeHeavy/validation
+20261019T205844Z-07315cd94,milestone:P6a,ldc2,07315cd94a164d527fe7f9ed507b62770ec46bf9,171,60,35.0877,1.7471,2.8877,3.0617,1.6131,4.0680,handwritten-workloads/PEGGrammar.Permissive/validation
+20261019T210109Z-07315cd94,milestone:P6b,ldc2,07315cd94a164d527fe7f9ed507b62770ec46bf9,171,58,33.9181,1.7633,2.8773,2.9950,1.6029,4.0841,handwritten-workloads/PEGGrammar.Permissive/validation
+20261019T210324Z-07315cd94,milestone:P6c,ldc2,07315cd94a164d527fe7f9ed507b62770ec46bf9,171,58,33.9181,1.8097,2.8682,3.0674,1.6432,4.0401,handwritten-workloads/PEGGrammar.Permissive/validation
+20261019T210601Z-07315cd94,milestone:P6d,ldc2,07315cd94a164d527fe7f9ed507b62770ec46bf9,171,59,34.5029,1.8119,2.8977,3.1443,1.6213,4.0809,handwritten-workloads/PEGGrammar.Permissive/validation
