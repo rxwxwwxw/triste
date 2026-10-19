@@ -1,0 +1,58 @@
+{
+  "milestone": "B03",
+  "baseRevision": "dcf6b1bbdef83a856d231b0f2a86f3afc9aa33af",
+  "oracle": {
+    "fixture": "tests/shared_output.d",
+    "flags": [
+      "-Isrc",
+      "-w",
+      "-unittest",
+      "-checkaction=halt",
+      "-defaultlib=druntime-ldc",
+      "-fno-exceptions",
+      "-d-version=NPeggedMetrics",
+      "-d-version=NPeggedSharedOutput"
+    ],
+    "compiler": "ldc2",
+    "beforeTranscriptSha256": "065b97ef296270fdba4d322ce20afb79072540714538be44b52e881344a29537",
+    "afterTranscriptSha256": "065b97ef296270fdba4d322ce20afb79072540714538be44b52e881344a29537",
+    "transcriptLines": 3464,
+    "timeoutSeconds": 60,
+    "addressSpaceLimitBytes": 4294967296,
+    "sharedCountersEach": {
+      "frozen": 147424,
+      "reused": 60929,
+      "snapshots": 192,
+      "restore": 2113504
+    }
+  },
+  "recordSourceHashes": {
+    "before": "9604a081d1be48b0c866bf48bef6d4faa38533421a5dda730650de467a0b91de",
+    "after": "73a2e6930b67cbfe4eb2df07033981f7c90f7ef032baafd94608fd6cf5e77995"
+  },
+  "binaries": {
+    "before": "222bc3591df09ad2038547d240f8954a3746e3a5708b574547cf3af0cf22d6c7",
+    "after": "91189cb5a7e2d0cf52e6cf494e1d9839cafbd8d853f57277674eacb699d1e189"
+  },
+  "disposition": "NO_CHANGE: candidate rejected and production records.d restored",
+  "validation": {
+    "moduleUnitTests": {
+      "dmd": "PASS",
+      "ldc2": "PASS"
+    },
+    "crossBuildSharedOutputTranscript": "PASS: byte-identical",
+    "asanLsan": "PASS outside sandbox; initial sandbox run failed because LeakSanitizer cannot run under ptrace",
+    "valgrind": {
+      "result": "PASS with cached debuginfod symbols",
+      "errors": 0,
+      "definitelyLostBytes": 0,
+      "indirectlyLostBytes": 0,
+      "possiblyLostBytes": 0,
+      "runtimeStillReachableBytes": 120
+    },
+    "coverage": "Not run: rejected candidate is archived only; no production source changes retained",
+    "stagedHook": "Not run: no commit or staged files",
+    "formatting": "dfmt -i src/npegged/records.d run on candidate before all measurements",
+    "nogc": "Modified append/growth and adjacent new test compiled as @nogc nothrow on DMD and LDC"
+  }
+}

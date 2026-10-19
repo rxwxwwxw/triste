@@ -1,0 +1,66 @@
+diff --git a/src/npegged/records.d b/src/npegged/records.d
+index ebbfa10..f2ba7f6 100644
+--- a/src/npegged/records.d
++++ b/src/npegged/records.d
+@@ -281,20 +281,51 @@ struct RecordBuffer {
+             failure = Status.invalidInput;
+             return size_t.max;
+         }
+-        if (_length == storage.length) {
+-            auto replacement = arena.allocate!CompactNode(growthCapacity(_length, _length + 1, 32));
+-            if (!replacement.length)
+-                return size_t.max;
+-            replacement[0 .. _length] = storage[0 .. _length];
+-            version (NPeggedMetrics)
+-                if (metrics !is null)
+-                    metrics.growthCopyBytes += _length * CompactNode.sizeof;
+-            storage = replacement;
+-        }
++        if (_length == storage.length && !grow())
++            return size_t.max;
+         storage[_length] = node;
+         return _length++;
+     }
+ 
++    // Keep allocation and copying out of the ordinary append path.
++    pragma(inline, false) private bool grow() @nogc nothrow {
++        auto replacement = arena.allocate!CompactNode(growthCapacity(_length, _length + 1, 32));
++        if (!replacement.length)
++            return false;
++        replacement[0 .. _length] = storage[0 .. _length];
++        version (NPeggedMetrics)
++            if (metrics !is null)
++                metrics.growthCopyBytes += _length * CompactNode.sizeof;
++        storage = replacement;
++        return true;
++    }
++
++    @nogc nothrow unittest {
++        Arena owner;
++        RecordBuffer records;
++        records.arena = &owner;
++        foreach (i; 0 .. 65) {
++            assert(records.put(CompactNode(cast(uint)i, i, i + 1, i ? 0 : size_t.max)) == i);
++        }
++        assert(records.length == 65 && records.storage.length == 128);
++        foreach (i, node; records.nodes) {
++            assert(node.kind == i && node.begin == i && node.end == i + 1);
++            assert(node.parent == (i ? 0 : size_t.max));
++        }
++        const used = owner.used;
++        records.rollback(1);
++        assert(records.put(CompactNode(99, 7, 8, 0)) == 1 && owner.used == used);
++        records.rollback(records.length);
++        owner.limit = 0;
++        while (records.length < records.storage.length)
++            assert(records.put(CompactNode.init) != size_t.max);
++        const full = records.length;
++        assert(records.put(CompactNode.init) == size_t.max);
++        assert(records.status == Status.resourceLimit && records.length == full);
++        assert(records.nodes[1] == CompactNode(99, 7, 8, 0));
++        assert(records.put(CompactNode.init) == size_t.max && records.length == full);
++    }
++
+     size_t open(string name, size_t begin) @nogc nothrow {
+         if (suppressed)
+             return size_t.max;
