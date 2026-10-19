@@ -6,7 +6,7 @@ public import npegged.dfa;
 import npegged.io;
 public import npegged.analysis : RuleEligibility, DiscriminationKind, BranchDiscrimination,
     ChoiceDiscrimination, renderDiscrimination;
-import npegged.bites : renderBites, annotateBites, renderNextBites;
+import npegged.bites : renderBites, annotateBites, renderNextBites, renderCommitSites;
 import npegged.language : Budget;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
@@ -3564,6 +3564,34 @@ BitesResult nextBitesReport(string definition, size_t budgetStates = Budget.init
     Budget budget;
     budget.maxStates = budgetStates;
     result.report = renderNextBites(frontend.analyzed, budget);
+    result.status = Status.ok;
+    return result;
+}
+
+/// Report-only candidate commit (cut) sites with theorem and premises per site (B6). Emits no cut.
+BitesResult commitSiteReport(string definition, size_t budgetStates = Budget.init.maxStates) nothrow {
+    BitesResult result;
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.diagnostic = Diagnostic(begin, "Commit site report input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    result.grammarName = frontend.name;
+    frontend.prepareAnalysis();
+    Budget budget;
+    budget.maxStates = budgetStates;
+    result.report = renderCommitSites(frontend.analyzed, budget);
     result.status = Status.ok;
     return result;
 }

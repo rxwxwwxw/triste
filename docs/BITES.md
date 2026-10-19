@@ -105,3 +105,24 @@ All require `wellFormed` (trusted graph, converged, no left recursion). They are
 transformations (B6). Validation: paper examples `('a'/'c'?)'a'` (unsafe), `...'b'` (safe), `(!'a' .)*'a'` (safe),
 `'a'*('ab'/'c')` (hidden), `'a'*('b'/'c')` (safe), nested calls, failure continuation, left recursion, unknown nodes
 (`tests/next_bites.d`, unit tests in `bites.d`).
+
+## B6: candidate commit sites (report-only; `commitSiteReport`, `renderCommitSites`)
+
+For every choice and star expression the report names the theorem that would justify stopping retries, the proven premises,
+and — when no theorem applies — the blockers. **No cut is emitted and no generated code or runtime changes** (`emitted:false`).
+
+| theorem | applies to | premises |
+|---|---|---|
+| Proposition 6 | choice | well-formed, action-free owning rule, every alternative provably nonnullable, BITES pairwise disjoint |
+| Proposition 11 | choice with nullable alternatives | well-formed, action-free, disjoint, conditions (6) and (7) |
+| Proposition 13 | `e*` | well-formed, action-free, e nonnullable, condition (8) |
+
+Premise names, blockers and examples: `C1 'ab' / 'ac'` (Prop. 6), `C2 ('a' / 'c'?) 'b'` (Prop. 11), `C3 ('a' / 'c'?) 'a'` (blocked by (6)),
+`C4 'a'* ('b' / 'c')` (Prop. 13), `C5 'a'* ('ab' / 'c')` (blocked by (8)), `C6 'a' / 'ab'` (not disjoint), actions and left
+recursion (not well-formed / not action-free).
+
+Before any guarded optimization may use a site it must additionally prove, and test with the differential gate (A4), that
+stopping retries preserves: `failEnd` and failure diagnostics (alternatives not tried would have recorded failures), compact
+record/tree rollback behavior, step counts and the depth/memory limits. None of this is checked by the report. Note the theorems
+speak about the paper's PEG semantics; NPegged additions (memoized left recursion, trace/actions, parameters, resource
+limits) are handled by treating them as non-well-formed or unknown, never as proven.

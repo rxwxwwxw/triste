@@ -599,6 +599,9 @@ struct PremiseCheck {
     bool wellFormed; // trusted graph, no left recursion, fixed point converged
     bool disjoint; // choice: every BITES pair provably disjoint
     bool prop10, prop11; // choice: no hiding (nullable case) / cut safety after a bite
+    bool allNonnullable; // choice: every alternative provably nonnullable (Proposition 6 setting)
+    bool cond4, cond5, cond6, cond7, cond8; // the paper's numbered conditions, as proven here
+    bool actionFree; // owning rule is known and action-free
     bool prop12, prop13; // star: no hiding / no success after e failed on a bite
     InputLanguage nextSucc, nextFail;
 }
@@ -609,6 +612,7 @@ PremiseCheck[] checkPremises(ref GrammarAnalysis graph, ref BitesAnalysis bites,
     foreach (flag; graph.leftRecursive)
         leftRecursion = leftRecursion || flag;
     const wellFormed = next.trusted && next.converged && !leftRecursion;
+    const effects = graph.ruleEffects();
     size_t owner(size_t target) nothrow {
         foreach (rule, root; graph.roots) {
             auto seen = new bool[graph.expressions.length];
@@ -642,6 +646,7 @@ PremiseCheck[] checkPremises(ref GrammarAnalysis graph, ref BitesAnalysis bites,
         check.expressionIndex = index;
         const rule = owner(index);
         check.ruleName = rule < graph.names.length ? graph.names[rule] : "";
+        check.actionFree = rule < effects.length && effects[rule].known && !effects[rule].actionful;
         check.wellFormed = wellFormed;
         check.nextSucc = next.nextBites(index, Outcome.succ);
         check.nextFail = next.nextBites(index, Outcome.fail);
@@ -652,8 +657,9 @@ PremiseCheck[] checkPremises(ref GrammarAnalysis graph, ref BitesAnalysis bites,
             body = children[0];
             const nonnullable = body < graph.facts.length && graph.facts[body].nullable == Nullable
                 .no;
-            check.prop12 = check.prop13 = wellFormed && nonnullable && empty(bites.bites(body), check
-                    .nextSucc);
+            check.cond8 = empty(bites.bites(body), check.nextSucc);
+            check.allNonnullable = nonnullable;
+            check.prop12 = check.prop13 = wellFormed && nonnullable && check.cond8;
             checks ~= check;
             continue;
         }
@@ -680,6 +686,14 @@ PremiseCheck[] checkPremises(ref GrammarAnalysis graph, ref BitesAnalysis bites,
             if (choiceFails && !empty(bites.bites(child), check.nextFail))
                 cond7 = false;
         }
+        check.allNonnullable = children.length != 0;
+        foreach (child; children)
+            check.allNonnullable = check.allNonnullable && child < graph.facts.length
+                && graph.facts[child].nullable == Nullable.no;
+        check.cond4 = cond4;
+        check.cond5 = cond5;
+        check.cond6 = cond6;
+        check.cond7 = cond7;
         check.prop10 = wellFormed && check.disjoint && cond4 && cond5;
         check.prop11 = wellFormed && check.disjoint && cond6 && cond7;
         checks ~= check;
@@ -711,6 +725,97 @@ string renderNextBites(ref GrammarAnalysis graph, Budget budget = Budget.init) n
             result ~= ",\"prop12\":" ~ flag(check.prop12) ~ ",\"prop13\":" ~ flag(check.prop13);
         result ~= "}";
     }
+    return result ~ "]}";
+}
+
+/// A place where parsing could stop retrying (a "cut"), with the theorem that would justify it.
+/// Report-only: no parser code is generated or changed by this analysis.
+struct CommitSite {
+    size_t expressionIndex;
+    string ruleName, kind; // "choice" or "star"
+    string theorem; // "Proposition 6", "Proposition 11", "Proposition 13" or "" when none applies
+    bool candidate;
+    string[] premises; // each "name=true|false"
+    string[] blockers; // why no theorem applies
+}
+
+CommitSite[] commitSites(const PremiseCheck[] checks) nothrow {
+    CommitSite[] sites;
+    foreach (check; checks) {
+        CommitSite site;
+        site.expressionIndex = check.expressionIndex;
+        site.ruleName = check.ruleName;
+        site.kind = check.kind;
+        string premise(string name, bool value) nothrow {
+            return name ~ (value ? "=true" : "=false");
+        }
+
+        site.premises ~= premise("wellFormed", check.wellFormed);
+        site.premises ~= premise("actionFree", check.actionFree);
+        if (!check.wellFormed)
+            site.blockers ~= "not well-formed: unknown/unresolved nodes, left recursion, or no convergence";
+        if (!check.actionFree)
+            site.blockers ~= "owning rule is actionful or its effects are unknown";
+        if (check.kind == "choice") {
+            site.premises ~= premise("disjoint", check.disjoint);
+            site.premises ~= premise("allNonnullable", check.allNonnullable);
+            site.premises ~= premise("condition6", check.cond6);
+            site.premises ~= premise("condition7", check.cond7);
+            if (!check.disjoint)
+                site.blockers ~= "alternatives are not proven BITES-disjoint";
+            if (check.disjoint && check.allNonnullable && check.wellFormed && check.actionFree)
+                site.theorem = "Proposition 6"; // cut after an alternative failed having consumed a terminal
+            else if (check.prop11 && check.actionFree) {
+                site.theorem = "Proposition 11";
+                if (!check.allNonnullable)
+                    site.premises ~= "nullableCase=true";
+            } else {
+                if (!check.allNonnullable)
+                    site.blockers ~= "an alternative may be nullable and conditions (6)/(7) are not both proven";
+                if (check.disjoint && !check.cond6)
+                    site.blockers ~= "condition (6) not proven: a bitten input may continue after the choice succeeds";
+                if (check.disjoint && !check.cond7)
+                    site.blockers ~= "condition (7) not proven: a bitten input may continue after the choice fails";
+            }
+        } else {
+            site.premises ~= premise("bodyNonnullable", check.allNonnullable);
+            site.premises ~= premise("condition8", check.cond8);
+            if (check.prop13 && check.actionFree)
+                site.theorem = "Proposition 13"; // after e failed on a bitten input, nothing after E can succeed
+            else {
+                if (!check.allNonnullable)
+                    site.blockers ~= "repeated body may be nullable";
+                if (!check.cond8)
+                    site.blockers ~= "condition (8) not proven: BITES(e) meets NEXTBITES(E, succ)";
+            }
+        }
+        site.candidate = site.theorem.length != 0;
+        sites ~= site;
+    }
+    return sites;
+}
+
+/// Deterministic report-only JSON. `emitted` is always false: sites are candidates, and a cut would also
+/// have to preserve failure positions, diagnostics, records and resource limits (not checked here).
+string renderCommitSites(ref GrammarAnalysis graph, Budget budget = Budget.init) nothrow {
+    auto bites = BitesAnalysis(graph, budget);
+    auto next = NextBites(graph, bites, budget);
+    const sites = commitSites(checkPremises(graph, bites, next));
+    string list(const string[] values) nothrow {
+        string text = "[";
+        foreach (i, value; values)
+            text ~= (i ? "," : "") ~ quoteWitness(value);
+        return text ~ "]";
+    }
+
+    string result = "{\"scope\":\"candidate commit sites only; no cut is emitted\",\"sites\":[";
+    foreach (i, site; sites)
+        result ~= (i ? "," : "") ~ "{\"expressionIndex\":" ~ decimal(
+                site.expressionIndex) ~ ",\"rule\":" ~ quoteWitness(
+                site.ruleName) ~ ",\"kind\":\"" ~ site.kind ~ "\",\"candidate\":" ~ (site.candidate
+                ? "true" : "false") ~ ",\"theorem\":" ~ quoteWitness(
+                site.theorem) ~ ",\"premises\":" ~ list(site.premises) ~ ",\"blockers\":" ~ list(
+                site.blockers) ~ ",\"emitted\":false}";
     return result ~ "]}";
 }
 

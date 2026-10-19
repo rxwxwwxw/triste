@@ -43,6 +43,33 @@ int main() nothrow {
     assert(has(left, "\"wellFormed\":false") && has(left, "\"prop10\":false"));
     const opaque = report("N10: Root <- 'a' / Opaque Opaque <- external");
     assert(has(opaque, "\"trusted\":false") && has(opaque, "\"prop10\":false"));
+    // B6: candidate commit sites carry the theorem and the blockers; nothing is emitted.
+    string sites(string grammar) nothrow {
+        auto result = commitSiteReport(grammar);
+        assert(result.status == Status.ok);
+        return result.report;
+    }
+
+    const cutDisjoint = sites("C1: Root <- 'ab' / 'ac'");
+    assert(has(cutDisjoint, "\"candidate\":true") && has(cutDisjoint, "\"theorem\":\"Proposition 6\""));
+    assert(has(cutDisjoint, "\"emitted\":false") && !has(cutDisjoint, "\"emitted\":true"));
+    const cutNullable = sites("C2: Root <- ('a' / 'c'?) 'b'");
+    assert(has(cutNullable, "\"theorem\":\"Proposition 11\""));
+    const noCut = sites("C3: Root <- ('a' / 'c'?) 'a'");
+    assert(has(noCut, "\"candidate\":false") && has(noCut, "condition (6) not proven"));
+    const cutStar = sites("C4: Root <- 'a'* ('b' / 'c')");
+    assert(has(cutStar, "\"theorem\":\"Proposition 13\""));
+    const noStar = sites("C5: Root <- 'a'* ('ab' / 'c')");
+    assert(has(noStar, "condition (8) not proven"));
+    const shadowed = sites("C6: Root <- 'a' / 'ab'");
+    assert(has(shadowed, "not proven BITES-disjoint") && has(shadowed, "\"candidate\":false"));
+    const effectful = sites("C7: Root <- A 'x' A <- 'a'{act} / 'b'");
+    assert(has(effectful, "\"candidate\":false") && has(effectful, "actionful or its effects are unknown"));
+    const leftRecursive = sites("C8: Root <- Root 'a' / 'b'");
+    assert(has(leftRecursive, "not well-formed") && has(leftRecursive, "\"candidate\":false"));
+    assert(sites("C1: Root <- 'ab' / 'ac'") == cutDisjoint);
+    assert(commitSiteReport("Broken:").status == Status.invalidInput);
+
     // Determinism and error handling.
     assert(report("N1: Root <- ('a' / 'c'?) 'a'") == unsafeNullable);
     assert(nextBitesReport("Bad: Root <- 'a' #\x80").status == Status.invalidInput);
