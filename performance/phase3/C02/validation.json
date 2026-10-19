@@ -1,0 +1,34 @@
+{
+  "milestone": "C02",
+  "status": "PASS",
+  "decision": "NO_GO_GENERAL_FINITE_ACTIVATION",
+  "allSixTranscriptsIdentical": true,
+  "transcriptSha256": "b0f4c5763d2e6ed47a509f6d2ab47b54b183747a8c0339518c062d96b5bf5623",
+  "lines": 233,
+  "sourceHashes": {
+    "tests/bounded_shared_output.d": "93cd91b0e5d03e3b28f00cc40f3315a9e9c44aedcaccce09fbb8ab8d080ee3e8",
+    "scripts/c02_bounded_shared.py": "4bfee1ecbc14e86fe0ec38239f15c9ff08b4ba6071ab4efd04e6440a1122f7d2",
+    "scripts/c02_memory.sh": "17819e66b1c46f992f2e3079f3a785ddc7dc642787e0454a34ecb6526f95e64b",
+    "scripts/validate.sh": "7da6c7e4b5baaeb7463689b0139b5d1538e495944f78c2ea7075937ae8519766"
+  },
+  "binaries": {
+    "asan": "6e17e264b17befdfb09e27bd78cbb9037536178e25a237c4c51e661e803dc0f5",
+    "memcheck": "02430b3844d02a9df152e3cfa8c26252f83fe0394fb985c2fcdca376b25aadf6"
+  },
+  "sanitizer": {
+    "asan": "PASS",
+    "lsan": "PASS",
+    "command": "bash scripts/c02_memory.sh",
+    "physicalMemoryLimitBytes": 4294967296,
+    "timeoutSeconds": 60
+  },
+  "valgrind": {
+    "errors": 0,
+    "definitelyLostBytes": 0,
+    "indirectlyLostBytes": 0,
+    "possiblyLostBytes": 0,
+    "runtimeStillReachableBytes": 120
+  },
+  "productionChanges": false,
+  "fullValidationIntegration": "scripts/validate.sh --full calls scripts/c02_bounded_shared.py; full pipeline not rerun"
+}

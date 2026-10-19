@@ -38,6 +38,7 @@ timeout 10s python3 tests/test_memo_dependencies.py
 if [[ "$MODE" == "full" ]]; then
   COMPILERS="dmd ldc2" bash scripts/shared-records-check.sh
   COMPILERS="dmd ldc2" bash scripts/shared-output-check.sh
+  python3 scripts/c02_bounded_shared.py
   COMPILERS="dmd ldc2" bash scripts/eligibility-check.sh
   COMPILERS="dmd ldc2" bash scripts/rule-effects-check.sh
   COMPILERS="dmd ldc2" bash scripts/prefix-discrimination-check.sh
