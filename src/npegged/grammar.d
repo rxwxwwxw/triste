@@ -2520,6 +2520,10 @@ package struct Frontend {
                 useDirect = op == "and" || op == "or" || op == "predictiveChoice" || op == "zeroOrMore"
                     || op == "oneOrMore"
                     || op == "option" || op == "posLookahead" || op == "negLookahead" || op == "predictiveNot";
+                // P2: a nonempty plain literal root lowers to the direct cursor form.
+                if (startsWith(directGraph.expressions[directRoot].source, "literal!(")
+                        && decodedLiteral(directGraph.expressions[directRoot].source).length)
+                    useDirect = true;
                 if ((op == "discard" || op == "fuse" || op == "keep" || op == "drop" || op == "propagate"
                         || op == "named" || op == "defined") && directGraph.expressions[directRoot]
                         .children.length) {
@@ -3456,15 +3460,16 @@ nothrow unittest {
     assert(literalAction.actionRules == ["LiteralAction.Root"] && !literalAction.unknownEvidence
             .length);
     assert(!literalAction.rules[0].scalarEligible);
-    auto strategies = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)(
-            "Strat: Root <- Digits Alt eoi Digits <~ [0-9]+ Alt <- 'a' 'x' / 'b' 'y' Lit <- 'q'");
+    auto strategies = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)("Strat: Root <- Digits Alt eoi Digits <~ [0-9]+ Alt <- 'a' 'x' / 'b' 'y' Lit <- 'q' Chr <- [q-r]");
     assert(strategies.status == Status.ok);
     foreach (row; strategies.rules) {
         if (row.name == "Strat.Digits")
             assert(row.dfaScanner && row.scannerRegions >= 1 && row.strategy == "dfa-scanner");
         if (row.name == "Strat.Alt")
             assert(row.predictiveDispatch && row.strategy == "direct-cursor");
-        if (row.name == "Strat.Lit")
+        if (row.name == "Strat.Lit") // P2: plain literal roots lower to the direct cursor form
+            assert(row.directRecognition && row.strategy == "direct-cursor");
+        if (row.name == "Strat.Chr")
             assert(!row.dfaScanner && !row.predictiveDispatch && row.strategy == "combinator");
     }
     assert(containsText(strategies.report, "\"strategy\":\"dfa-scanner\""));
@@ -3474,7 +3479,7 @@ nothrow unittest {
     auto recursion = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)(
             "RecReport: Root <- Root 'a' / 'a' Leaf <- 'a'");
     assert(recursion.rules[0].directFallback == "left-recursion");
-    assert(recursion.rules[1].scalarEligible && !recursion.rules[1].directRecognition);
+    assert(recursion.rules[1].scalarEligible && recursion.rules[1].directRecognition); // P2: literal root
     auto parameter = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)(
             "ParamReport(T=identifier): Root <- T");
     assert(parameter.rules[0].directFallback == "grammar-parameters");

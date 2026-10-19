@@ -5,3 +5,4 @@ run_id,kind,compiler,commit,workloads,within_target,pct_within_target,p50,p90,p9
 20261019T210324Z-07315cd94,milestone:P6c,ldc2,07315cd94a164d527fe7f9ed507b62770ec46bf9,171,58,33.9181,1.8097,2.8682,3.0674,1.6432,4.0401,handwritten-workloads/PEGGrammar.Permissive/validation
 20261019T210601Z-07315cd94,milestone:P6d,ldc2,07315cd94a164d527fe7f9ed507b62770ec46bf9,171,59,34.5029,1.8119,2.8977,3.1443,1.6213,4.0809,handwritten-workloads/PEGGrammar.Permissive/validation
 20261019T213323Z-1fef780eb,milestone:F4,ldc2,1fef780eb2dbe29fd67eb9ebd83eb0561e0b168e,171,60,35.0877,1.8230,2.8726,3.1048,1.6212,4.0809,handwritten-workloads/PEGGrammar.Permissive/validation
+20261019T214333Z-a10ce3497,milestone:P2,ldc2,a10ce349724ff8261af93e0f52f3b9077ca150be,171,60,35.0877,1.8391,2.8881,3.0787,1.6246,3.9577,handwritten-workloads/PEGGrammar.Permissive/validation

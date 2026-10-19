@@ -2,14 +2,14 @@
 
 Generated from `performance/trends.csv`; do not edit by hand.
 
-Latest run: `20261019T213323Z-1fef780eb` (milestone:F4, ldc2, commit 1fef780eb)
+Latest run: `20261019T214333Z-a10ce3497` (milestone:P2, ldc2, commit a10ce3497)
 
 - Workloads within 1.5x: 60/171 (35.1%)
-- Slowdown p50/p90/p95: 1.82 / 2.87 / 3.10
+- Slowdown p50/p90/p95: 1.84 / 2.89 / 3.08
 - Geometric mean: 1.62x
-- Worst: 4.08x (handwritten-workloads/PEGGrammar.Permissive/validation)
+- Worst: 3.96x (handwritten-workloads/PEGGrammar.Permissive/validation)
 
-Delta vs previous run `20261019T210601Z-07315cd94`: within-target +1, p90 -0.03, geomean -0.00
+Delta vs previous run `20261019T213323Z-1fef780eb`: within-target +0, p90 +0.02, geomean +0.00
 
 ## History
 
@@ -21,6 +21,7 @@ Delta vs previous run `20261019T210601Z-07315cd94`: within-target +1, p90 -0.03,
 | 20261019T210324Z-07315cd94 | milestone:P6c | ldc2 | 58/171 | 2.87 | 1.64 | 4.04 |
 | 20261019T210601Z-07315cd94 | milestone:P6d | ldc2 | 59/171 | 2.90 | 1.62 | 4.08 |
 | 20261019T213323Z-1fef780eb | milestone:F4 | ldc2 | 60/171 | 2.87 | 1.62 | 4.08 |
+| 20261019T214333Z-a10ce3497 | milestone:P2 | ldc2 | 60/171 | 2.89 | 1.62 | 3.96 |
 
 ## Progress
 
@@ -36,7 +37,9 @@ Last updated 2026-10-19.
 | A4 differential gate (portable script, DFA string fixtures, `performance/scripts/run.sh`) | done | `scripts/differential.sh` |
 | A5 size/compile accounting | done | `performance/size/` |
 | F4 literalChoice2 (opt-in `NPeggedFirst2`) | done, **off by default** (1.75x faster on one case, 14% slower on another) | `milestones/F4/` |
-| B*, P1-P5, P7-P8, L*, G*, X* | not started | — |
+| P1 pure islands | verified, no measured gain, stays opt-in | `milestones/P1/` |
+| P2 literal-root direct lowering | done, parity, no measured gain | `milestones/P2/` |
+| B*, P3-P5, P7-P8, L*, G*, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,
 CSV.Flat/validation -73%. Remaining >5% slowdowns: Numbers.BinaryLong/validation +5.2%,
