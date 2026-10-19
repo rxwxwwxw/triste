@@ -9,6 +9,7 @@ public import npegged.analysis : RuleEligibility, DiscriminationKind, BranchDisc
 import npegged.bites : renderBites, annotateBites, renderNextBites, renderCommitSites,
     unifiedDiagnostics, renderUnified;
 import npegged.language : Budget;
+public import npegged.generator : CandidateGenerator, GeneratorOptions, GenStatus;
 import npegged.ll : classifyRegions, renderRegions, renderEbnf, RegionClass, firstCertifiedRules;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
@@ -3799,6 +3800,53 @@ BitesResult ebnfExport(string definition, EligibilityFormat format = Eligibility
     result.grammarName = frontend.name;
     frontend.prepareAnalysis();
     result.report = renderEbnf(frontend.analyzed, format == EligibilityFormat.json);
+    result.status = Status.ok;
+    return result;
+}
+
+/// Seeded candidate stream for a grammar's start rule (G1). Candidates are proposals, not known to be accepted;
+/// failures carry a status and reason and are never returned as candidates.
+struct CandidateStream {
+    Status status = Status.invalidInput;
+    Diagnostic diagnostic;
+    string[] texts; /// successfully generated candidates, in stream order
+    GenStatus[] statuses; /// one per requested candidate
+    string[] reasons;
+}
+
+CandidateStream generateCandidates(string definition, string startRule, size_t count,
+        GeneratorOptions options = GeneratorOptions.init) nothrow {
+    CandidateStream result;
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.diagnostic = Diagnostic(begin, "Candidate generation input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    frontend.prepareAnalysis();
+    const rule = frontend.analyzed.ruleIndex(startRule);
+    if (rule == size_t.max) {
+        result.diagnostic = Diagnostic(0, "Unknown start rule");
+        return result;
+    }
+    auto generator = CandidateGenerator(frontend.analyzed, rule, options);
+    foreach (i; 0 .. count) {
+        auto candidate = generator.next();
+        result.statuses ~= candidate.status;
+        result.reasons ~= candidate.reason;
+        if (candidate.status == GenStatus.ok)
+            result.texts ~= candidate.text;
+    }
     result.status = Status.ok;
     return result;
 }

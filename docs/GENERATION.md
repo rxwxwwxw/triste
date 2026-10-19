@@ -1,0 +1,20 @@
+# Grammar-driven input generation
+
+Walking a PEG's syntax tree does **not** guarantee acceptance (ordered choice, greedy repetition, predicates), so the **real parser is
+the acceptance oracle** and a generator must report failures instead of emitting invalid candidates as valid.
+
+## G1: seeded bounded candidate generator (`src/npegged/generator.d`, `generateCandidates`)
+
+- PRNG: splitmix64 seeded by `GeneratorOptions.seed`; the stream is a pure function of grammar, start rule, options and seed.
+- Terminals: escape-free and simply-escaped literals (`\n \t \r \0 \\ \" \' \xNN`), single-byte classes (uniform member). `eps`/`eoi` emit
+  nothing; predicates are zero-width and ignored by the walk. Everything else (actions, parameters, `external`, multi-byte ranges) gives
+  `GenStatus.unsupported` with a reason.
+- Choice: uniform proposal (weights arrive with G4). `e?`: taken with probability 1/2. `e*`: empty with probability 1/4, else
+  1 + geometric(1/2) capped at `maxRepeat` (default 8); one repetition in 32 may reach 4 * `maxRepeat`. `e+`: at least one, same tail.
+  A nullable body that makes no progress twice ends the loop.
+- Budgets: past `softDepth` (12) choices take their minimal-length alternative (so productive grammars terminate); `maxDepth` (48)
+  and `maxOutput` (4096 bytes) are hard stops reporting `budgetExceeded`; no truncated candidate is ever returned.
+- No acceptance claim: candidates are proposals only (G2 filters them).
+
+Tests: `tests/generator.d` plus unit tests in `generator.d` (determinism, divergence, branch coverage, recursion stop, nullable loop,
+EOF, UTF-8 roundtrip, unsupported, budgets, splitmix64 reference value).
