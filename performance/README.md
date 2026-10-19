@@ -10,6 +10,7 @@ export PATH=/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH   # macOS: GNU time
 DC=ldc2 python3 scripts/performance_gate.py --output build/run.json   # 3 runs x 7 samples
 python3 performance/scripts/record.py build/run.json --baseline        # or --milestone ID
 python3 -m unittest tests/test_performance_record.py                   # recorder tests
+performance/scripts/run.sh --milestone ID --notes TEXT              # differential gate, timing, record
 ```
 
 `record.py` writes `baselines/<run-id>/` or `milestones/<ID>/<run-id>/` (never overwrites),

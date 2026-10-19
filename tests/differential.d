@@ -164,6 +164,13 @@ private enum nullable = `Fixture:
     Expr <- Expr 'a' / 'b'?
 `;
 
+// Exercises DFA-scanned tokens (state-code scanner): escapes, truncation, UTF-8, invalid bytes.
+private enum strings = `Fixture:
+    Root <- Str eoi
+    Str <- doublequote (backslash (doublequote / backslash / [nt]) / Plain)* doublequote
+    Plain <~ (!(doublequote / backslash) .)+
+`;
+
 int main() @nogc nothrow {
     static foreach (policy; [Memoization.yes, Memoization.selective]) {
         {
@@ -179,12 +186,14 @@ int main() @nogc nothrow {
                     assertSameParse!(P.Reference.Fixture.opCall, P.Candidate.Fixture.opCall)(
                             cast(string)bytes[0 .. length]);
                 }
-            static foreach (rules; [control, left, indirect, nullable, actions]) {
+            static foreach (rules; [control, left, indirect, nullable, actions, strings]) {
                 {
                     alias Q = Pair!(rules, policy);
                     foreach (input; [
                         "", "a", "ab", "aba", "(ab)", "(ab", "z", "\x00", "é", "\x80", "1",
-                        "1+2+3", "1+", "1+x", "aaab", "aaaa"
+                        "1+2+3", "1+", "1+x", "aaab", "aaaa", "\"a\"", "\"a\\\"b\"", "\"a\\",
+                        "\"abc",
+                        "\"\\n\\t\"", "\"\"", "\"\xc3\xa9\"", "\"\xc3\"", "\"\\x\"", "\"a\"b"
                     ]) {
                         assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall)(input);
                         foreach (limit; [0, 1, 4, 16, 64]) {
