@@ -69,6 +69,11 @@ nothrow:
     private string failure;
     private GenStatus failureStatus;
     private char[] output;
+    /// Per-alternative weights (flattened by `altBase`) and per-repetition bias; defaults reproduce uniform G1 behavior.
+    ulong[] altWeight;
+    size_t[] altBase; // node -> offset into altWeight, size_t.max for non-choices
+    ubyte[] repeatBias; // node -> 0 default, 1 empty/skip, 2 one/take, 3 many
+    bool[] proposedAlt; // alternatives the *walk* chose (not necessarily accepted), same layout as altWeight
 
     this(ref GrammarAnalysis graph, size_t startRule, GeneratorOptions options = GeneratorOptions
             .init) {
@@ -77,6 +82,31 @@ nothrow:
         this.startRule = startRule;
         this.state = options.seed;
         computeMinimal();
+        altBase = new size_t[graph.expressions.length];
+        repeatBias = new ubyte[graph.expressions.length];
+        size_t total;
+        foreach (index, node; graph.expressions) {
+            altBase[index] = size_t.max;
+            if (node.kind == ExpressionKind.choice) {
+                altBase[index] = total;
+                total += node.children.length;
+            }
+        }
+        altWeight = new ulong[total];
+        altWeight[] = 1;
+        proposedAlt = new bool[total];
+    }
+
+    /// Weight 0 disables an alternative; if every alternative of a choice is disabled the walk reports a failure.
+    void setWeight(size_t node, size_t alternative, ulong weight) {
+        if (node < altBase.length && altBase[node] != size_t.max && alternative < graph
+                .expressions[node].children.length)
+            altWeight[altBase[node] + alternative] = weight;
+    }
+
+    void setRepeatBias(size_t node, ubyte bias) {
+        if (node < repeatBias.length)
+            repeatBias[node] = bias;
     }
 
     private ulong roll() {
@@ -285,31 +315,56 @@ nothrow:
                     } else if (minimal[child] == best && roll() % ++ties == 0)
                         chosen = i;
                 }
-            } else
-                chosen = roll() % node.children.length;
+            } else {
+                const base = altBase[index];
+                ulong total;
+                foreach (i; 0 .. node.children.length)
+                    total += altWeight[base + i];
+                if (!total) {
+                    fail(GenStatus.unsupported, "every alternative of a choice is disabled");
+                    return;
+                }
+                ulong pick = roll() % total;
+                foreach (i; 0 .. node.children.length) {
+                    if (pick < altWeight[base + i]) {
+                        chosen = i;
+                        break;
+                    }
+                    pick -= altWeight[base + i];
+                }
+            }
+            proposedAlt[altBase[index] + chosen] = true;
             walk(node.children[chosen], depth + 1);
             return;
         case ExpressionKind.optional:
-            if (depth < options.softDepth && chance(1, 2))
-                walk(node.children[0], depth + 1);
+            if (depth < options.softDepth) {
+                const bias = repeatBias[index];
+                const take = bias == 1 ? false : bias >= 2 ? true : chance(1, 2);
+                if (take)
+                    walk(node.children[0], depth + 1);
+            }
             return;
         case ExpressionKind.repetition:
-            repeat(node.children[0], 0, depth);
+            repeat(node.children[0], 0, depth, repeatBias[index]);
             return;
         case ExpressionKind.predicate:
             return; // zero-width: the oracle decides whether the surrounding sequence is accepted
         case ExpressionKind.wrapper:
             if (node.combinator == "oneOrMore")
-                repeat(node.children[0], 1, depth);
+                repeat(node.children[0], 1,
+                        depth, repeatBias[index]);
             else if (node.children.length)
                 walk(node.children[0], depth);
             return;
         }
     }
 
-    private void repeat(size_t body, size_t least, size_t depth) {
+    private void repeat(size_t body, size_t least, size_t depth, ubyte bias = 0) {
         size_t count = least;
-        if (depth < options.softDepth) {
+        if (depth < options.softDepth && bias != 0 && chance(3, 4)) {
+            // Guided: aim at a specific bucket (empty / one / many), still respecting the minimum.
+            count = bias == 1 ? least : bias == 2 ? (least > 1 ? least : 1) : (least > 3 ? least : 3);
+        } else if (depth < options.softDepth) {
             const longRun = chance(1, 32);
             const cap = longRun ? options.maxRepeat * 4 : options.maxRepeat;
             if (least == 0) {

@@ -10,6 +10,7 @@ import npegged.bites : renderBites, annotateBites, renderNextBites, renderCommit
     unifiedDiagnostics, renderUnified;
 import npegged.language : Budget;
 public import npegged.generator : CandidateGenerator, GeneratorOptions, GenStatus;
+import npegged.coverage : Coverage, Attributor, buildTargets, TargetKind;
 import npegged.ll : classifyRegions, renderRegions, renderEbnf, RegionClass, firstCertifiedRules;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
@@ -3919,6 +3920,137 @@ AcceptedSet generateAccepted(alias parser)(string definition, string startRule, 
             ++result.rejected;
     }
     result.status = Status.ok;
+    return result;
+}
+
+/// Coverage-guided generation result (G3). Coverage counts only accepted samples, attributed by a reference derivation.
+struct CoveringSet {
+    AcceptedSet accepted;
+    size_t coverable; /// reachable targets the matcher can evaluate
+    size_t covered; /// of those, hit by at least one accepted sample
+    size_t unreachable; /// targets in rules the start rule cannot reach
+    size_t unknown; /// targets with constructs the matcher cannot follow
+    size_t unattributed; /// accepted samples the matcher could not follow
+    size_t proposedAlternatives; /// alternatives the generator proposed at least once (accepted or not)
+    size_t exercisedAlternatives; /// alternatives that occur in an accepted sample's derivation
+    string[] uncovered; /// descriptions of reachable, evaluable targets no accepted sample hit
+}
+
+/// Generate `count` accepted samples, steering the walk toward targets no accepted sample has hit yet: uncovered
+/// alternatives get weight 8 (others 1), uncovered optional/repetition outcomes are favored three times in four.
+/// Rule `startRule` of `definition` must be compiled as `parser`, as in `generateAccepted`.
+CoveringSet generateCovering(alias parser)(string definition, string startRule, size_t count,
+        GeneratorOptions options = GeneratorOptions.init,
+        size_t maxAttempts = 20_000, bool stopWhenCovered = false, bool guided = true) nothrow {
+    CoveringSet result;
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.accepted.diagnostic = Diagnostic(begin, "Candidate generation input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.accepted.diagnostic = frontend.error;
+        return result;
+    }
+    frontend.prepareAnalysis();
+    const rule = frontend.analyzed.ruleIndex(startRule);
+    if (rule == size_t.max) {
+        result.accepted.diagnostic = Diagnostic(0, "Unknown start rule");
+        return result;
+    }
+    auto coverage = buildTargets(frontend.analyzed, rule);
+    auto attributor = Attributor(frontend.analyzed, coverage);
+    auto generator = CandidateGenerator(frontend.analyzed, rule, options);
+    auto steer = delegate() nothrow{
+        foreach (target; coverage.targets) {
+            if (!target.reachable || target.unknown)
+                continue;
+            if (target.kind == TargetKind.alternative)
+                generator.setWeight(target.node, target.alternative, target.hits == 0 ? 8 : 1);
+        }
+        // Optional and repetition outcomes: favor an uncovered one, otherwise default behavior.
+        foreach (node; 0 .. frontend.analyzed.expressions.length) {
+            ubyte bias;
+            foreach (target; coverage.targets) {
+                if (target.node != node || !target.reachable || target.unknown || target.hits != 0)
+                    continue;
+                final switch (target.kind) {
+                case TargetKind.alternative:
+                    break;
+                case TargetKind.optionalTaken:
+                case TargetKind.repeatOne:
+                    bias = 2;
+                    break;
+                case TargetKind.optionalSkipped:
+                case TargetKind.repeatNone:
+                    bias = 1;
+                    break;
+                case TargetKind.repeatMany:
+                    bias = 3;
+                    break;
+                }
+            }
+            generator.setRepeatBias(node, bias);
+        }
+    };
+    size_t attempts;
+    while (result.accepted.texts.length < count) {
+        if (stopWhenCovered && coverage.coverable() && coverage.covered() == coverage.coverable()
+                && result.accepted.texts.length)
+            break;
+        if (attempts++ >= maxAttempts) {
+            result.accepted.exhausted = true;
+            break;
+        }
+        if (guided)
+            steer();
+        auto candidate = generator.next();
+        if (candidate.status != GenStatus.ok) {
+            ++result.accepted.generationFailures;
+            bool known;
+            foreach (reason; result.accepted.failureReasons)
+                known = known || reason == candidate.reason;
+            if (!known && result.accepted.failureReasons.length < 8)
+                result.accepted.failureReasons ~= candidate.reason;
+            continue;
+        }
+        ++result.accepted.proposed;
+        ParseContext context;
+        auto verdict = check!parser(context, candidate.text);
+        if (verdict.status == Status.ok && verdict.successful && verdict.end == candidate.text.length) {
+            result.accepted.texts ~= candidate.text;
+            attributor.record(rule, candidate.text);
+        } else
+            ++result.accepted.rejected;
+    }
+    result.accepted.status = Status.ok;
+    result.coverable = coverage.coverable();
+    result.covered = coverage.covered();
+    result.unattributed = coverage.unattributed;
+    foreach (target; coverage.targets) {
+        result.unreachable += !target.reachable;
+        result.unknown += target.reachable && target.unknown;
+        if (target.reachable && !target.unknown && target.hits == 0) {
+            string kind = target.kind == TargetKind.alternative ? "alternative " ~ number(
+                    target.alternative) : target.kind == TargetKind.optionalTaken
+                ? "optional taken" : target.kind == TargetKind.optionalSkipped
+                ? "optional skipped" : target.kind == TargetKind.repeatNone
+                ? "repeat none" : target.kind == TargetKind.repeatOne ? "repeat one" : "repeat many";
+            result.uncovered ~= "node " ~ number(target.node) ~ " " ~ kind;
+        }
+        if (target.kind == TargetKind.alternative && target.reachable && !target.unknown) {
+            result.exercisedAlternatives += target.hits != 0;
+            const base = generator.altBase[target.node];
+            result.proposedAlternatives += generator.proposedAlt[base + target.alternative];
+        }
+    }
     return result;
 }
 

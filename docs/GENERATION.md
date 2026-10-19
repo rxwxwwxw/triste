@@ -33,3 +33,21 @@ generation as `unsupported` (the parse of a candidate never happens for it).
 Tests (`tests/acceptance_oracle.d`, 90 s alarm): the candidate trap `('a' / 'ab') 'c'` (proposes `abc`, which the PEG rejects; only
 `ac` is returned), the impossible branch `'a'* 'a' eoi` (budget exhausted, nothing listed), lookahead rejection, a disjoint grammar
 (no retries), attempt-budget exhaustion, unsupported actions, reproducibility, and an independent re-check of every returned sample.
+
+## G3: coverage-guided generation (`generateCovering!(parser)`, `src/npegged/coverage.d`)
+
+Coverage comes from **accepted parses**, never from what the generator proposed. Each accepted sample is replayed by a reference PEG
+derivation over the expression graph (`Attributor`), which records the winning alternative of every choice, `e?` taken/skipped and
+`e*`/`e+` iteration buckets (0, 1, many). A sample the matcher cannot follow (actions, unknown nodes, left recursion, or a
+disagreement with the parser) is counted as `unattributed` and contributes nothing.
+
+Targets in rules the start rule cannot reach are `unreachable`; targets whose subtree has constructs the matcher cannot evaluate are
+`unknown`. Both are reported separately and excluded from `covered/coverable`.
+
+Guidance (before every proposal): uncovered alternatives get weight 8 (covered ones 1); an uncovered optional or repetition outcome is
+favored three times in four. `CoveringSet` reports accepted samples, `covered`, `coverable`, `unreachable`, `unknown`, `unattributed`,
+`uncovered` descriptions, and both `proposedAlternatives` (what the walk chose) and `exercisedAlternatives` (what accepted samples
+use); they differ for `('a' / 'ab') 'c'` (2 vs 1). The attempt budget bounds unreachable targets.
+
+Measured (`tests/coverage_generation.d`, ten-alternative choice, 8 seeds): 12 samples cover 76/80 targets with guidance vs 57/80 without;
+20 samples cover 80/80 vs 70/80. Fixed seeds reproduce results.
