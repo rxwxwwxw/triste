@@ -1,0 +1,60 @@
+{
+    "truncated": false,
+    "total": {
+        "calls": 38,
+        "successes": 38,
+        "failures": 0,
+        "memoHits": 0
+    },
+    "rules": [
+        {
+            "rule": "BenchArithmetic.Space",
+            "calls": 16,
+            "successes": 16,
+            "failures": 0,
+            "memoHits": 0
+        },
+        {
+            "rule": "BenchArithmetic.Number",
+            "calls": 5,
+            "successes": 5,
+            "failures": 0,
+            "memoHits": 0
+        },
+        {
+            "rule": "BenchArithmetic.Primary",
+            "calls": 8,
+            "successes": 8,
+            "failures": 0,
+            "memoHits": 0
+        },
+        {
+            "rule": "BenchArithmetic.Factor",
+            "calls": 5,
+            "successes": 5,
+            "failures": 0,
+            "memoHits": 0
+        },
+        {
+            "rule": "BenchArithmetic.Term",
+            "calls": 2,
+            "successes": 2,
+            "failures": 0,
+            "memoHits": 0
+        },
+        {
+            "rule": "BenchArithmetic.Identifier",
+            "calls": 1,
+            "successes": 1,
+            "failures": 0,
+            "memoHits": 0
+        },
+        {
+            "rule": "BenchArithmetic.Root",
+            "calls": 1,
+            "successes": 1,
+            "failures": 0,
+            "memoHits": 0
+        }
+    ]
+}

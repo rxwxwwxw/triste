@@ -285,7 +285,92 @@ version (NPeggedScannerMetrics) {
     }
 }
 
+// Per-rule instrumentation build only (-version=NPeggedRuleMetrics): counts are never in timed builds.
+version (NPeggedRuleMetrics) {
+    struct RuleStats {
+        string rule;
+        ulong calls, successes, failures, memoHits;
+    }
+
+    /// Borrowed fixed-capacity rows; `total` stays complete when rows truncate.
+    struct RuleReport {
+        RuleStats total;
+        RuleStats[] rows;
+        size_t length;
+        bool truncated;
+
+        void record(string rule, bool successful, bool memoHit = false) @nogc nothrow {
+            ++total.calls;
+            successful ? ++total.successes : ++total.failures;
+            total.memoHits += memoHit;
+            foreach (i; 0 .. length)
+                if (rows[i].rule == rule) {
+                    ++rows[i].calls;
+                    successful ? ++rows[i].successes : ++rows[i].failures;
+                    rows[i].memoHits += memoHit;
+                    return;
+                }
+            if (length == rows.length) {
+                truncated = true;
+                return;
+            }
+            rows[length] = RuleStats(rule, 1, successful, !successful, memoHit);
+            ++length;
+        }
+
+        /// Deterministic JSON for the instrumented run.
+        string json() const nothrow {
+            string number(ulong value) nothrow {
+                char[20] digits;
+                size_t count;
+                do {
+                    digits[count++] = cast(char)('0' + value % 10);
+                    value /= 10;
+                }
+                while (value);
+                string text;
+                while (count)
+                    text ~= digits[--count];
+                return text;
+            }
+
+            string row(const RuleStats stats) nothrow {
+                return "\"calls\":" ~ number(stats.calls) ~ ",\"successes\":" ~ number(
+                        stats.successes) ~ ",\"failures\":" ~ number(
+                        stats.failures) ~ ",\"memoHits\":" ~ number(stats.memoHits);
+            }
+
+            string text = "{\"truncated\":" ~ (truncated ? "true" : "false") ~ ",\"total\":{" ~ row(
+                    total) ~ "},\"rules\":[";
+            foreach (i; 0 .. length)
+                text ~= (i ? "," : "") ~ "{\"rule\":\"" ~ rows[i].rule ~ "\"," ~ row(rows[i]) ~ "}";
+            return text ~ "]}";
+        }
+    }
+
+    @nogc nothrow unittest {
+        RuleStats[2] storage;
+        RuleReport report;
+        report.rows = storage[];
+        report.record("A", true);
+        report.record("A", false, true);
+        report.record("B", true);
+        report.record("C", true); // truncated row, still totalled
+        assert(report.length == 2 && report.truncated && report.total.calls == 4);
+        assert(storage[0].calls == 2 && storage[0].failures == 1 && storage[0].memoHits == 1);
+    }
+
+    nothrow unittest {
+        RuleStats[1] storage;
+        RuleReport report;
+        report.rows = storage[];
+        report.record("A", true);
+        assert(report.json() == `{"truncated":false,"total":{"calls":1,"successes":1,"failures":0,"memoHits":0},"rules":[{"rule":"A","calls":1,"successes":1,"failures":0,"memoHits":0}]}`);
+    }
+}
+
 struct ParseContext {
+    version (NPeggedRuleMetrics) RuleReport* ruleReport;
     version (NPeggedScannerMetrics) ScannerReport* scannerReport;
     version (NPeggedSharedOutput) bool sharedOutput;
     version (NPeggedDependencyTrace) MemoTrace* memoTrace;
@@ -325,6 +410,7 @@ struct State(bool CT, int Check = 0) {
     ParseContext context;
     Status status;
     size_t steps, depth;
+    version (NPeggedRuleMetrics) bool memoHitPending;
     static if (Check == 2)
         private RecordBuffer* records;
     static if (Check == 2) {
@@ -829,17 +915,27 @@ struct State(bool CT, int Check = 0) {
     pragma(inline, true) Node rule(alias body, string name, bool memoize = true, long RecordKind = -1)(
             size_t pos) nothrow if (!memoize) {
         static if (Check == 2 && RecordKind != -3)
-            return capturedRule!(body, name, false, RecordKind)(pos);
+            auto result = capturedRule!(body, name, false, RecordKind)(pos);
         else
-            return ruleBody!(body, name)(pos);
+            auto result = ruleBody!(body, name)(pos);
+        version (NPeggedRuleMetrics)
+            if (context.ruleReport !is null)
+                context.ruleReport.record(name, result.successful);
+        return result;
     }
 
     Node rule(alias body, string name, bool memoize = true, long RecordKind = -1)(size_t pos) nothrow
             if (memoize) {
         static if (Check == 2 && RecordKind != -3)
-            return capturedRule!(body, name, true, RecordKind)(pos);
+            auto result = capturedRule!(body, name, true, RecordKind)(pos);
         else
-            return memoizedRule!(body, name)(pos);
+            auto result = memoizedRule!(body, name)(pos);
+        version (NPeggedRuleMetrics) {
+            if (context.ruleReport !is null)
+                context.ruleReport.record(name, result.successful, memoHitPending);
+            memoHitPending = false;
+        }
+        return result;
     }
 
     /// Inline non-memoized calls so tiny lexical rules do not pass nodes through stack frames.
@@ -1152,6 +1248,9 @@ struct State(bool CT, int Check = 0) {
         ++depth;
         const successful = body(this, end, failEnd);
         --depth;
+        version (NPeggedRuleMetrics)
+            if (context.ruleReport !is null)
+                context.ruleReport.record(name, successful);
         static if (Trace)
             if (context.trace !is null)
                 context.trace(name, pos, successful, context.userData);
@@ -1435,6 +1534,8 @@ struct State(bool CT, int Check = 0) {
                 version (NPeggedMetrics)
                     if (context.metrics !is null)
                         ++context.metrics.memoHits;
+                version (NPeggedRuleMetrics)
+                    memoHitPending = true;
                 version (NPeggedDependencyTrace)
                     traceMemo(entry.active ? MemoTraceKind.activeHit : MemoTraceKind.cachedHit, entry);
                 if (entry.active)
