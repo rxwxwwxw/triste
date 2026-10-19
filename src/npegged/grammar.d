@@ -125,7 +125,11 @@ private string renderEligibility(scope const ref EligibilityResult value, Eligib
                 number(row.recordKind)) ~ separator ~ field("recordSelected",
                 booleanText(row.recordSelected)) ~ separator ~ field("recordLeaf",
                 booleanText(row.recordLeaf)) ~ separator ~ field("recordSubtree",
-                booleanText(row.recordSubtree)) ~ (json ? "}" : "\n");
+                booleanText(row.recordSubtree)) ~ separator ~ field("dfaScanner",
+                booleanText(row.dfaScanner)) ~ separator ~ field("predictiveDispatch",
+                booleanText(row.predictiveDispatch)) ~ separator ~ field("scannerRegions",
+                number(row.scannerRegions)) ~ separator ~ field("strategy", jsonQuoted(row.strategy)) ~ (
+                json ? "}" : "\n");
     }
     return result ~ (json ? "]}" : "");
 }
@@ -2579,6 +2583,10 @@ package struct Frontend {
                     ? "grammar-parameters" : rule.params.length
                     ? "rule-parameters" : row.leftRecursive
                     ? "left-recursion" : !useDirect ? "root-combinator" : "none";
+                row.dfaScanner = count != 0 || startsWith(body, "dfaToken!(");
+                row.scannerRegions = count;
+                row.predictiveDispatch = containsText(body, "predictiveChoice!(");
+                row.strategy = useDirect ? "direct-cursor" : row.dfaScanner ? "dfa-scanner" : "combinator";
                 row.selectorConfigured = recordKinds.length != 0;
                 if (row.selectorConfigured) {
                     row.recordKind = recordKinds[ruleIndex];
@@ -3347,6 +3355,15 @@ struct GenerationResult {
     Diagnostic diagnostic;
 }
 
+private bool containsText(string input, string needle) @nogc nothrow pure {
+    if (needle.length > input.length)
+        return false;
+    foreach (i; 0 .. input.length - needle.length + 1)
+        if (input[i .. i + needle.length] == needle)
+            return true;
+    return false;
+}
+
 /// Cold, opt-in diagnostics. Runs the same emitter and captures its decisions;
 /// neither the returned report nor its evidence changes generated parser policy.
 EligibilityResult eligibilityReport(Memoization memo = Memoization.yes, alias Selector = void,
@@ -3402,6 +3419,18 @@ nothrow unittest {
     assert(literalAction.actionRules == ["LiteralAction.Root"] && !literalAction.unknownEvidence
             .length);
     assert(!literalAction.rules[0].scalarEligible);
+    auto strategies = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)(
+            "Strat: Root <- Digits Alt eoi Digits <~ [0-9]+ Alt <- 'a' 'x' / 'b' 'y' Lit <- 'q'");
+    assert(strategies.status == Status.ok);
+    foreach (row; strategies.rules) {
+        if (row.name == "Strat.Digits")
+            assert(row.dfaScanner && row.scannerRegions >= 1 && row.strategy == "dfa-scanner");
+        if (row.name == "Strat.Alt")
+            assert(row.predictiveDispatch && row.strategy == "direct-cursor");
+        if (row.name == "Strat.Lit")
+            assert(!row.dfaScanner && !row.predictiveDispatch && row.strategy == "combinator");
+    }
+    assert(containsText(strategies.report, "\"strategy\":\"dfa-scanner\""));
     auto plain = eligibilityReport("Plain: Root <- 'a'");
     assert(plain.status == Status.ok && plain.rules[0].memoized);
     assert(plain.rules[0].directFallback == "backend-combinators");

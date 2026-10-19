@@ -76,7 +76,10 @@ struct RuleEligibility {
     string directFallback;
     bool selectorConfigured, recordSelected, recordLeaf, recordSubtree;
     uint recordKind = uint.max;
-
+    /// Emitted code-generation facts (A3): what the generator actually produced for this rule.
+    bool dfaScanner, predictiveDispatch;
+    size_t scannerRegions;
+    string strategy; // "direct-cursor", "dfa-scanner" or "combinator"
 }
 
 @nogc nothrow unittest {
