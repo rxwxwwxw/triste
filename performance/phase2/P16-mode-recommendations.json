@@ -1,0 +1,21 @@
+{
+  "milestone": "P16",
+  "name": "Publish default-versus-fast-mode recommendations",
+  "disposition": "accept",
+  "status": "completed",
+  "published_documents": [
+    "docs/PARSER_MODES.md",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "decision_table_modes": [
+    "reference_parsetree",
+    "selective_recognition",
+    "compact_records",
+    "shared_output_recursion",
+    "pure_islands",
+    "explicit_budgets_tracing"
+  ],
+  "compatibility": "100% backward compatible defaults preserved",
+  "phase_status": "Phase 2 performance plan fully completed (P01-P16)"
+}

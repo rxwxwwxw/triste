@@ -90,6 +90,18 @@ Unicode 17 database, independently of the process locale. As in Pegged, `.`
 consumes one byte, character ranges decode UTF-8, and case-insensitive literals
 consume the literal's byte length. Offsets and columns are byte-based.
 
+## Parser modes and recommendations
+
+NPegged supports multiple execution backends, output contracts, and optimization flags. See the comprehensive [Parser Modes & Performance Guide](docs/PARSER_MODES.md) for full configuration details and benchmark analysis.
+
+| Mode | Invocation | Characteristics |
+|---|---|---|
+| **Reference ParseTree** | `Grammar(context, input)` | Default; complete `ParseTree` AST, full memoization, scoped arena. |
+| **Selective Recognition** | `check!(Grammar.opCall)(context, input)` | Direct byte scanners, zero allocation, returns `CheckResult`. |
+| **Compact Records** | `parseRecords!(Grammar.opCall, selector)(context, input)` | Linear `CompactNode[]` records, zero GC; flat specialization eliminates overhead on non-recursive grammars. |
+| **Shared Left Recursion** | `parseRecords` with `context.sharedOutput = true` | Compile with `-d-version=NPeggedSharedOutput`; up to 2.16× speedup on deep recursive grammars. |
+| **Action Pure Islands** | `check` or `parseRecords` with pure rules | Compile with `-d-version=NPeggedPureIslands`; compiles pure sub-rules to scalar code in action grammars. |
+
 ## Building and checking
 
 Required compiler targets: DMD and LDC (`ldc2`). Other tools: separately linkable
