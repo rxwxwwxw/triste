@@ -33,8 +33,9 @@ def main():
             report.unlink()
     (COVERAGE / 'lines').mkdir(parents=True)
     (COVERAGE / 'branches').mkdir()
+    standalone = ('recursion_scaling.d', 'dfa_scanning.d', 'p09_crossover.d', 'p11_flat_bench.d', 'p13_tuning.d')
     sources = [path for path in sorted((ROOT / 'benchmark').rglob('*.d'))
-               if 'handwritten' not in path.parts or path.name == 'json.d']
+               if ('handwritten' not in path.parts or path.name == 'json.d') and path.name not in standalone]
     (COVERAGE / 'sources.json').write_text(json.dumps({
         str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in sources
@@ -73,8 +74,9 @@ def main():
                   *sorted((ROOT / 'benchmark/handwritten').glob('*.d'))]
     maintained.remove(ROOT / 'benchmark/unit_tests.d')
     # Standalone diagnostics have their own main and bounded runner scripts.
-    for name in ('recursion_scaling.d', 'dfa_scanning.d'):
-        maintained.remove(ROOT / 'benchmark' / name)
+    for name in standalone:
+        if (ROOT / 'benchmark' / name) in maintained:
+            maintained.remove(ROOT / 'benchmark' / name)
     pegged = [p for p in sorted((ROOT / 'third-party/Pegged/pegged').rglob('*.d'))
               if len(p.relative_to(ROOT / 'third-party/Pegged/pegged').parts) <= 2
               and not p.name.startswith(('tester', 'tohtml'))]
