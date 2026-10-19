@@ -338,6 +338,382 @@ void annotateBites(ref GrammarAnalysis graph, ref ChoiceDiscrimination[] choices
     }
 }
 
+/// Outcome of an expression: the paper's R = {succ, fail}.
+enum Outcome : size_t {
+    succ,
+    fail
+}
+
+/// NEXTBITES(e, r) (B5): upper approximation of the inputs, seen from the position where `e` terminated,
+/// on which the parser may bite after `e` returns with result r. Built from the paper's Last* x Next
+/// (Redziejowski 2011, Appendix A.5-A.6) using only monotone "may" properties (nullable, may-advance,
+/// may-fail), so every approximation is a superset. For a conservative graph (unknown nodes, unresolved
+/// references: hidden call sites) or when iteration does not converge, every result is universal.
+struct NextBites {
+nothrow:
+    GrammarAnalysis* graph;
+    BitesAnalysis* bites;
+    Budget budget;
+    bool converged, trusted;
+    InputLanguage[2][] value;
+    private size_t[2][][] parents; // [node] -> (parent, unused) pairs
+    private size_t[][] referencing; // [rule] -> reference nodes calling it
+
+    this(ref GrammarAnalysis graph, ref BitesAnalysis bites, Budget budget = Budget.init, size_t maxIterations = 32) {
+        this.graph = &graph;
+        this.bites = &bites;
+        this.budget = budget;
+        const count = graph.expressions.length;
+        value = new InputLanguage[2][count];
+        foreach (ref pair; value) {
+            pair[0] = InputLanguage.empty();
+            pair[1] = InputLanguage.empty();
+        }
+        parents = new size_t[2][][count];
+        referencing = new size_t[][graph.roots.length];
+        foreach (index, node; graph.expressions) {
+            foreach (child; node.children)
+                if (child < count)
+                    parents[child] ~= [index, 0];
+            if (node.kind == ExpressionKind.reference) {
+                auto copy = node;
+                const rule = graph.referenceRule(copy);
+                if (rule < referencing.length)
+                    referencing[rule] ~= index;
+            }
+        }
+        trusted = !graph.conservative;
+        if (!trusted) {
+            topAll();
+            return;
+        }
+        solve(maxIterations);
+    }
+
+    private void topAll() {
+        foreach (ref pair; value) {
+            pair[0] = InputLanguage.universal();
+            pair[1] = InputLanguage.universal();
+        }
+    }
+
+    private bool mayNul(size_t i) const {
+        return i >= graph.facts.length || graph.facts[i].nullable != Nullable.no;
+    }
+
+    private bool mayAdv(size_t i) const {
+        return i >= graph.facts.length || !graph.facts[i].neverAdvances;
+    }
+
+    private bool mayFail(size_t i) const {
+        return i >= graph.facts.length || !graph.facts[i].neverFails;
+    }
+
+    private bool maySucceed(size_t i) const {
+        return mayAdv(i) || mayNul(i);
+    }
+
+    private InputLanguage joined(InputLanguage a, InputLanguage b) {
+        auto r = a.unionWith(b, budget);
+        return r.overflow ? InputLanguage.universal() : r;
+    }
+
+    private bool same(const InputLanguage a, const InputLanguage b) {
+        return a.intersect(b.complement(), budget).emptiness() == Proof.provenEmpty
+            && b.intersect(a.complement(), budget).emptiness() == Proof.provenEmpty;
+    }
+
+    /// One monotone step: union of everything that can bite after (n, r), from the current parent values.
+    private InputLanguage contribution(size_t n, Outcome r) {
+        InputLanguage total = InputLanguage.empty();
+        void add(InputLanguage language) {
+            total = joined(total, language);
+        }
+
+        // A rule's body returns to every call site with the same result.
+        foreach (rule, root; graph.roots)
+            if (root == n)
+                foreach (site; referencing[rule])
+                    add(value[site][r]);
+        foreach (link; parents[n]) {
+            const parent = link[0];
+            auto node = graph.expressions[parent];
+            size_t at = size_t.max;
+            foreach (position, child; node.children)
+                if (child == n)
+                    at = position;
+            if (at == size_t.max)
+                continue;
+            final switch (node.kind) {
+            case ExpressionKind.unknown:
+            case ExpressionKind.terminal:
+            case ExpressionKind.reference:
+                break;
+            case ExpressionKind.wrapper:
+                if (node.combinator == "oneOrMore") { // e e*
+                    if (r == Outcome.succ) {
+                        if (maySucceed(n))
+                            add(value[parent][Outcome.succ]);
+                        if (mayAdv(n))
+                            add(bites.bites(n)); // the loop calls e again
+                    } else if (mayFail(n)) {
+                        add(value[parent][Outcome.succ]); // a later iteration failed: the loop ends
+                        add(value[parent][Outcome.fail]); // the first call failed
+                    }
+                } else
+                    add(value[parent][r]); // transparent wrapper
+                break;
+            case ExpressionKind.optional:
+                if (r == Outcome.succ
+                        ? maySucceed(n) : mayFail(n))
+                    add(value[parent][Outcome.succ]);
+                break;
+            case ExpressionKind.repetition:
+                if (r == Outcome.succ) {
+                    if (mayAdv(n))
+                        add(bites.bites(n)); // e is called again
+                } else if (mayFail(n))
+                    add(value[parent][Outcome.succ]);
+                break;
+            case ExpressionKind.predicate:
+                const negative = node.combinator == "negLookahead"
+                    || node.combinator == "predictiveNot";
+                if (negative) {
+                    if (r == Outcome.succ ? mayNul(n) : mayFail(n))
+                        add(value[parent][r == Outcome.succ ? Outcome.fail : Outcome.succ]);
+                } else if (r == Outcome.succ ? mayNul(n) : mayFail(n))
+                    add(value[parent][r]);
+                break;
+            case ExpressionKind.sequence:
+                sequenceContext(node.children, at, r, parent, &add);
+                break;
+            case ExpressionKind.choice:
+                choiceContext(node.children, at, r, parent, &add);
+                break;
+            }
+        }
+        return total;
+    }
+
+    private void sequenceContext(const(size_t)[] c, size_t i, Outcome r, size_t parent,
+            void delegate(InputLanguage) nothrow add) {
+        bool prefixSucceeds = true, prefixNull = true; // all earlier (and e_i for succ) can succeed / be empty
+        foreach (j; 0 .. i) {
+            prefixSucceeds = prefixSucceeds && maySucceed(c[j]);
+            prefixNull = prefixNull && mayNul(c[j]);
+        }
+        if (r == Outcome.fail) {
+            if (mayFail(c[i]) && prefixNull)
+                add(value[parent][Outcome.fail]);
+            return;
+        }
+        const upToSucceeds = prefixSucceeds && maySucceed(c[i]);
+        const upToNull = prefixNull && mayNul(c[i]);
+        bool suffixNull = true;
+        foreach (j; i + 1 .. c.length)
+            suffixNull = suffixNull && mayNul(c[j]);
+        if (upToSucceeds && suffixNull)
+            add(value[parent][Outcome.succ]);
+        if (upToNull) {
+            // a later element fails after the earlier ones succeeded
+            bool before = true;
+            foreach (j; i + 1 .. c.length) {
+                if (before && mayFail(c[j]))
+                    add(value[parent][Outcome.fail]);
+                before = before && maySucceed(c[j]);
+            }
+        }
+        if (upToSucceeds) {
+            // the next element that can advance, reached through elements that can be empty
+            auto passed = InputLanguage.universal();
+            foreach (j; i + 1 .. c.length) {
+                if (mayAdv(c[j])) {
+                    auto reach = passed.intersect(bites.bites(c[j]), budget);
+                    add(reach.overflow ? InputLanguage.universal() : reach);
+                }
+                if (!mayNul(c[j]))
+                    break;
+                auto narrowed = passed.intersect(bites.nul(c[j]), budget);
+                passed = narrowed.overflow ? InputLanguage.universal() : narrowed;
+            }
+        }
+    }
+
+    private void choiceContext(const(size_t)[] c, size_t i, Outcome r, size_t parent,
+            void delegate(InputLanguage) nothrow add) {
+        bool earlierFail = true;
+        foreach (j; 0 .. i)
+            earlierFail = earlierFail && mayFail(c[j]);
+        if (r == Outcome.succ) {
+            if (earlierFail && maySucceed(c[i]))
+                add(value[parent][Outcome.succ]);
+            return;
+        }
+        if (!mayFail(c[i]))
+            return;
+        // after e_i failed: a later alternative may succeed empty (choice succeeds at p), may bite,
+        // or every alternative fails (the choice fails at p)
+        bool failedSoFar = earlierFail;
+        foreach (j; i + 1 .. c.length) {
+            if (failedSoFar && mayNul(c[j]))
+                add(value[parent][Outcome.succ]);
+            if (failedSoFar && mayAdv(c[j]))
+                add(bites.bites(c[j]));
+            failedSoFar = failedSoFar && mayFail(c[j]);
+        }
+        if (failedSoFar)
+            add(value[parent][Outcome.fail]);
+    }
+
+    private void solve(size_t maxIterations) {
+        converged = false;
+        foreach (iteration; 0 .. maxIterations) {
+            bool changed;
+            foreach (n; 0 .. graph.expressions.length)
+                foreach (outcome; [Outcome.succ, Outcome.fail]) {
+                    auto next = contribution(n, outcome);
+                    if (!same(next, value[n][outcome])) {
+                        value[n][outcome] = next;
+                        changed = true;
+                    }
+                }
+            if (!changed) {
+                converged = true;
+                return;
+            }
+        }
+        topAll(); // not converged: sound top
+    }
+
+    InputLanguage nextBites(size_t index, Outcome r) {
+        return index < value.length ? value[index][r] : InputLanguage.universal();
+    }
+}
+
+/// Premise checks of Redziejowski's Propositions 10-13 for one choice or star expression.
+/// A true flag means the premises are proven under the approximations above; false means "not proven".
+struct PremiseCheck {
+    size_t expressionIndex;
+    string kind; // "choice" or "star"
+    string ruleName;
+    bool wellFormed; // trusted graph, no left recursion, fixed point converged
+    bool disjoint; // choice: every BITES pair provably disjoint
+    bool prop10, prop11; // choice: no hiding (nullable case) / cut safety after a bite
+    bool prop12, prop13; // star: no hiding / no success after e failed on a bite
+    InputLanguage nextSucc, nextFail;
+}
+
+PremiseCheck[] checkPremises(ref GrammarAnalysis graph, ref BitesAnalysis bites, ref NextBites next) nothrow {
+    PremiseCheck[] checks;
+    bool leftRecursion;
+    foreach (flag; graph.leftRecursive)
+        leftRecursion = leftRecursion || flag;
+    const wellFormed = next.trusted && next.converged && !leftRecursion;
+    size_t owner(size_t target) nothrow {
+        foreach (rule, root; graph.roots) {
+            auto seen = new bool[graph.expressions.length];
+            bool reaches(size_t index) nothrow {
+                if (index == target)
+                    return true;
+                if (seen[index])
+                    return false;
+                seen[index] = true;
+                foreach (child; graph.expressions[index].children)
+                    if (reaches(child))
+                        return true;
+                return false;
+            }
+
+            if (reaches(root))
+                return rule;
+        }
+        return size_t.max;
+    }
+
+    bool empty(InputLanguage a, InputLanguage b) nothrow {
+        return a.intersect(b, next.budget).emptiness() == Proof.provenEmpty;
+    }
+
+    foreach (index, node; graph.expressions) {
+        if (node.kind != ExpressionKind.choice && !(node.kind == ExpressionKind.repetition && node
+                .children.length))
+            continue;
+        PremiseCheck check;
+        check.expressionIndex = index;
+        const rule = owner(index);
+        check.ruleName = rule < graph.names.length ? graph.names[rule] : "";
+        check.wellFormed = wellFormed;
+        check.nextSucc = next.nextBites(index, Outcome.succ);
+        check.nextFail = next.nextBites(index, Outcome.fail);
+        const children = node.children;
+        if (node.kind == ExpressionKind.repetition) {
+            check.kind = "star";
+            const 
+            body = children[0];
+            const nonnullable = body < graph.facts.length && graph.facts[body].nullable == Nullable
+                .no;
+            check.prop12 = check.prop13 = wellFormed && nonnullable && empty(bites.bites(body), check
+                    .nextSucc);
+            checks ~= check;
+            continue;
+        }
+        check.kind = "choice";
+        check.disjoint = children.length > 1;
+        foreach (i; 0 .. children.length)
+            foreach (j; i + 1 .. children.length)
+                check.disjoint = check.disjoint && empty(bites.bites(children[i]), bites.bites(children[j]));
+        const last = children.length ? children[$ - 1] : size_t.max;
+        bool cond4 = true, cond5 = true, cond6 = true, cond7 = true;
+        const lastNullable = last >= graph.facts.length || graph.facts[last].nullable != Nullable.no;
+        const choiceNullable = index >= graph.facts.length || graph.facts[index].nullable != Nullable
+            .no;
+        const choiceFails = index >= graph.facts.length || !graph.facts[index].neverFails;
+        foreach (i, child; children) {
+            const early = i + 1 < children.length;
+            if (early && !(child < graph.facts.length && graph.facts[child].nullable == Nullable.no))
+                cond4 = false;
+            const hitsSucc = !empty(bites.bites(child), check.nextSucc);
+            if (early && lastNullable && hitsSucc)
+                cond5 = false;
+            if (early && choiceNullable && hitsSucc)
+                cond6 = false;
+            if (choiceFails && !empty(bites.bites(child), check.nextFail))
+                cond7 = false;
+        }
+        check.prop10 = wellFormed && check.disjoint && cond4 && cond5;
+        check.prop11 = wellFormed && check.disjoint && cond6 && cond7;
+        checks ~= check;
+    }
+    return checks;
+}
+
+/// Deterministic report-only JSON: NEXTBITES per choice/star plus the proposition premises.
+string renderNextBites(ref GrammarAnalysis graph, Budget budget = Budget.init) nothrow {
+    auto bites = BitesAnalysis(graph, budget);
+    auto next = NextBites(graph, bites, budget);
+    const checks = checkPremises(graph, bites, next);
+    string flag(bool value) nothrow {
+        return value ? "true" : "false";
+    }
+
+    string result = "{\"scope\":\"Propositions 10-13 premises over conservative NEXTBITES; false means not proven\"," ~ "\"trusted\":" ~ flag(
+            next.trusted) ~ ",\"converged\":" ~ flag(next.converged) ~ ",\"items\":[";
+    foreach (i, check; checks) {
+        result ~= (i ? "," : "") ~ "{\"expressionIndex\":" ~ decimal(
+                check.expressionIndex) ~ ",\"rule\":" ~ quoteWitness(
+                check.ruleName) ~ ",\"kind\":\"" ~ check.kind ~ "\",\"wellFormed\":" ~ flag(
+                check.wellFormed) ~ ",\"nextBitesSucc\":" ~ languageJson(
+                check.nextSucc) ~ ",\"nextBitesFail\":" ~ languageJson(check.nextFail);
+        if (check.kind == "choice")
+            result ~= ",\"disjoint\":" ~ flag(check.disjoint) ~ ",\"prop10\":" ~ flag(
+                    check.prop10) ~ ",\"prop11\":" ~ flag(check.prop11);
+        else
+            result ~= ",\"prop12\":" ~ flag(check.prop12) ~ ",\"prop13\":" ~ flag(check.prop13);
+        result ~= "}";
+    }
+    return result ~ "]}";
+}
+
 /// How a language relates to the extremes, for reports.
 string languageStatus(const InputLanguage value) nothrow {
     if (value.emptiness() == Proof.provenEmpty)
@@ -791,4 +1167,95 @@ nothrow unittest {
     left.solve();
     auto topped = BitesAnalysis(left);
     assert(topped.bites(4).contains("zz") && topped.bites(4).contains(""));
+}
+
+nothrow unittest {
+    // Failure continuation, nested rule calls, and the frame rule: (A / 'q') 'z' with A <- 'a' 'b'.
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["Root", "A"];
+    graph.expressions = [
+        composite(K.reference, "", []), // 0 -> A
+        lit("q"), // 1
+        composite(K.choice, "or", [0, 1]), // 2
+        lit("z"), // 3
+        composite(K.sequence, "and", [2, 3]), // 4 Root
+        lit("a"), // 5
+        lit("b"), // 6
+        composite(K.sequence, "and", [5, 6]), // 7 A
+    ];
+    graph.expressions[0].reference = "A";
+    graph.roots = [4, 7];
+    graph.solve();
+    auto bites = BitesAnalysis(graph);
+    auto next = NextBites(graph, bites);
+    assert(next.trusted && next.converged);
+    // A failed at p: the next alternative 'q' bites at p. Seen through the rule body and its first element.
+    assert(next.nextBites(0, Outcome.fail).contains("q") && !next.nextBites(0, Outcome.fail).contains(
+            "z"));
+    assert(next.nextBites(7, Outcome.fail).contains("q"));
+    assert(next.nextBites(5, Outcome.fail).contains("q")); // 'a' is first: failing there is failing at A's start
+    assert(next.nextBites(6, Outcome.fail).emptiness() == Proof.provenEmpty); // 'b' failed after consuming: backtrack
+    // A succeeded: the choice succeeds, then 'z' bites.
+    assert(next.nextBites(0, Outcome.succ).contains("z") && !next.nextBites(0, Outcome.succ).contains(
+            "q"));
+    assert(next.nextBites(7, Outcome.succ).contains("z") && next.nextBites(6, Outcome.succ).contains(
+            "z"));
+    assert(next.nextBites(4, Outcome.succ).emptiness() == Proof.provenEmpty); // the start rule: nothing follows
+}
+
+nothrow unittest {
+    // Right recursion converges; left recursion and unknown nodes yield universal results and no proven premises.
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["R"];
+    graph.expressions = [
+        lit("a"), // 0
+        composite(K.reference, "", []), // 1 -> R
+        composite(K.sequence, "and", [0, 1]), // 2: 'a' R
+        lit("b"), // 3
+        composite(K.choice, "or", [2, 3]), // 4
+    ];
+    graph.expressions[1].reference = "R";
+    graph.roots = [4];
+    graph.solve();
+    auto bites = BitesAnalysis(graph);
+    auto next = NextBites(graph, bites);
+    assert(next.converged && next.nextBites(4, Outcome.succ).emptiness() == Proof.provenEmpty);
+    assert(next.nextBites(1, Outcome.succ).emptiness() == Proof.provenEmpty);
+    const ok = checkPremises(graph, bites, next);
+    assert(ok.length == 1 && ok[0].wellFormed && ok[0].disjoint && ok[0].prop10 && ok[0].prop11);
+
+    GrammarAnalysis left;
+    left.names = ["L"];
+    left.expressions = [
+        composite(K.reference, "", []), lit("a"), composite(K.sequence, "and", [0, 1]), lit("b"),
+        composite(K.choice, "or", [2, 3])
+    ];
+    left.expressions[0].reference = "L";
+    left.roots = [4];
+    left.solve();
+    auto leftBites = BitesAnalysis(left);
+    auto leftNext = NextBites(left, leftBites);
+    const leftChecks = checkPremises(left, leftBites, leftNext);
+    assert(leftChecks.length == 1 && !leftChecks[0].wellFormed && !leftChecks[0].prop10 && !leftChecks[0]
+            .prop11);
+
+    GrammarAnalysis opaque;
+    opaque.names = ["O"];
+    opaque.expressions = [Expression(K.unknown), lit("a"), composite(K.choice, "or", [1, 0])];
+    opaque.roots = [2];
+    opaque.solve();
+    auto opaqueBites = BitesAnalysis(opaque);
+    auto opaqueNext = NextBites(opaque, opaqueBites);
+    assert(!opaqueNext.trusted && opaqueNext.nextBites(1, Outcome.succ).contains("anything"));
+    const opaqueChecks = checkPremises(opaque, opaqueBites, opaqueNext);
+    assert(opaqueChecks.length == 1 && !opaqueChecks[0].prop10 && !opaqueChecks[0].prop11);
+    // A tiny budget also degrades soundly: still no proven premise, never an empty NEXTBITES.
+    Budget tiny;
+    tiny.maxStates = 3;
+    auto tinyBites = BitesAnalysis(graph, tiny);
+    auto tinyNext = NextBites(graph, tinyBites, tiny);
+    assert(tinyNext.nextBites(1, Outcome.succ).emptiness() != Proof.provenNonempty
+            || tinyNext.nextBites(1, Outcome.succ).contains(""));
 }

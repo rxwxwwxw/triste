@@ -75,3 +75,33 @@ fields are preserved.
   Nullable alternatives are out of scope here (Propositions 10-13 need NEXTBITES, B5). It is a lint result, never permission to
   reorder alternatives or cut.
 - `bitesImprovesFirst`: a FIRST/FIRST conflict that BITES proves disjoint, e.g. `!'abc' [a-z]+ / 'abc' [a-z]*`.
+
+## B5: NEXTBITES and Propositions 10-13 premises (`NextBites`, `checkPremises`, `nextBitesReport`)
+
+Source read directly from the paper (Definition 5, Propositions 7-13, Appendix A.5-A.6).
+`NEXTBITES(e, r) = ⋃ BITES(e')` over `NEXT = Last* × Next`, for `r ∈ {succ, fail}`, as a language seen from the position where `e`
+terminated. Implemented over the expression graph by monotone fixed point from ∅, with the paper's Last/Next conditions
+evaluated on the "may" properties nullable (F1), may-advance (`!neverAdvances`) and may-fail (`!neverFails`). Since every
+condition is monotone in those properties, over-approximating them only adds pairs: results are supersets.
+
+Differences from the paper, all conservative: a later element that can advance is reached through elements that may be empty
+(intersecting their NULL languages), and for ordered choice the continuation after `ei` failed includes every later alternative
+reachable through alternatives that may fail. Rule bodies return to every call site; the start rule is followed by nothing.
+`&e` is handled as `!!e`; `e+` as `e e*`.
+
+Fallbacks: a conservative graph (unknown nodes, unresolved references, actions/parameters = hidden call sites), a fixed point
+that does not converge in 32 rounds, or a budget overflow all produce universal results and no proven premise.
+
+`checkPremises` evaluates, per choice and star expression, the premises of the propositions (true = proven under the
+approximations; false = not proven):
+
+| flag | premises |
+|---|---|
+| `prop10` (no hiding, nullable choice) | disjoint BITES; (4) ei non-nullable for i<n; (5) if en may be nullable, BITES(ei) ∩ NEXTBITES(E,succ)=∅ |
+| `prop11` (cut safety after a bite) | disjoint BITES; (6) if E may be nullable, BITES(ei) ∩ NEXTBITES(E,succ)=∅ (i<n); (7) if E may fail, BITES(ei) ∩ NEXTBITES(E,fail)=∅ |
+| `prop12`/`prop13` (star) | e non-nullable and BITES(e) ∩ NEXTBITES(E,succ)=∅ |
+
+All require `wellFormed` (trusted graph, converged, no left recursion). They are lint results and cut *candidates*, not
+transformations (B6). Validation: paper examples `('a'/'c'?)'a'` (unsafe), `...'b'` (safe), `(!'a' .)*'a'` (safe),
+`'a'*('ab'/'c')` (hidden), `'a'*('b'/'c')` (safe), nested calls, failure continuation, left recursion, unknown nodes
+(`tests/next_bites.d`, unit tests in `bites.d`).

@@ -6,7 +6,7 @@ public import npegged.dfa;
 import npegged.io;
 public import npegged.analysis : RuleEligibility, DiscriminationKind, BranchDiscrimination,
     ChoiceDiscrimination, renderDiscrimination;
-import npegged.bites : renderBites, annotateBites;
+import npegged.bites : renderBites, annotateBites, renderNextBites;
 import npegged.language : Budget;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
@@ -3538,6 +3538,34 @@ nothrow unittest {
     assert(startsWith(both.report, "{\"scope\""));
     assert(bitesReport("Bad: Root <- 'a' #\x80").status == Status.invalidInput);
     assert(bitesReport("Broken:").status == Status.invalidInput);
+}
+
+/// Report-only NEXTBITES and Proposition 10-13 premise checks per choice/star (B5).
+BitesResult nextBitesReport(string definition, size_t budgetStates = Budget.init.maxStates) nothrow {
+    BitesResult result;
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.diagnostic = Diagnostic(begin, "NEXTBITES report input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    result.grammarName = frontend.name;
+    frontend.prepareAnalysis();
+    Budget budget;
+    budget.maxStates = budgetStates;
+    result.report = renderNextBites(frontend.analyzed, budget);
+    result.status = Status.ok;
+    return result;
 }
 
 /// Bounded literal-prefix discrimination report for ordered choice alternatives.
