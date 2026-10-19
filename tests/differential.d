@@ -213,6 +213,13 @@ int main() @nogc nothrow {
                         "<=<", "<<", "===", "=", "<"
                     ]) {
                         assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall)(input);
+                        // Dense step-limit sweep: local step accounting in generated cursors must stay exact.
+                        foreach (limit; 0 .. 80) {
+                            ParseContext dense;
+                            dense.stepLimit = limit;
+                            assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall)(
+                                    input, dense);
+                        }
                         foreach (limit; [0, 1, 4, 16, 64]) {
                             ParseContext context;
                             context.stepLimit = limit;

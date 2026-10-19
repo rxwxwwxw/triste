@@ -2,14 +2,14 @@
 
 Generated from `performance/trends.csv`; do not edit by hand.
 
-Latest run: `20261019T224527Z-3b4f633bb` (milestone:L3-ll1, ldc2, commit 3b4f633bb)
+Latest run: `20261019T231119Z-276489b1c` (milestone:S1b[direct], ldc2, commit 276489b1c)
 
-- Workloads within 1.5x: 79/171 (46.2%)
-- Slowdown p50/p90/p95: 1.55 / 2.52 / 2.77
-- Geometric mean: 1.48x
-- Worst: 3.44x (handwritten-workloads/Arithmetic.Flat/validation)
+- Workloads within 1.5x: 93/171 (54.4%)
+- Slowdown p50/p90/p95: 1.43 / 2.23 / 2.46
+- Geometric mean: 1.38x
+- Worst: 2.90x (handwritten-workloads/PEGGrammar.Permissive/validation)
 
-Delta vs previous run `20261019T224526Z-3b4f633bb`: within-target -1, p90 +0.01, geomean +0.00
+Delta vs previous run `20261019T225825Z-276489b1c`: within-target -3, p90 +0.19, geomean +0.06
 
 ## History
 
@@ -24,6 +24,9 @@ Delta vs previous run `20261019T224526Z-3b4f633bb`: within-target -1, p90 +0.01,
 | 20261019T214333Z-a10ce3497 | milestone:P2 | ldc2 | 60/171 | 2.89 | 1.62 | 3.96 |
 | 20261019T224526Z-3b4f633bb | milestone:L3-direct | ldc2 | 80/171 | 2.50 | 1.47 | 3.41 |
 | 20261019T224527Z-3b4f633bb | milestone:L3-ll1 | ldc2 | 79/171 | 2.52 | 1.48 | 3.44 |
+| 20261019T224838Z-276489b1c | baseline[direct] | ldc2 | 78/171 | 2.50 | 1.47 | 3.44 |
+| 20261019T225825Z-276489b1c | milestone:S1[direct] | ldc2 | 96/171 | 2.04 | 1.32 | 2.72 |
+| 20261019T231119Z-276489b1c | milestone:S1b[direct] | ldc2 | 93/171 | 2.23 | 1.38 | 2.90 |
 
 ## Progress
 
@@ -46,6 +49,8 @@ Last updated 2026-10-19.
 | L1 conversion contract, L2 certified EBNF export (254k-string corpus check) | done, report-only | `docs/LL.md`, `tests/{ll_regions,ll_export}.d` |
 | L3 `ll1` backend (opt-in, exact, no gain) | done | `milestones/L3-ll1/notes-l3.md`, differential fixtures |
 | **Finding: `direct` backend beats default combinators** (79/171 vs 60/171 within 1.5x, geomean 1.48 vs 1.62) | recorded | `milestones/L3-direct` |
+| **New baseline on `direct`** | 78/171 within 1.5x, geomean 1.47 | `baselines/20261019T224838Z-*` |
+| **S1 register-resident step accounting in cursors** (exact; dense differential sweeps) | 96/171 within 1.5x (56%), p90 2.04, geomean 1.32; 10 PEGGrammar regressions <= 12% disclosed | `milestones/S1/notes-s1.md`, S1b alternative |
 | P3-P5, P7-P8, L4-L6, G*, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,

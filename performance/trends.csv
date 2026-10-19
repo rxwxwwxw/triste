@@ -8,3 +8,6 @@ run_id,kind,compiler,commit,workloads,within_target,pct_within_target,p50,p90,p9
 20261019T214333Z-a10ce3497,milestone:P2,ldc2,a10ce349724ff8261af93e0f52f3b9077ca150be,171,60,35.0877,1.8391,2.8881,3.0787,1.6246,3.9577,handwritten-workloads/PEGGrammar.Permissive/validation
 20261019T224526Z-3b4f633bb,milestone:L3-direct,ldc2,3b4f633bbd9d7a8de7225d771b0e1a967003ca49,171,80,46.7836,1.5501,2.5050,2.7626,1.4736,3.4133,handwritten-workloads/Arithmetic.Flat/validation
 20261019T224527Z-3b4f633bb,milestone:L3-ll1,ldc2,3b4f633bbd9d7a8de7225d771b0e1a967003ca49,171,79,46.1988,1.5462,2.5184,2.7725,1.4757,3.4388,handwritten-workloads/Arithmetic.Flat/validation
+20261019T224838Z-276489b1c,baseline[direct],ldc2,276489b1c3fbe6b024927d4dea85c936efefeac0,171,78,45.6140,1.5461,2.5043,2.7868,1.4738,3.4394,handwritten-workloads/Arithmetic.Flat/validation
+20261019T225825Z-276489b1c,milestone:S1[direct],ldc2,276489b1c3fbe6b024927d4dea85c936efefeac0,171,96,56.1404,1.3671,2.0413,2.2136,1.3225,2.7211,handwritten-workloads/Numbers.ScientificEmpty/validation
+20261019T231119Z-276489b1c,milestone:S1b[direct],ldc2,276489b1c3fbe6b024927d4dea85c936efefeac0,171,93,54.3860,1.4348,2.2263,2.4603,1.3829,2.8960,handwritten-workloads/PEGGrammar.Permissive/validation

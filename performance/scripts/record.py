@@ -238,10 +238,12 @@ def main():
     report = json.loads(args.report.read_text())
     commit = report['metadata']['revision'][:9]
     run_id = time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()) + '-' + commit
+    backend = report['metadata'].get('backend', 'combinators')
+    suffix = '' if backend == 'combinators' else f'[{backend}]'
     if args.baseline:
-        root, kind = PERF / 'baselines', 'baseline'
+        root, kind = PERF / 'baselines', 'baseline' + suffix
     else:
-        root, kind = PERF / 'milestones' / args.milestone, f'milestone:{args.milestone}'
+        root, kind = PERF / 'milestones' / args.milestone, f'milestone:{args.milestone}' + suffix
     print(record(report, root, run_id, kind, args.notes))
 
 

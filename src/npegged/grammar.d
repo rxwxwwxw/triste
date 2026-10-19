@@ -1882,16 +1882,15 @@ package struct Frontend {
                         eof ? "" : [cast(char)outside].idup) ~ "; auto matched = " ~ graph
                     .expressions[root].source ~ "(state, 0); auto failure = state.checkpointFailure(); return " ~ type ~ "(state.steps, failure.present, state.status == Status.ok && matched.successful" ~ " && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();\n";
             }
-            guard ~= "static if (" ~ symbol ~ ".valid && " ~ symbol
-                ~ ".cost >= 3) { if (s.status == Status.ok" ~ " && s.context.trace is null && "
-                ~ position ~ " " ~ (eof ? "==" : "<") ~ " s.input.length";
+            guard ~= "static if (" ~ symbol ~ ".valid && " ~ symbol ~ ".cost >= 3) { if (_live"
+                ~ " && s.context.trace is null && " ~ position ~ " " ~ (eof
+                        ? "==" : "<") ~ " s.input.length";
             if (!eof)
                 guard ~= " && !CharSetMask([" ~ ulongHex(facts.first.bits[0]) ~ ", " ~ ulongHex(
                         facts.first.bits[1]) ~ ", " ~ ulongHex(facts.first.bits[2]) ~ ", " ~ ulongHex(
                         facts.first.bits[3]) ~ "]).contains(cast(ubyte)s.input[" ~ position ~ "])";
-            guard ~= " && s.steps < s.context.stepLimit && s.context.stepLimit - s.steps > "
-                ~ symbol ~ ".cost) { s.steps += " ~ symbol ~ ".cost; static if (" ~ symbol
-                ~ ".diagnostic) s.recordFailure(s.node("
+            guard ~= " && _steps < _limit && _limit - _steps > " ~ symbol ~ ".cost) { _steps += "
+                ~ symbol ~ ".cost; static if (" ~ symbol ~ ".diagnostic) s.recordFailure(s.node("
                 ~ position ~ ", " ~ position ~ ", false)); " ~ complete ~ " } }\n";
         }
         return declarations;
@@ -1921,6 +1920,11 @@ package struct Frontend {
         graph.appendFacts(oversized);
         assert(frontend.emitEmpty(graph, oversized, "Large", guard, 1) is null);
     }
+
+    /// Step accounting held in locals inside a cursor function (register resident). `s.steps` and `s.status` are
+    /// synchronized around every call that can tick (rules, scanners, combinators) and written back on exit,
+    /// so the work-unit count and resource-limit behavior stay exactly those of `State.tick`.
+    enum llLocals = "size_t _steps = s.steps; const size_t _limit = s.context.stepLimit; bool _live = s.status == Status.ok;\n" ~ "pragma(inline, true) bool _tick() @nogc nothrow { if (!_live) return false; if (_steps >= _limit) { s.status = Status.resourceLimit; _live = false; return false; } ++_steps; return true; }\n";
 
     /// L3: is the rule being emitted in a region the cheap FIRST/FOLLOW certifier accepts? Computed once, on first
     /// need. (The full L1 classification is too slow under CTFE; the cheap test certifies a subset of it.)
@@ -1971,8 +1975,7 @@ package struct Frontend {
         auto expression = graph.expressions[index];
         const position = "_p" ~ number(serial++);
         string code = "size_t " ~ target ~ "End = " ~ start ~ ", " ~ target ~ "Fail = " ~ start
-            ~ "; bool "
-            ~ target ~ "Ok = s.status == Status.ok; { const size_t " ~ position ~ " = " ~ start ~ ";\n";
+            ~ "; bool " ~ target ~ "Ok = _live; { const size_t " ~ position ~ " = " ~ start ~ ";\n";
         const op = expression.combinator;
         const checkpoint = "_checkpoint" ~ number(serial++);
         if (outputMode == 2 && (op == "or" || op == "predictiveChoice"))
@@ -2014,8 +2017,9 @@ package struct Frontend {
                         tag = recordSubtrees[reference] ? ", -2L" : ", -3L";
                 }
             }
-            code ~= target ~ "Ok = s." ~ entry ~ "!(_cursor_" ~ expression.reference ~ ", " ~ quoted(
-                    name ~ "." ~ expression.reference) ~ tag ~ ")(" ~ target ~ "End, " ~ target ~ "Fail);\n";
+            code ~= "s.steps = _steps; " ~ target ~ "Ok = s." ~ entry ~ "!(_cursor_" ~ expression
+                .reference ~ ", " ~ quoted(name ~ "." ~ expression.reference) ~ tag ~ ")(" ~ target
+                ~ "End, " ~ target ~ "Fail); _steps = s.steps; _live = s.status == Status.ok;\n";
         } else if (outputMode == 2 && op == "dfaToken" && expression.arguments.length == 4) {
             string innerRecords = expression.arguments[3];
             while (innerRecords.length && (innerRecords[0] == ' ' || innerRecords[0] == '\t'))
@@ -2033,7 +2037,8 @@ package struct Frontend {
                         ~ position ~ "; s.context.scannerReport.record(" ~ event ~ "); }\n";
                 }
             } else
-                code ~= "auto " ~ next ~ " = " ~ expression.source ~ "(s, " ~ position ~ ");\n";
+                code ~= "s.steps = _steps; auto " ~ next ~ " = " ~ expression.source ~ "(s, "
+                    ~ position ~ "); _steps = s.steps; _live = s.status == Status.ok;\n";
             if (innerRecords == "true")
                 code ~= target ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target
                     ~ "Ok = " ~ next ~ "Ok;\n";
@@ -2052,15 +2057,16 @@ package struct Frontend {
                 ~ "Ok = " ~ next ~ "Ok;\n";
             if (scanner) {
                 const scanned = "_scanned" ~ number(serial++);
-                code ~= "} else { auto " ~ scanned ~ " = " ~ expression.source ~ "(s, " ~ position
-                    ~ "); " ~ target
+                code ~= "} else { s.steps = _steps; auto " ~ scanned ~ " = " ~ expression.source
+                    ~ "(s, "
+                    ~ position ~ "); _steps = s.steps; _live = s.status == Status.ok; " ~ target
                     ~ "End = " ~ scanned ~ ".end; " ~ target ~ "Fail = " ~ scanned ~ ".failEnd; "
                     ~ target ~ "Ok = " ~ scanned ~ ".successful; }\n";
             }
         } else if (lower && op == "and") {
             foreach (child; expression.children) {
                 const next = "_d" ~ number(serial++);
-                code ~= "if (!s.tick()) { " ~ target ~ "End = " ~ position ~ "; " ~ target ~ "Fail = "
+                code ~= "if (!_tick()) { " ~ target ~ "End = " ~ position ~ "; " ~ target ~ "Fail = "
                     ~ position ~ "; " ~ target ~ "Ok = false; break; }\n";
                 code ~= emitDirect(graph, child, target ~ "End", next, serial, depth + 1, outputMode);
                 code ~= "if (!" ~ next ~ "Ok) { " ~ target ~ "Ok = false; " ~ target ~ "Fail = " ~ next
@@ -2076,14 +2082,13 @@ package struct Frontend {
                 code ~= "alias " ~ probe ~ " = " ~ expression.source
                     ~ "; if (s.context.trace is null && " ~ position ~ " < s.input.length && !" ~ probe
                     ~ ".mask.contains(cast(ubyte)s.input["
-                    ~ position ~ "])) { " ~ target ~ "Ok = s.tick(); break; }\n";
+                    ~ position ~ "])) { " ~ target ~ "Ok = _tick(); break; }\n";
             }
             code ~= "const " ~ saved ~ " = s.beginProbe();\n" ~ emitDirect(graph,
                     expression.children[0],
                     position, next, serial, depth + 1, outputMode) ~ "const " ~ nested
                 ~ " = s.finishProbe(" ~ saved ~ ");\n" ~ target ~ "Ok = (" ~ next ~ "Ok == " ~ (
-                        op == "posLookahead"
-                        ? "true" : "false") ~ ") && s.status == Status.ok; if (!" ~ target ~ "Ok) {\n";
+                        op == "posLookahead" ? "true" : "false") ~ ") && _live; if (!" ~ target ~ "Ok) {\n";
             if (op == "posLookahead")
                 code ~= target ~ "Fail = " ~ next ~ "Fail; auto " ~ failure ~ " = s.node(" ~ position
                     ~ ", " ~ position ~ ", false); "
@@ -2094,7 +2099,7 @@ package struct Frontend {
             code ~= "}\n";
         } else if (lower && op == "predictiveChoice") {
             const dispatch = "_choice" ~ number(serial++);
-            code ~= "if (!s.tick()) { " ~ target ~ "Ok = false; break; }\n" ~ "alias " ~ dispatch
+            code ~= "if (!_tick()) { " ~ target ~ "Ok = false; break; }\n" ~ "alias " ~ dispatch
                 ~ " = " ~ expression.source ~ ";\n" ~ "const ubyte " ~ dispatch ~ "Selected = " ~ position
                 ~ " < s.input.length ? " ~ dispatch ~ ".branchTable[cast(ubyte)s.input[" ~ position
                 ~ "]] : cast(ubyte)" ~ dispatch ~ ".fallback; switch (" ~ dispatch ~ "Selected) {\n";
@@ -2112,7 +2117,7 @@ package struct Frontend {
                     nullableArgument = nullableArgument[1 .. $];
                 if (i + 1 != expression.children.length && nullableArgument == "true") {
                     const fallback = "_d" ~ number(serial++);
-                    code ~= "if (!" ~ next ~ "Ok && s.status == Status.ok) {\n" ~ (outputMode == 2
+                    code ~= "if (!" ~ next ~ "Ok && _live) {\n" ~ (outputMode == 2
                             ? "s.rollbackOutput(" ~ checkpoint ~ ");\n" : "") ~ emitDirect(graph,
                             graph.expressions[last].children[0], position, fallback, serial, depth + 1,
                             outputMode) ~ target ~ "End = " ~ fallback ~ "End; " ~ target ~ "Fail = "
@@ -2137,7 +2142,7 @@ package struct Frontend {
         } else if (lower && (op == "zeroOrMore" || op == "oneOrMore" || op == "option")) {
             const next = "_d" ~ number(serial++);
             const count = "_count" ~ number(serial++);
-            code ~= "size_t " ~ count ~ " = 0; while (" ~ (op == "option" ? count ~ " < 1 && " : "") ~ "s.tick()) {\n";
+            code ~= "size_t " ~ count ~ " = 0; while (" ~ (op == "option" ? count ~ " < 1 && " : "") ~ "_tick()) {\n";
             if (outputMode == 2)
                 code ~= "const size_t " ~ checkpoint ~ " = s.outputCheckpoint();\n";
             const guard = llActive && llGuardTicks(graph, expression.children[0])
@@ -2150,9 +2155,9 @@ package struct Frontend {
                 const mask = "_first" ~ number(serial++);
                 const first = graph.facts[expression.children[0]].first;
                 const here = target ~ "End";
-                string ticks = "s.tick()";
+                string ticks = "_tick()";
                 foreach (_; 1 .. guard)
-                    ticks ~= " && s.tick()";
+                    ticks ~= " && _tick()";
                 code ~= "size_t " ~ next ~ "End = " ~ here ~ ", " ~ next ~ "Fail = " ~ here ~ "; bool "
                     ~ next ~ "Ok = false;\nenum ulong[4] " ~ mask ~ " = [" ~ ulongHex(
                             first.bits[0]) ~ ", " ~ ulongHex(first.bits[1]) ~ ", " ~ ulongHex(
@@ -2175,11 +2180,10 @@ package struct Frontend {
                     ~ next ~ "Fail; " ~ target ~ "Ok = false; }\n";
             code ~= "break; } ++" ~ count ~ "; if (" ~ next ~ "End == " ~ target ~ "End) break; "
                 ~ target ~ "End = " ~ next ~ "End; }\n";
-            code ~= "if (s.status != Status.ok" ~ (op == "oneOrMore" ? " || !" ~ count : "") ~ ") "
-                ~ target ~ "Ok = false;\n";
+            code ~= "if (!_live" ~ (op == "oneOrMore" ? " || !" ~ count : "") ~ ") " ~ target ~ "Ok = false;\n";
         } else if (startsWith(expression.source, "literal!(")) {
             const text = decodedLiteral(expression.source);
-            code ~= "if (!s.tick()) { " ~ target ~ "Ok = false; break; }\n";
+            code ~= "if (!_tick()) { " ~ target ~ "Ok = false; break; }\n";
             if (text.length) {
                 const bytes = "_literal" ~ number(serial++);
                 const matched = "_matched" ~ number(serial++);
@@ -2206,7 +2210,7 @@ package struct Frontend {
                     expression.alphabet.bits[0]) ~ ", " ~ ulongHex(expression.alphabet.bits[1])
                 ~ ", " ~ ulongHex(expression.alphabet.bits[2]) ~ ", " ~ ulongHex(
                         expression.alphabet.bits[3])
-                ~ "]; if (!s.tick() || " ~ position ~ " >= s.input.length || (" ~ mask
+                ~ "]; if (!_tick() || " ~ position ~ " >= s.input.length || (" ~ mask
                 ~ "[cast(ubyte)s.input[" ~ position ~ "] >> 6] & (1UL << (cast(ubyte)s.input["
                 ~ position ~ "] & 63))) == 0) { " ~ target ~ "Ok = false; s.recordFailure(s.node("
                 ~ position ~ ", " ~ position ~ ", false)); } else { ++" ~ target ~ "End; " ~ target
@@ -2220,9 +2224,10 @@ package struct Frontend {
                 ~ "Ok = false; s.recordFailure(s.node(" ~ position ~ ", " ~ position ~ ", false)); }\n";
         } else {
             const next = "_node" ~ number(serial++);
-            code ~= "auto " ~ next ~ " = " ~ expression.source ~ "(s, " ~ position ~ "); " ~ target
-                ~ "End = " ~ next ~ ".end; " ~ target ~ "Fail = " ~ next ~ ".failEnd; " ~ target ~ "Ok = "
-                ~ next ~ ".successful;\n";
+            code ~= "s.steps = _steps; auto " ~ next ~ " = " ~ expression.source ~ "(s, " ~ position
+                ~ "); _steps = s.steps; _live = s.status == Status.ok; "
+                ~ target ~ "End = " ~ next ~ ".end; " ~ target ~ "Fail = " ~ next ~ ".failEnd; " ~ target
+                ~ "Ok = " ~ next ~ ".successful;\n";
         }
         code ~= "} while (false);\n";
         if (outputMode == 2 && op == "or" && lower)
@@ -2629,7 +2634,7 @@ package struct Frontend {
                     llActive = false;
                     ruleOut ~= directDeclarations;
                     ruleOut ~= (useDirect || check == 2 && directRecords ? "" : "pragma(inline, true) ") ~ "private static bool _cursor_" ~ r ~ "(ref State!(false, " ~ number(
-                            check) ~ ") s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ cursorBody ~ "cursor = _resultEnd; failure = _resultFail; return _resultOk; }\n";
+                            check) ~ ") s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ llLocals ~ cursorBody ~ "s.steps = _steps; cursor = _resultEnd; failure = _resultFail; return _resultOk; }\n";
                 }
                 ruleOut ~= "pragma(inline, true) private static State!(CT, Check).Node _direct_" ~ r ~ "(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; " ~ "const successful = _cursor_" ~ r ~ "(s, end, failure); " ~ "auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }\n";
             }

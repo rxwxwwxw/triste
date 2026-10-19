@@ -16,6 +16,12 @@ performance/scripts/run.sh --milestone ID --notes TEXT              # differenti
 `record.py` writes `baselines/<run-id>/` or `milestones/<ID>/<run-id>/` (never overwrites),
 appends `trends.csv`, and regenerates `latest.md`. Progress notes go in `progress.md`.
 
+## Backends
+
+`PARSER_BACKEND` (default `combinators`; also `direct`, `ll1`) selects the NPegged backend for the benchmark build. Runs recorded with a
+non-default backend carry it in the `kind` column (for example `baseline[direct]`); compare only runs of the same backend.
+The current reference is the `direct` baseline.
+
 ## Reading results
 
 - `raw.csv`: every sample, ns per parse. `summary.csv`: median/p95 over all pooled samples (21).
