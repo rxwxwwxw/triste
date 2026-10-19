@@ -6,6 +6,15 @@ import core.memory : GC;
 import core.stdc.stdio : printf;
 import core.sys.posix.unistd : alarm;
 
+private ptrdiff_t indexOf(string input, string needle) @nogc nothrow pure {
+    if (needle.length > input.length)
+        return -1;
+    foreach (i; 0 .. input.length - needle.length + 1)
+        if (input[i .. i + needle.length] == needle)
+            return cast(ptrdiff_t)i;
+    return -1;
+}
+
 int main() nothrow {
     alarm(45);
 
@@ -117,6 +126,35 @@ int main() nothrow {
     auto text2 = prefixDiscriminationReport("FF: Root <- Opt 'a' Opt <- 'a' / eps", EligibilityFormat
             .text);
     assert(text2.report.length && text2.report != conflict.report);
+
+    // B4: BITES disjointness on top of the FIRST/FOLLOW diagnostics.
+    assert(r6.choices[0].pairs[0].bites == "proven-disjoint" && !r6.choices[0].pairs[0]
+            .bitesImprovesFirst);
+    assert(r6.choices[0].pairs[0].noHidingProven && r6.choices[0].bitesAllDisjoint && r6.choices[0]
+            .noHidingProven);
+    auto guardedBites = prefixDiscriminationReport("GB: Root <- !'abc' [a-z]+ / 'abc' [a-z]*");
+    assert(guardedBites.status == Status.ok && guardedBites.choices.length == 1);
+    assert(guardedBites.choices[0].pairs[0].firstFirstConflict); // FIRST overlaps...
+    assert(guardedBites.choices[0].pairs[0].bites == "proven-disjoint"); // ...BITES does not
+    assert(guardedBites.choices[0].pairs[0].bitesImprovesFirst && guardedBites.choices[0].pairs[0]
+            .noHidingProven);
+    auto capture = prefixDiscriminationReport("PC: Root <- ('a' / 'aa') 'b'");
+    assert(capture.choices.length == 1 && capture.choices[0].pairs[0].bites == "possible-overlap");
+    assert(capture.choices[0].pairs[0].bitesWitness == "aa" && !capture.choices[0].pairs[0]
+            .noHidingProven);
+    assert(!capture.choices[0].bitesAllDisjoint && !capture.choices[0].noHidingProven);
+    assert(r2.choices[0].pairs[0].bites == "possible-overlap" && r2.choices[0].pairs[0].definite);
+    auto nullableArm = prefixDiscriminationReport("NA: Root <- 'a' / eps");
+    assert(nullableArm.choices[0].pairs[0].bites == "proven-disjoint");
+    assert(!nullableArm.choices[0].pairs[0].noHidingProven && !nullableArm.choices[0].noHidingProven);
+    auto opaque = prefixDiscriminationReport("UK: Root <- 'a' / Opaque Opaque <- external");
+    assert(opaque.status == Status.ok && opaque.choices[0].pairs[0].bites == "unknown");
+    assert(!opaque.choices[0].pairs[0].noHidingProven);
+    auto recursive = prefixDiscriminationReport("RC: Root <- Root 'a' / 'a'");
+    assert(recursive.choices[0].pairs[0].bites == "unknown" || recursive.choices[0].pairs[0].bites == "possible-overlap");
+    auto bitesText = prefixDiscriminationReport("GB: Root <- !'abc' [a-z]+ / 'abc' [a-z]*", EligibilityFormat
+            .text);
+    assert(indexOf(bitesText.report, "improves on FIRST") >= 0 && indexOf(bitesText.report, "Prop. 5") >= 0);
 
     // Print JSON reports for script verification
     printf("%.*s\n", cast(int)r1.report.length, r1.report.ptr);

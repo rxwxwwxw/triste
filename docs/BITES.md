@@ -58,3 +58,20 @@ two BITES are provably disjoint. `eoi [a-z]` can never bite (NULL(eoi) = {""}).
 `witness`, and `exact`, false when a budget or recursion forced a conservative answer). No FIRST sets or generated code change.
 Tests include an exhaustive sampling check (strings over {a,b,c} up to length 4) that BITES contains every input on which a
 reference matcher consumed input outside a predicate.
+
+## B4: disjointness and hiding diagnostics (report-only)
+
+`prefixDiscriminationReport` pairs gain `bites` (`proven-disjoint` | `possible-overlap` | `unknown`), `bitesWitness`,
+`bitesImprovesFirst` and `noHidingProven`; choices gain `bitesAllDisjoint` and `noHidingProven` (JSON keys appended, older
+keys unchanged; text lines gain a `{bites: ...}` note). The older FIRST-based `kind`, `firstFirstConflict` and `definite`
+fields are preserved.
+
+- `proven-disjoint`: BITES(ei) ∩ BITES(ej) is provably empty (a proof even when unknown nodes enlarged the sets).
+- `possible-overlap`: the upper approximations intersect and both alternatives were analysed exactly. This is **not** proof of
+  hiding; `bitesWitness` is a shortest input inside the intersection of the approximations.
+- `unknown`: the intersection is nonempty (or too large) and an alternative needed a budget cut, a recursive back edge, or an
+  unknown/unresolved node.
+- `noHidingProven` (Proposition 5): only for proven-disjoint pairs whose alternatives are both provably nonnullable per F1 facts.
+  Nullable alternatives are out of scope here (Propositions 10-13 need NEXTBITES, B5). It is a lint result, never permission to
+  reorder alternatives or cut.
+- `bitesImprovesFirst`: a FIRST/FIRST conflict that BITES proves disjoint, e.g. `!'abc' [a-z]+ / 'abc' [a-z]*`.

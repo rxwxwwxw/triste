@@ -6,7 +6,7 @@ public import npegged.dfa;
 import npegged.io;
 public import npegged.analysis : RuleEligibility, DiscriminationKind, BranchDiscrimination,
     ChoiceDiscrimination, renderDiscrimination;
-import npegged.bites : renderBites;
+import npegged.bites : renderBites, annotateBites;
 import npegged.language : Budget;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
@@ -3575,6 +3575,7 @@ PrefixDiscriminationResult prefixDiscriminationReport(string definition,
     result.grammarName = frontend.name;
     frontend.prepareAnalysis();
     result.choices = frontend.analyzed.analyzeAllPrefixDiscriminations();
+    annotateBites(frontend.analyzed, result.choices);
     result.report = renderDiscrimination(result.choices, format == EligibilityFormat.json);
     result.status = Status.ok;
     return result;

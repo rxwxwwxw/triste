@@ -26,7 +26,7 @@ nothrow:
     GrammarAnalysis* graph;
     Budget budget;
     /// Times a budget overflow or a recursive back edge forced a conservative answer.
-    size_t degradations, cuts;
+    size_t degradations, cuts, unknowns;
     private InputLanguage[] succMemo, nullMemo, bitesMemo;
     private bool[] succDone, nullDone, succActive, nullActive, bitesDone, bitesActive;
 
@@ -244,6 +244,7 @@ nothrow:
         InputLanguage result = InputLanguage.universal();
         final switch (node.kind) {
         case ExpressionKind.unknown:
+            ++unknowns;
             break;
         case ExpressionKind.terminal:
             auto shape = terminal(node);
@@ -258,6 +259,8 @@ nothrow:
             const rule = graph.referenceRule(node);
             if (rule != size_t.max)
                 result = bites(graph.roots[rule]);
+            else
+                ++unknowns;
             break;
         case ExpressionKind.sequence:
             result = InputLanguage.empty();
@@ -286,6 +289,52 @@ nothrow:
         bitesDone[index] = true;
         bitesMemo[index] = result;
         return result;
+    }
+}
+
+/// Add BITES disjointness diagnostics (B4) to the prefix-discrimination results, report-only.
+/// Disjointness of upper approximations is a proof; an overlap is only "possible" and becomes "unknown"
+/// when either alternative needed a budget cut, a recursive back edge or an unknown/unresolved node.
+/// Proposition 5 (no hiding) is claimed only for proven-disjoint pairs of provably nonnullable alternatives.
+void annotateBites(ref GrammarAnalysis graph, ref ChoiceDiscrimination[] choices, Budget budget = Budget
+        .init) nothrow {
+    foreach (ref choice; choices) {
+        if (choice.expressionIndex >= graph.expressions.length)
+            continue;
+        const children = graph.expressions[choice.expressionIndex].children;
+        InputLanguage[] languages;
+        bool[] exact, nonnullable;
+        foreach (child; children) {
+            auto analysis = BitesAnalysis(graph, budget);
+            languages ~= analysis.bites(child);
+            exact ~= analysis.degradations == 0 && analysis.cuts == 0 && analysis.unknowns == 0;
+            nonnullable ~= child < graph.facts.length && graph.facts[child].known
+                && graph.facts[child].nullable == Nullable.no;
+        }
+        bool allDisjoint = choice.pairs.length != 0, allNoHiding = choice.pairs.length != 0;
+        foreach (ref pair; choice.pairs) {
+            if (pair.firstIndex >= languages.length || pair.secondIndex >= languages.length) {
+                allDisjoint = allNoHiding = false;
+                continue;
+            }
+            const overlap = languages[pair.firstIndex].intersect(languages[pair.secondIndex], budget);
+            const proof = overlap.emptiness();
+            if (proof == Proof.provenEmpty) {
+                pair.bites = "proven-disjoint";
+                pair.bitesImprovesFirst = pair.firstFirstConflict;
+                pair.noHidingProven = nonnullable[pair.firstIndex] && nonnullable[pair.secondIndex];
+            } else {
+                string witness;
+                overlap.shortestWitness(witness);
+                pair.bitesWitness = witness;
+                pair.bites = proof == Proof.provenNonempty && exact[pair.firstIndex]
+                    && exact[pair.secondIndex] ? "possible-overlap" : "unknown";
+                allDisjoint = false;
+            }
+            allNoHiding = allNoHiding && pair.noHidingProven;
+        }
+        choice.bitesAllDisjoint = allDisjoint;
+        choice.noHidingProven = allNoHiding;
     }
 }
 

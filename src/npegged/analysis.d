@@ -109,6 +109,13 @@ struct BranchDiscrimination {
     uint overlapBytes;
     bool firstFirstConflict;
     bool definite;
+    /// BITES view (B4): "" (not analysed), "proven-disjoint", "possible-overlap" or "unknown".
+    /// `possible-overlap` is an overlap of upper approximations, not proof of actual hiding.
+    string bites;
+    string bitesWitness; // shortest input in the intersection of the approximations, if any
+    bool bitesImprovesFirst; // FIRST/FIRST conflict that BITES proves disjoint
+    /// Proposition 5 premises hold (proven-disjoint, both alternatives provably nonnullable): no hiding.
+    bool noHidingProven;
 }
 
 struct ChoiceDiscrimination {
@@ -121,6 +128,8 @@ struct ChoiceDiscrimination {
     size_t ruleIndex = size_t.max;
     bool followKnown;
     bool firstFollowConflict;
+    bool bitesAllDisjoint; // every pair proven-disjoint
+    bool noHidingProven; // every pair satisfies the Proposition 5 premises
 }
 
 @nogc nothrow unittest {
@@ -307,7 +316,12 @@ string renderDiscrimination(scope const(ChoiceDiscrimination)[] discriminations,
                         p.discriminatingDepth) ~ ",\"detail\":" ~ jsonQuoted(
                         p.detail) ~ ",\"overlapBytes\":" ~ toDec(
                         p.overlapBytes) ~ ",\"firstFirstConflict\":" ~ (p.firstFirstConflict
-                        ? "true" : "false") ~ ",\"definite\":" ~ (p.definite ? "true" : "false") ~ "}";
+                        ? "true" : "false") ~ ",\"definite\":" ~ (p.definite
+                        ? "true" : "false") ~ ",\"bites\":" ~ jsonQuoted(
+                        p.bites) ~ ",\"bitesWitness\":" ~ jsonQuoted(
+                        p.bitesWitness) ~ ",\"bitesImprovesFirst\":" ~ (p.bitesImprovesFirst
+                        ? "true" : "false") ~ ",\"noHidingProven\":" ~ (p.noHidingProven
+                        ? "true" : "false") ~ "}";
             }
             res ~= "],\"followKnown\":" ~ (choice.followKnown
                     ? "true" : "false") ~ ",\"firstFollowConflict\":" ~ (choice.firstFollowConflict
@@ -329,6 +343,10 @@ string renderDiscrimination(scope const(ChoiceDiscrimination)[] discriminations,
                 if (p.commonPrefixLength)
                     res ~= " (prefix \"" ~ p.commonPrefix ~ "\", depth " ~ toDec(p
                             .discriminatingDepth) ~ ")";
+                if (p.bites.length)
+                    res ~= " {bites: " ~ p.bites ~ (p.bitesImprovesFirst
+                            ? ", improves on FIRST" : "") ~ (p.noHidingProven
+                            ? ", no hiding (Prop. 5)" : "") ~ "}";
                 res ~= " - " ~ p.detail ~ (p.firstFirstConflict
                         ? " [first/first conflict, " ~ (p.definite
                             ? "definite shadowing" : "potential hiding") ~ "]" : "") ~ "\n";

@@ -12,7 +12,8 @@ Last updated 2026-10-19.
 | F4 literalChoice2 (opt-in `NPeggedFirst2`) | done, **off by default** (1.75x faster on one case, 14% slower on another) | `milestones/F4/` |
 | P1 pure islands | verified, no measured gain, stays opt-in | `milestones/P1/` |
 | P2 literal-root direct lowering | done, parity, no measured gain | `milestones/P2/` |
-| B*, P3-P5, P7-P8, L*, G*, X* | not started | — |
+| B1 InputLanguage, B2 SUCC/NULL, B3 BITES, B4 disjointness diagnostics | done, report-only (no codegen change) | `docs/BITES.md`, `src/npegged/{language,bites}.d`, `tests/prefix_discrimination.d` |
+| B5-B8, P3-P5, P7-P8, L*, G*, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,
 CSV.Flat/validation -73%. Remaining >5% slowdowns: Numbers.BinaryLong/validation +5.2%,
