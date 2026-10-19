@@ -9,6 +9,7 @@ public import npegged.analysis : RuleEligibility, DiscriminationKind, BranchDisc
 import npegged.bites : renderBites, annotateBites, renderNextBites, renderCommitSites,
     unifiedDiagnostics, renderUnified;
 import npegged.language : Budget;
+import npegged.ll : classifyRegions, renderRegions;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
 nothrow:
@@ -3628,6 +3629,37 @@ BitesResult diagnosticReport(string definition, EligibilityFormat format = Eligi
     budget.maxStates = budgetStates;
     result.report = renderUnified(unifiedDiagnostics(frontend.analyzed, budget, regularSucc),
             format == EligibilityFormat.json);
+    result.status = Status.ok;
+    return result;
+}
+
+/// Report-only PEG -> LL/CFG region classification with witnesses and blockers (L1).
+BitesResult conversionReport(string definition, EligibilityFormat format = EligibilityFormat.json) nothrow {
+    BitesResult result;
+    if (format != EligibilityFormat.json && format != EligibilityFormat.text) {
+        result.diagnostic = Diagnostic(0, "Unknown conversion report format");
+        return result;
+    }
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.diagnostic = Diagnostic(begin, "Conversion report input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    result.grammarName = frontend.name;
+    frontend.prepareAnalysis();
+    result.report = renderRegions(classifyRegions(frontend.analyzed), format == EligibilityFormat
+            .json);
     result.status = Status.ok;
     return result;
 }
