@@ -82,9 +82,17 @@ def main():
     binary = str(ROOT / 'build' / compiler / 'benchmark_runner')
     text_bytes = None
     if shutil.which('size'):
-        sections = run(['size', '-A', binary], timeout=10).stdout.splitlines()
-        text_bytes = sum(int(fields[1]) for line in sections
-                         if (fields := line.split()) and fields[0].startswith('.text'))
+        try:
+            sections = run(['size', '-A', binary], timeout=10).stdout.splitlines()
+            text_bytes = sum(int(fields[1]) for line in sections
+                             if (fields := line.split()) and fields[0].startswith('.text'))
+        except RuntimeError:
+            try:
+                lines = run(['size', binary], timeout=10).stdout.splitlines()
+                if len(lines) >= 2 and (fields := lines[1].split()):
+                    text_bytes = int(fields[0])
+            except (RuntimeError, ValueError):
+                pass
     workload_corpora = {}
     jobs = [('json-ambiguity', mode, names, []) for mode in args.modes]
     for mode in dict.fromkeys(['validation', *args.modes]):

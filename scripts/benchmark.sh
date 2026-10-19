@@ -1,14 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if ! command -v timeout >/dev/null 2>&1 && [[ -d /opt/homebrew/opt/coreutils/libexec/gnubin ]]; then
+  export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH"
+fi
 
 compiler=${DC:-ldc2}
 build_dir=build/$(basename "$compiler")
 mkdir -p "$build_dir"
 
-mapfile -d '' library < <(find src -name '*.d' -print0 | sort -z)
-mapfile -d '' pegged_sources < <(find third-party/Pegged/pegged -maxdepth 2 -name '*.d' ! -name 'tester*' ! -name 'tohtml*' -print0 | sort -z)
-mapfile -d '' handwritten_sources < <(find benchmark/handwritten -name '*.d' -print0 | sort -z)
+library=()
+while IFS= read -r -d '' f; do
+  library+=("$f")
+done < <(find src -name '*.d' -print0 | sort -z)
+
+pegged_sources=()
+while IFS= read -r -d '' f; do
+  pegged_sources+=("$f")
+done < <(find third-party/Pegged/pegged -maxdepth 2 -name '*.d' ! -name 'tester*' ! -name 'tohtml*' -print0 | sort -z)
+
+handwritten_sources=()
+while IFS= read -r -d '' f; do
+  handwritten_sources+=("$f")
+done < <(find benchmark/handwritten -name '*.d' -print0 | sort -z)
 
 common=(
   -I.
@@ -62,9 +76,13 @@ echo "Building benchmark runner with $compiler..." >&2
 printf 'Build flags: %s\n' "${flags[*]}" >&2
 if [[ -r /proc/cpuinfo ]]; then
   rg -m 1 'model name|Hardware' /proc/cpuinfo >&2 || true
+elif [[ $(uname) == Darwin ]]; then
+  sysctl -n machdep.cpu.brand_string >&2 2>/dev/null || true
 fi
 measure=()
-if [[ -x /usr/bin/time ]]; then
+if command -v gtime >/dev/null 2>&1; then
+  measure=(gtime -f 'Compile metrics: elapsedSeconds=%e peakRssKiB=%M')
+elif [[ -x /usr/bin/time ]] && /usr/bin/time -f '%e' true >/dev/null 2>&1; then
   measure=(/usr/bin/time -f 'Compile metrics: elapsedSeconds=%e peakRssKiB=%M')
 fi
 "${measure[@]}" "$compiler" "${common[@]}" "${flags[@]}" \

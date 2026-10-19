@@ -2,8 +2,12 @@
 
 SHELL := /bin/bash
 
+ifneq ($(wildcard /opt/homebrew/opt/coreutils/libexec/gnubin),)
+export PATH := /opt/homebrew/opt/coreutils/libexec/gnubin:$(PATH)
+endif
+
 # Required compilers: dmd and ldc2; DC=gdc remains an optional compatibility path
-DC ?= dmd
+DC ?= $(shell python3 -c "import shutil, subprocess; d = shutil.which('dmd'); print('dmd' if d and subprocess.run([d, '--version'], capture_output=True).returncode == 0 else 'ldc2')")
 
 # Memory bound for test and build executions (default: 4G)
 MEMORY_LIMIT ?= 4G

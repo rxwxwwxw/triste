@@ -2,7 +2,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/hotpaths
-compilers=${COMPILERS:-"dmd ldc2"}
+if [[ -z "${COMPILERS:-}" ]]; then
+  compilers=""
+  for c in dmd ldc2; do
+    if command -v "$c" >/dev/null 2>&1 && ("$c" --version) >/dev/null 2>&1; then
+      compilers="${compilers:+$compilers }$c"
+    fi
+  done
+  if [[ -z "$compilers" ]]; then compilers="ldc2"; fi
+else
+  compilers="$COMPILERS"
+fi
 for compiler in $compilers; do
  case $compiler in
    dmd|ldc2) args=(-Isrc -c -vgc tests/hotpath.d "-of=build/hotpaths/$compiler.o");;

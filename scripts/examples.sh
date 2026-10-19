@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if ! command -v timeout >/dev/null 2>&1 && [[ -d /opt/homebrew/opt/coreutils/libexec/gnubin ]]; then
+  export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH"
+fi
 compiler=${DC:-dmd}
-mapfile -d '' library < <(find src -name '*.d' -print0 | sort -z)
+library=()
+while IFS= read -r -d '' f; do
+  library+=("$f")
+done < <(find src -name '*.d' -print0 | sort -z)
 flags=(-Isrc)
 extra=("$@")
 coverage_run=0
@@ -15,9 +21,9 @@ esac
 compile() {
  local destination=$1; shift
  if [[ $(basename "$compiler") == gdc ]]; then
-   "$compiler" "${flags[@]}" "${extra[@]}" "${library[@]}" "$@" -o "$destination" -lgdruntime
+   "$compiler" "${flags[@]}" ${extra[@]+"${extra[@]}"} "${library[@]}" "$@" -o "$destination" -lgdruntime
  else
-   "$compiler" "${flags[@]}" "${extra[@]}" "${library[@]}" "$@" "-of=$destination"
+   "$compiler" "${flags[@]}" ${extra[@]+"${extra[@]}"} "${library[@]}" "$@" "-of=$destination"
  fi
 }
 run_case() {
@@ -60,12 +66,24 @@ run_case 2 build/parse_ep first.pas second.pas
 run_case 2 build/parse_ep /nonexistent/npegged/input.pas
 printf 'not a pascal program' > build/invalid.pas
 run_case 1 build/parse_ep --text build/invalid.pas > build/invalid-output.txt 2> build/invalid-diagnostic.txt
-run_case 2 build/parse_ep --text build/invalid.pas > build/invalid-output.txt 2> /dev/full
-run_case 2 build/parse_ep --trace examples/extended_pascal/example.pas > build/trace-error.txt 2> /dev/full
-run_case 2 build/parse_ep --text examples/extended_pascal/example.pas > /dev/full
+if [[ -c /dev/full ]]; then
+  run_case 2 build/parse_ep --text build/invalid.pas > build/invalid-output.txt 2> /dev/full
+  run_case 2 build/parse_ep --trace examples/extended_pascal/example.pas > build/trace-error.txt 2> /dev/full
+  run_case 2 build/parse_ep --text examples/extended_pascal/example.pas > /dev/full
+else
+  run_case 2 build/parse_ep --text build/invalid.pas > build/invalid-output.txt 2>&-
+  run_case 2 build/parse_ep --trace examples/extended_pascal/example.pas > build/trace-error.txt 2>&-
+  run_case 2 build/parse_ep --text examples/extended_pascal/example.pas >&-
+fi
 for demo in examples/DConf2017/*.d; do
  destination=build/demo-$(basename "$demo" .d)
  compile "$destination" "$demo"
  run_case 0 "$destination"
- if [[ $demo != *naive* ]]; then run_case 2 "$destination" > /dev/full; fi
+ if [[ $demo != *naive* ]]; then
+   if [[ -c /dev/full ]]; then
+     run_case 2 "$destination" > /dev/full
+   else
+     run_case 2 "$destination" >&-
+   fi
+ fi
 done
