@@ -1,0 +1,6 @@
+{
+  "sourceSha256": "fb7ae20e4f666e71b30df6d91526823c71123b7765a21b873236840aa3d4eff9",
+  "command": "ldc2 -Isrc -I. -defaultlib=druntime-ldc -fno-exceptions -O3 -release -boundscheck=off -w -de -checkaction=halt build/C01/harness.d benchmark/measurement.d src/npegged/storage.d -of=build/C01/harness",
+  "run": "taskset -c 0 prlimit --as=4294967296 -- timeout --kill-after=2s 10s build/C01/harness",
+  "scope": "Two clocks plus four consume calls; no parse/hash/arena work; diagnostic estimate only, not subtracted"
+}

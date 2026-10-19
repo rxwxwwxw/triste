@@ -1,9 +1,16 @@
+// C01 repairs activation; use scripts/c01_shared_output.py for repeated, interleaved timing.
 module benchmark.p09_crossover;
+
+version (NPeggedSharedOutput) {
+} else {
+    static assert(0, "C01 repaired shared-output harness requires NPeggedSharedOutput");
+}
 
 import npegged.grammar;
 import npegged.examples.json : JSON;
 import npegged.examples.csv : CSV;
 import core.stdc.stdio : printf;
+import core.stdc.stdlib : abort;
 import core.sys.posix.time : clock_gettime, CLOCK_MONOTONIC, timespec;
 import core.sys.posix.unistd : alarm;
 
@@ -13,15 +20,16 @@ private ulong now() @nogc nothrow {
         .tv_nsec;
 }
 
-// Grammars for P09 Crossover Measurement
-mixin(grammar!(Memoization.selective, void, ParserBackend.direct)(`
+private struct Projection(alias Selector) {
+    // Grammars for P09 Crossover Measurement
+    mixin(grammar!(Memoization.selective, Selector, ParserBackend.direct)(`
 DirectChain:
     Root <- Expr eoi
     Expr <- Expr '+' Number / Number
     Number <- ~[0-9]+
 `));
 
-mixin(grammar!(Memoization.selective, void, ParserBackend.direct)(`
+    mixin(grammar!(Memoization.selective, Selector, ParserBackend.direct)(`
 IndirectChain:
     Root <- Expr eoi
     Expr <- Sum / Number
@@ -29,7 +37,7 @@ IndirectChain:
     Number <- ~[0-9]+
 `));
 
-mixin(grammar!(Memoization.selective, void, ParserBackend.direct)(`
+    mixin(grammar!(Memoization.selective, Selector, ParserBackend.direct)(`
 DenseChain:
     Root <- Expr eoi
     Expr <- Expr '+' Term / Term
@@ -39,13 +47,15 @@ DenseChain:
     Number <- ~[0-9]+
 `));
 
-mixin(grammar!(Memoization.selective, void, ParserBackend.direct)(`
+    mixin(grammar!(Memoization.selective, Selector, ParserBackend.direct)(`
 MixedChain:
     Root <- Header Expr eoi
     Header <- 'H' 'E' 'A' 'D' ';'
     Expr <- Expr '+' Number / Number
     Number <- ~[0-9]+
 `));
+
+}
 
 // Selectors for Densities 0, 1, 2, 4
 // Density 0: Root only (0 nodes per growth)
@@ -103,6 +113,7 @@ private void runCase(alias Parser, alias Selector)(string grammarName, string de
 
     // Flat baseline (sharedOutput = false)
     ParseContext ctxFlat;
+    ctxFlat.stepLimit = ctxFlat.depthLimit = ctxFlat.memoryLimit = size_t.max;
     version (NPeggedSharedOutput)
         ctxFlat.sharedOutput = false;
     version (NPeggedMetrics) {
@@ -112,11 +123,8 @@ private void runCase(alias Parser, alias Selector)(string grammarName, string de
 
     // Warmup flat
     auto resWarmFlat = parseRecords!(Parser, Selector)(ctxFlat, input, size_t.max);
-    if (resWarmFlat.status == Status.outOfMemory || resWarmFlat.status == Status.resourceLimit) {
-        printf("%s,%s,%u,%zu,%u,0,0,1.0000,0,0,0,0,0,0,0,0\n", grammarName.ptr, densityName.ptr,
-                densityNodes, depth, valid ? 1 : 0);
-        return;
-    }
+    if (resWarmFlat.status == Status.outOfMemory || resWarmFlat.status == Status.resourceLimit)
+        abort();
     assert(resWarmFlat.status == (valid ? Status.ok : Status.mismatch));
 
     ulong t0 = now();
@@ -132,6 +140,7 @@ private void runCase(alias Parser, alias Selector)(string grammarName, string de
 
     // Shared Output candidate (sharedOutput = true)
     ParseContext ctxShared;
+    ctxShared.stepLimit = ctxShared.depthLimit = ctxShared.memoryLimit = size_t.max;
     version (NPeggedSharedOutput)
         ctxShared.sharedOutput = true;
     version (NPeggedMetrics) {
@@ -141,13 +150,13 @@ private void runCase(alias Parser, alias Selector)(string grammarName, string de
 
     // Warmup shared
     auto resWarmShared = parseRecords!(Parser, Selector)(ctxShared, input, size_t.max);
-    if (resWarmShared.status == Status.outOfMemory || resWarmShared.status == Status.resourceLimit) {
-        printf("%s,%s,%u,%zu,%u,0,0,1.0000,0,0,0,0,0,0,0,0\n", grammarName.ptr, densityName.ptr,
-                densityNodes, depth, valid ? 1 : 0);
-        return;
-    }
+    if (resWarmShared.status == Status.outOfMemory || resWarmShared.status == Status.resourceLimit)
+        abort();
     assert(resWarmShared.status == (valid ? Status.ok : Status.mismatch));
-    assert(resWarmShared.nodes.length == flatNodes, "Node count mismatch between flat and shared");
+    if (resWarmShared.status != resWarmFlat.status || resWarmShared.end != resWarmFlat.end
+            || resWarmShared.failEnd != resWarmFlat.failEnd || resWarmShared.nodes != resWarmFlat
+                .nodes)
+        abort();
 
     ulong t2 = now();
     foreach (_; 0 .. iters) {
@@ -165,6 +174,11 @@ private void runCase(alias Parser, alias Selector)(string grammarName, string de
             sharedSnapshots = metricsShared.output.sharedSnapshots;
             reusedNodes = metricsShared.output.sharedReusedNodes;
             frozenNodes = metricsShared.output.sharedFrozenNodes;
+            static if (__traits(hasMember, __traits(parent, Parser), "npeggedSharedOutputEligible")) {
+                static if (__traits(parent, Parser).npeggedSharedOutputEligible) // Final output length is not the size of a memo snapshot.
+                    if (depth >= 256 && densityNodes && !sharedSnapshots)
+                        abort();
+            }
         }
     }
 
@@ -196,17 +210,20 @@ int main() @nogc nothrow {
         string validDirect = cast(string)buf[0 .. d * 2 - 1];
 
         // Density 0 (0 nodes/growth: Root only)
-        runCase!(DirectChain.Root, selectDensity0)("DirectChain", "density0", 0, d, validDirect, true);
+        runCase!(Projection!(selectDensity0).DirectChain.Root, selectDensity0)("DirectChain",
+                "density0", 0, d, validDirect, true);
         // Density 1 (1 node/growth: Number)
-        runCase!(DirectChain.Root, selectDensity1)("DirectChain", "density1", 1, d, validDirect, true);
+        runCase!(Projection!(selectDensity1).DirectChain.Root, selectDensity1)("DirectChain",
+                "density1", 1, d, validDirect, true);
         // Density 2 (2 nodes/growth: Expr + Number)
-        runCase!(DirectChain.Root, selectDensity2)("DirectChain", "density2", 2, d, validDirect, true);
+        runCase!(Projection!(selectDensity2).DirectChain.Root, selectDensity2)("DirectChain",
+                "density2", 2, d, validDirect, true);
 
         // Late failure on Density 2
         buf[d * 2 - 1] = '!'; // Invalid token at end
         string invalidDirect = cast(string)buf[0 .. d * 2];
-        runCase!(DirectChain.Root, selectDensity2)("DirectChain", "density2_latefail", 2, d, invalidDirect,
-                false);
+        runCase!(Projection!(selectDensity2).DirectChain.Root, selectDensity2)("DirectChain",
+                "density2_latefail", 2, d, invalidDirect, false);
     }
 
     // 2. IndirectChain across Densities 0, 1, 2
@@ -218,12 +235,12 @@ int main() @nogc nothrow {
         buf[d * 2 - 1] = '1';
         string validIndirect = cast(string)buf[0 .. d * 2 - 1];
 
-        runCase!(IndirectChain.Root, selectDensity0)("IndirectChain", "density0", 0, d, validIndirect,
-                true);
-        runCase!(IndirectChain.Root, selectDensity1)("IndirectChain", "density1", 1, d, validIndirect,
-                true);
-        runCase!(IndirectChain.Root, selectDensity2)("IndirectChain", "density2", 2, d, validIndirect,
-                true);
+        runCase!(Projection!(selectDensity0).IndirectChain.Root, selectDensity0)("IndirectChain",
+                "density0", 0, d, validIndirect, true);
+        runCase!(Projection!(selectDensity1).IndirectChain.Root, selectDensity1)("IndirectChain",
+                "density1", 1, d, validIndirect, true);
+        runCase!(Projection!(selectDensity2).IndirectChain.Root, selectDensity2)("IndirectChain",
+                "density2", 2, d, validIndirect, true);
     }
 
     // 3. DenseChain for Density 4 (4 nodes/growth: Expr, Term, Mul, Number)
@@ -238,7 +255,8 @@ int main() @nogc nothrow {
                 buf[len++] = '+';
         }
         string validDense = cast(string)buf[0 .. len];
-        runCase!(DenseChain.Root, selectDensity4)("DenseChain", "density4", 4, d, validDense, true);
+        runCase!(Projection!(selectDensity4).DenseChain.Root, selectDensity4)("DenseChain",
+                "density4", 4, d, validDense, true);
     }
 
     // 4. MixedChain (Header + Left-recursive body)
@@ -251,7 +269,8 @@ int main() @nogc nothrow {
                 buf[len++] = '+';
         }
         string validMixed = cast(string)buf[0 .. len];
-        runCase!(MixedChain.Root, selectDensity2)("MixedChain", "density2_mixed", 2, d, validMixed, true);
+        runCase!(Projection!(selectDensity2).MixedChain.Root, selectDensity2)("MixedChain",
+                "density2_mixed", 2, d, validMixed, true);
     }
 
     // 5. Non-recursive Flat Controls (JSON & CSV)

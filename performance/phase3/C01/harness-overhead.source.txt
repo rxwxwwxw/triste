@@ -1,0 +1,25 @@
+module c01_harness;
+import benchmark.measurement : consume;
+import npegged.storage : Status;
+import core.stdc.stdio : printf;
+import core.sys.posix.time : clock_gettime, CLOCK_MONOTONIC, timespec;
+
+private ulong now() @nogc nothrow {
+    timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts))
+        return 0;
+    return cast(ulong)ts.tv_sec * 1_000_000_000 + ts.tv_nsec;
+}
+
+int main() @nogc nothrow {
+    printf("sample,iterations,ns\n");
+    foreach (sample; 0 .. 8) {
+        auto start = now();
+        foreach (_; 0 .. 4)
+            consume(true, 0, 0, Status.ok);
+        auto elapsed = now() - start;
+        if (sample)
+            printf("%u,4,%llu\n", cast(uint)(sample - 1), elapsed);
+    }
+    return 0;
+}

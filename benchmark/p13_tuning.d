@@ -1,9 +1,16 @@
+// C01 repairs activation; these legacy single-batch timings are not the crossover evidence.
 module benchmark.p13_tuning;
+
+version (NPeggedSharedOutput) {
+} else {
+    static assert(0, "C01 repaired shared-output harness requires NPeggedSharedOutput");
+}
 
 import npegged.grammar;
 import npegged.examples.json : JSON;
 import npegged.examples.csv : CSV;
 import core.stdc.stdio : printf;
+import core.stdc.stdlib : abort;
 import core.sys.posix.time : clock_gettime, CLOCK_MONOTONIC, timespec;
 import core.sys.posix.unistd : alarm;
 
@@ -13,14 +20,14 @@ private ulong now() @nogc nothrow {
         .tv_nsec;
 }
 
-mixin(grammar!(Memoization.selective, void, ParserBackend.direct)(`
+mixin(grammar!(Memoization.selective, selectDensity2, ParserBackend.direct)(`
 DirectChain:
     Root <- Expr eoi
     Expr <- Expr '+' Number / Number
     Number <- ~[0-9]+
 `));
 
-mixin(grammar!(Memoization.selective, void, ParserBackend.direct)(`
+mixin(grammar!(Memoization.selective, selectDensity4, ParserBackend.direct)(`
 DenseChain:
     Root <- Expr eoi
     Expr <- Expr '+' Term / Term
@@ -56,23 +63,52 @@ private uint selectControl(string name) @nogc nothrow pure {
 
 private void benchRecursive(alias Parser, alias Selector)(string name, string input, size_t warmup, size_t runs) @nogc nothrow {
     ParseContext ctx;
+    ctx.stepLimit = ctx.depthLimit = ctx.memoryLimit = size_t.max;
+    version (NPeggedMetrics) {
+        ParseMetrics metrics;
+        ctx.metrics = &metrics;
+    }
     version (NPeggedSharedOutput)
         ctx.sharedOutput = true;
 
+    auto flatContext = ctx;
+    version (NPeggedSharedOutput)
+        flatContext.sharedOutput = false;
+    version (NPeggedMetrics)
+        flatContext.metrics = null;
+    auto flat = parseRecords!(Parser.opCall, Selector)(flatContext, input, size_t.max);
+    auto active = parseRecords!(Parser.opCall, Selector)(ctx, input, size_t.max);
+    if (flat.status != active.status || flat.successful != active.successful || flat.end != active.end
+            || flat.failEnd != active.failEnd || flat.nodes != active.nodes)
+        abort();
     foreach (_; 0 .. warmup) {
-        auto res = parseRecords!(Parser.opCall, Selector)(ctx, input);
+        auto res = parseRecords!(Parser.opCall, Selector)(ctx, input, size_t.max);
         assert(res.successful);
     }
 
     ulong totalNs = 0;
     foreach (_; 0 .. runs) {
         auto t0 = now();
-        auto res = parseRecords!(Parser.opCall, Selector)(ctx, input);
+        auto res = parseRecords!(Parser.opCall, Selector)(ctx, input, size_t.max);
         auto t1 = now();
         assert(res.successful);
         totalNs += (t1 - t0);
     }
-    printf("%s: %llu ns median/mean over %llu runs\n", name.ptr, cast(ulong)(totalNs / runs), cast(ulong)runs);
+    printf(
+            "%s: %llu ns mean over %llu runs (construction only; no timing claim in metrics builds)\n",
+            name.ptr, cast(ulong)(totalNs / runs), cast(ulong)runs);
+    version (NPeggedMetrics)
+        version (NPeggedSharedOutput) {
+            static if (__traits(hasMember, Parser, "npeggedSharedOutputEligible")) {
+                static if (Parser.npeggedSharedOutputEligible)
+                    if (flat.nodes.length >= 128 && !metrics.output.sharedSnapshots)
+                        abort();
+            }
+            printf("activation %s: snapshots=%llu replays=%llu reused=%llu frozen=%llu\n",
+                    name.ptr, metrics.output.sharedSnapshots,
+                    metrics.output.sharedReplays,
+                    metrics.output.sharedReusedNodes, metrics.output.sharedFrozenNodes);
+        }
 }
 
 int main() @nogc nothrow {

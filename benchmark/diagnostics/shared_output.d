@@ -5,10 +5,11 @@ import npegged.examples.json : JSON;
 import npegged.examples.csv : CSV;
 import npegged.examples.PEG : PEG;
 import benchmark.measurement : opaqueInput, consume;
-import core.stdc.stdio : printf;
+import core.stdc.stdio : printf, fprintf, stderr;
 import core.stdc.stdlib : getenv;
 
 private __gshared bool sharedRequested;
+private __gshared bool finiteBudgets;
 import core.sys.posix.time : clock_gettime, CLOCK_MONOTONIC, timespec;
 
 version (NPeggedDirect)
@@ -20,7 +21,9 @@ version (NPeggedFullMemo)
 else
     private enum memo = Memoization.selective;
 private uint selected(string name) @nogc nothrow pure {
-    version (RootOnly)
+    version (ExprOnly)
+        return name.length >= 5 && name[$ - 5 .. $] == ".Expr" ? 0 : uint.max;
+    else version (RootOnly)
         return (name.length >= 5 && name[$ - 5 .. $] == ".Root") || name == "JSON.JSONObject"
             || name == "CSV.CsvFile" || name == "PEG.Grammar" ? 0 : uint.max;
     else
@@ -61,9 +64,24 @@ version (NPeggedMetrics) {
     private enum iterations = 4;
 }
 private int run(alias Parser)(string input, string shape, size_t size, bool valid, string label = "") @nogc nothrow {
-    foreach (sample; 0 .. samples) {
+    enum defaultName = __traits(parent, Parser).stringof;
+    const grammarName = label.length ? label : defaultName;
+    // Keep ordinary finite-limit controls below known depth/memory ceilings.
+    if (finiteBudgets && shape != "control" && size > 128)
+        return 0;
+    alias Owner = __traits(parent, Parser);
+    static if (__traits(hasMember, Owner, "npeggedSharedOutputEligible"))
+        enum eligible = Owner.npeggedSharedOutputEligible;
+    else
+        enum eligible = false;
+    version (NPeggedSharedOutput)
+        const policySelected = eligible && sharedRequested && !finiteBudgets;
+    else
+        enum policySelected = false;
+    foreach (batch; 0 .. samples + 1) {
         ParseContext context;
-        context.stepLimit = context.depthLimit = context.memoryLimit = size_t.max;
+        if (!finiteBudgets)
+            context.stepLimit = context.depthLimit = context.memoryLimit = size_t.max;
         version (NPeggedSharedOutput)
             context.sharedOutput = sharedRequested;
         version (NPeggedMetrics) {
@@ -77,7 +95,8 @@ private int run(alias Parser)(string input, string shape, size_t size, bool vali
         if (!start)
             return 4;
         foreach (_; 0 .. iterations) {
-            auto result = parseRecords!(Parser, selected)(context, opaqueInput(input), size_t.max);
+            auto result = parseRecords!(Parser, selected)(context, opaqueInput(input),
+                    finiteBudgets ? 256 * 1024 * 1024 : size_t.max);
             if (result.status != (valid ? Status.ok : Status.mismatch) || result.successful != valid)
                 return 2;
             hash = 5381;
@@ -94,13 +113,27 @@ private int run(alias Parser)(string input, string shape, size_t size, bool vali
             end = result.end;
             failEnd = result.failEnd;
             consume(result.successful, hash, nodes, result.status);
+            assert(result.input == input);
+            assert(!input.length || result.input.ptr != input.ptr);
+            version (NPeggedMetrics) {
+                if (batch) {
+                    fprintf(stderr, "%.*s,%.*s,%llu,%u,%u,%llu,%llu", cast(int)grammarName.length,
+                            grammarName.ptr, cast(int)shape.length, shape.ptr, cast(ulong)size,
+                            cast(uint)valid, cast(uint)result.status, cast(ulong)end, cast(ulong)failEnd);
+                    foreach (node; result.nodes)
+                        fprintf(stderr, ",%u:%llu:%llu:%llu", node.kind, cast(ulong)node.begin,
+                                cast(ulong)node.end, cast(ulong)node.parent);
+                    fprintf(stderr, "\n");
+                }
+            }
         }
         const stop = now();
         if (stop <= start)
             return 4;
         const elapsed = stop - start;
-        enum defaultName = __traits(parent, Parser).stringof;
-        const grammarName = label.length ? label : defaultName;
+        if (batch == 0)
+            continue; // Separate warmup batch, never emitted as a timing sample.
+        const sample = batch - 1;
         printf("%.*s,%.*s,%llu,%u,%u,%u,%llu,%llu,%llu,%llu,%llu,%llu,%llu",
                 cast(int)grammarName.length,
                 grammarName.ptr, cast(int)shape.length, shape.ptr, cast(ulong)size,
@@ -109,6 +142,7 @@ private int run(alias Parser)(string input, string shape, size_t size, bool vali
         printf(",%llu,%llu,%llu,%llu,%llu,%llu", cast(ulong)parsePeak, cast(ulong)outputPeak,
                 cast(ulong)parseRequested, cast(ulong)outputRequested, cast(ulong)allocations,
                 cast(ulong)input.length);
+        printf(",%u,%u,%u", cast(uint)finiteBudgets, cast(uint)eligible, cast(uint)policySelected);
         version (NPeggedMetrics) {
             ulong sharedSnapshots, reused, frozen, replays;
             version (NPeggedSharedOutput) {
@@ -132,7 +166,9 @@ private int run(alias Parser)(string input, string shape, size_t size, bool vali
 int main() @nogc nothrow {
     auto choice = getenv("NPEGGED_SHARED_OUTPUT");
     sharedRequested = choice !is null && choice[0] == '1';
-    printf("grammar,shape,size,valid,sample,iterations,ns,peak,requested,nodes,end,fail_end,hash,parse_peak,output_peak,parse_requested,output_requested,allocations,input_bytes");
+    auto budgets = getenv("NPEGGED_FINITE_BUDGETS");
+    finiteBudgets = budgets !is null && budgets[0] == '1';
+    printf("grammar,shape,size,valid,sample,iterations,ns,peak,requested,nodes,end,fail_end,hash,parse_peak,output_peak,parse_requested,output_requested,allocations,input_bytes,finite_budgets,grammar_eligible,policy_selected");
     version (NPeggedMetrics)
         printf(",snapshot_bytes,restore_bytes,growth_copy_bytes,invalidation_visits,shared_snapshots,reused_nodes,frozen_nodes,shared_replays");
     printf("\n");

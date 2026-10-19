@@ -1,0 +1,10 @@
+DirectChain-d256: 1301642 ns mean over 20 runs (construction only; no timing claim in metrics builds)
+activation DirectChain-d256: snapshots=4992 replays=5018 reused=1584154 frozen=13286
+DenseChain-d64: 272831 ns mean over 20 runs (construction only; no timing claim in metrics builds)
+activation DenseChain-d64: snapshots=1118 replays=1144 reused=277368 frozen=9958
+DenseChain-d256: 3449024 ns mean over 10 runs (construction only; no timing claim in metrics builds)
+activation DenseChain-d256: snapshots=3290 replays=3304 reused=2719080 frozen=21490
+JSON-control: 34035 ns mean over 1000 runs (construction only; no timing claim in metrics builds)
+activation JSON-control: snapshots=0 replays=0 reused=0 frozen=0
+CSV-control: 13309 ns mean over 1000 runs (construction only; no timing claim in metrics builds)
+activation CSV-control: snapshots=0 replays=0 reused=0 frozen=0
