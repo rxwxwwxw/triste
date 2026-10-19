@@ -1,0 +1,26 @@
+{
+  "milestone": "P14",
+  "name": "Decide R06 policy using a 2x2 workload matrix",
+  "disposition": "opt_in_indefinitely_hybrid",
+  "status": "completed",
+  "policy_choice": {
+    "model": "opt_in_indefinitely",
+    "feature_flag": "version (NPeggedSharedOutput)",
+    "flat_specialization_flag": "version (NPeggedFlatSpecialization)",
+    "runtime_switch": "context.sharedOutput = true",
+    "global_default_promotion": "rejected"
+  },
+  "rationale": [
+    "Dense left-recursive grammars at depth >= 64 achieve up to 2.16x speedup (0.4633x latency).",
+    "Sparse node capture (density 0) never crosses over and incurs +5% persistent snapshot overhead.",
+    "Shallow recursion (depth <= 16) suffers from 5-10% frame setup overhead.",
+    "Global promotion would penalize standard shallow grammars, violating performance directives.",
+    "Zero-overhead flat specialization guarantees zero penalty on flat grammars when compiled with shared output enabled."
+  ],
+  "trigger_conditions": {
+    "recommended_depth": ">= 64",
+    "recommended_density": ">= 2 nodes per growth step",
+    "budget_limits_active": "automatic_fallback_to_flat",
+    "trace_active": "automatic_fallback_to_flat"
+  }
+}
