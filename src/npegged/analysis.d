@@ -80,6 +80,238 @@ struct RuleEligibility {
     assert(row.recordKind == uint.max && !row.scalarEligible && !row.selectorConfigured);
 }
 
+/// Outcome of bounded literal-prefix discrimination between alternatives in ordered choice.
+enum DiscriminationKind : ubyte {
+    disjointFirst, // FIRST byte sets are disjoint; single-byte predictive dispatch suffices
+    disjointTails, // FIRST bytes overlap; alternatives share a prefix and diverge on disjoint tail bytes
+    shadowed, // Earlier alternative is an unguarded proper prefix or identical; later is shadowed
+    guarded, // Earlier prefix alternative is guarded by EOF or a lookahead predicate
+    unbounded // Overlap cannot be resolved by bounded literal prefix analysis
+}
+
+struct BranchDiscrimination {
+    size_t firstIndex;
+    size_t secondIndex;
+    DiscriminationKind kind;
+    size_t commonPrefixLength;
+    string commonPrefix;
+    ubyte discriminatingDepth;
+    string detail;
+}
+
+struct ChoiceDiscrimination {
+    size_t expressionIndex;
+    string ruleName;
+    bool hasOverlap;
+    BranchDiscrimination[] pairs;
+}
+
+@nogc nothrow unittest {
+    BranchDiscrimination branch;
+    assert(branch.kind == DiscriminationKind.disjointFirst && branch.commonPrefixLength == 0);
+    ChoiceDiscrimination choice;
+    assert(!choice.hasOverlap && choice.pairs.length == 0);
+}
+
+private int hexValue(char c) @nogc nothrow pure {
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'f')
+        return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F')
+        return c - 'A' + 10;
+    return -1;
+}
+
+private string extractLiteralBytes(scope string text) nothrow {
+    if (!text.length)
+        return null;
+    size_t qStart = 0;
+    while (qStart < text.length && text[qStart] != '"' && text[qStart] != '\'')
+        ++qStart;
+    if (qStart >= text.length)
+        return null;
+    const quoteChar = text[qStart];
+    size_t qEnd = qStart + 1;
+    string result;
+    while (qEnd < text.length && text[qEnd] != quoteChar) {
+        if (text[qEnd] == '\\' && qEnd + 1 < text.length) {
+            const next = text[qEnd + 1];
+            if (next == 'n') {
+                result ~= "\n";
+                qEnd += 2;
+            } else if (next == 'r') {
+                result ~= "\r";
+                qEnd += 2;
+            } else if (next == 't') {
+                result ~= "\t";
+                qEnd += 2;
+            } else if (next == '\\') {
+                result ~= "\\";
+                qEnd += 2;
+            } else if (next == quoteChar) {
+                result ~= quoteChar;
+                qEnd += 2;
+            } else if (next == '0') {
+                result ~= "\0";
+                qEnd += 2;
+            } else if (next == 'x' && qEnd + 3 < text.length) {
+                const int h1 = hexValue(text[qEnd + 2]);
+                const int h2 = hexValue(text[qEnd + 3]);
+                if (h1 >= 0 && h2 >= 0) {
+                    result ~= cast(char)((h1 << 4) | h2);
+                    qEnd += 4;
+                } else {
+                    result ~= text[qEnd .. qEnd + 2];
+                    qEnd += 2;
+                }
+            } else {
+                result ~= text[qEnd .. qEnd + 2];
+                qEnd += 2;
+            }
+        } else {
+            result ~= text[qEnd];
+            ++qEnd;
+        }
+    }
+    return result;
+}
+
+private string toDec(ulong value) pure nothrow {
+    if (!value)
+        return "0";
+    char[20] buffer;
+    size_t pos = buffer.length;
+    while (value) {
+        buffer[--pos] = cast(char)('0' + (value % 10));
+        value /= 10;
+    }
+    return buffer[pos .. $].idup;
+}
+
+nothrow unittest {
+    assert(toDec(0) == "0");
+    assert(toDec(42) == "42");
+    assert(toDec(123456) == "123456");
+
+    assert(hexValue('0') == 0 && hexValue('9') == 9);
+    assert(hexValue('a') == 10 && hexValue('f') == 15);
+    assert(hexValue('A') == 10 && hexValue('F') == 15);
+    assert(hexValue('z') == -1 && hexValue('!') == -1 && hexValue('@') == -1);
+
+    assert(extractLiteralBytes("") is null);
+    assert(extractLiteralBytes("no_quotes") is null);
+    assert(extractLiteralBytes(`literal!("ab")`) == "ab");
+    assert(extractLiteralBytes(`literal!('x')`) == "x");
+    assert(extractLiteralBytes(`literal!("a\nb\x61")`) == "a\nba");
+    assert(extractLiteralBytes(`"a\r\t\\\0\""`) == "a\r\t\\\0\"");
+    assert(extractLiteralBytes(`"\x41\x42"`) == "AB");
+    assert(extractLiteralBytes(`"\xgg"`) == "\\xgg");
+    assert(extractLiteralBytes(`"\q"`) == "\\q");
+
+    foreach (k; [
+        DiscriminationKind.disjointFirst, DiscriminationKind.disjointTails,
+        DiscriminationKind.shadowed, DiscriminationKind.guarded, DiscriminationKind.unbounded
+    ])
+        assert(discriminationKindName(k).length > 0);
+
+    assert(jsonQuoted("hello\n\"\\world\x1f") == "\"hello\\u000a\\\"\\\\world\\u001f\"");
+
+    ChoiceDiscrimination[] emptyList;
+    assert(renderDiscrimination(emptyList, true) == "[]");
+    assert(renderDiscrimination(emptyList, false) == "");
+
+    ChoiceDiscrimination c1;
+    c1.expressionIndex = 1;
+    c1.ruleName = "Rule1";
+    c1.hasOverlap = true;
+    c1.pairs = [
+        BranchDiscrimination(0, 1, DiscriminationKind.disjointTails, 1, "a", 2, "details"),
+        BranchDiscrimination(0, 2, DiscriminationKind.shadowed, 0, "", 0, "shadow details")
+    ];
+
+    ChoiceDiscrimination c2;
+    c2.expressionIndex = 2;
+    c2.hasOverlap = false;
+    c2.pairs = [BranchDiscrimination(0, 1, DiscriminationKind.disjointFirst, 0, "", 0, "disjoint")];
+
+    ChoiceDiscrimination[] list = [c1, c2];
+    auto json = renderDiscrimination(list, true);
+    auto text = renderDiscrimination(list, false);
+    assert(json.length > 0 && text.length > 0);
+}
+
+private string discriminationKindName(DiscriminationKind kind) pure nothrow {
+    final switch (kind) {
+    case DiscriminationKind.disjointFirst:
+        return "disjointFirst";
+    case DiscriminationKind.disjointTails:
+        return "disjointTails";
+    case DiscriminationKind.shadowed:
+        return "shadowed";
+    case DiscriminationKind.guarded:
+        return "guarded";
+    case DiscriminationKind.unbounded:
+        return "unbounded";
+    }
+}
+
+private string jsonQuoted(scope string value) pure nothrow {
+    string result = "\"";
+    enum hex = "0123456789abcdef";
+    foreach (c; value) {
+        if (c == '"' || c == '\\')
+            result ~= "\\" ~ c;
+        else if (cast(ubyte)c < 32)
+            result ~= "\\u00" ~ hex[cast(ubyte)c >> 4] ~ hex[cast(ubyte)c & 15];
+        else
+            result ~= c;
+    }
+    return result ~ "\"";
+}
+
+string renderDiscrimination(scope const(ChoiceDiscrimination)[] discriminations, bool json = false) nothrow {
+    if (json) {
+        string res = "[";
+        foreach (cIdx, ref choice; discriminations) {
+            if (cIdx)
+                res ~= ",";
+            res ~= "{\"expressionIndex\":" ~ toDec(choice.expressionIndex) ~ ",\"ruleName\":"
+                ~ jsonQuoted(choice.ruleName) ~ ",\"hasOverlap\":" ~ (choice.hasOverlap
+                        ? "true" : "false") ~ ",\"pairs\":[";
+            foreach (pIdx, ref p; choice.pairs) {
+                if (pIdx)
+                    res ~= ",";
+                res ~= "{\"firstIndex\":" ~ toDec(p.firstIndex) ~ ",\"secondIndex\":" ~ toDec(
+                        p.secondIndex) ~ ",\"kind\":\"" ~ discriminationKindName(
+                        p.kind) ~ "\"" ~ ",\"commonPrefixLength\":" ~ toDec(
+                        p.commonPrefixLength) ~ ",\"commonPrefix\":" ~ jsonQuoted(
+                        p.commonPrefix) ~ ",\"discriminatingDepth\":" ~ toDec(
+                        p.discriminatingDepth) ~ ",\"detail\":" ~ jsonQuoted(p.detail) ~ "}";
+            }
+            res ~= "]}";
+        }
+        return res ~ "]";
+    } else {
+        string res;
+        foreach (cIdx, ref choice; discriminations) {
+            res ~= "Choice at node " ~ toDec(choice.expressionIndex);
+            if (choice.ruleName.length)
+                res ~= " (rule \"" ~ choice.ruleName ~ "\")";
+            res ~= ": overlap=" ~ (choice.hasOverlap ? "yes" : "no") ~ "\n";
+            foreach (ref p; choice.pairs) {
+                res ~= "  [" ~ toDec(p.firstIndex) ~ " vs " ~ toDec(p.secondIndex) ~ "] "
+                    ~ discriminationKindName(p.kind);
+                if (p.commonPrefixLength)
+                    res ~= " (prefix \"" ~ p.commonPrefix ~ "\", depth " ~ toDec(p
+                            .discriminatingDepth) ~ ")";
+                res ~= " - " ~ p.detail ~ "\n";
+            }
+        }
+        return res;
+    }
+}
+
 /// FIRST is a conservative byte-set superset; unknown facts never enable dispatch.
 /// Left edges include every call reachable before proven input consumption.
 struct GrammarAnalysis {
@@ -288,6 +520,431 @@ nothrow:
         ];
         foreach (effect; reverse.ruleEffects())
             assert(!effect.known && effect.actionful);
+    }
+
+    private struct BranchPrefix {
+        string literal;
+        bool exact = true;
+        bool guardedByEoi;
+        bool hasPredicate;
+        bool indeterminate;
+    }
+
+    private BranchPrefix inspectBranch(size_t index, size_t depth = 0) nothrow {
+        if (depth >= 32 || index >= expressions.length) {
+            BranchPrefix ind;
+            ind.indeterminate = true;
+            ind.exact = false;
+            return ind;
+        }
+        const node = expressions[index];
+        if (node.kind == ExpressionKind.unknown) {
+            BranchPrefix ind;
+            ind.indeterminate = true;
+            ind.exact = false;
+            return ind;
+        }
+        if (node.kind == ExpressionKind.reference) {
+            const callee = referenceRule(cast(Expression)node);
+            if (callee == size_t.max || (leftRecursive.length > callee && leftRecursive[callee])) {
+                BranchPrefix ind;
+                ind.indeterminate = true;
+                ind.exact = false;
+                return ind;
+            }
+            return inspectBranch(roots[callee], depth + 1);
+        }
+        if (node.kind == ExpressionKind.wrapper) {
+            if (node.children.length)
+                return inspectBranch(node.children[0], depth + 1);
+            BranchPrefix ind;
+            ind.indeterminate = true;
+            ind.exact = false;
+            return ind;
+        }
+        if (node.kind == ExpressionKind.predicate) {
+            BranchPrefix pred;
+            pred.hasPredicate = true;
+            pred.exact = false;
+            return pred;
+        }
+        if (node.kind == ExpressionKind.terminal) {
+            if (node.source == "eps")
+                return BranchPrefix("", true, false, false, false);
+            if (node.source == "eoi" || node.source == "endOfInput")
+                return BranchPrefix("", false, true, false, false);
+            if (node.source == "doublequote")
+                return BranchPrefix("\"", true, false, false, false);
+            if (node.source == "quote")
+                return BranchPrefix("'", true, false, false, false);
+            if (node.source == "backslash")
+                return BranchPrefix("\\", true, false, false, false);
+            if (node.source == "slash")
+                return BranchPrefix("/", true, false, false, false);
+            if (node.source == "tab")
+                return BranchPrefix("\t", true, false, false, false);
+            if (node.source == "backquote")
+                return BranchPrefix("`", true, false, false, false);
+            if (node.source.length >= 7 && node.source[0 .. 7] == "literal") {
+                const lit = extractLiteralBytes(node.source);
+                return BranchPrefix(lit, true, false, false, false);
+            }
+            BranchPrefix ind;
+            ind.indeterminate = true;
+            ind.exact = false;
+            return ind;
+        }
+        if (node.kind == ExpressionKind.sequence) {
+            string prefixLit;
+            bool exactAll = true;
+            bool guardedEoi = false;
+            bool hasPred = false;
+            bool indet = false;
+            foreach (child; node.children) {
+                const cp = inspectBranch(child, depth + 1);
+                if (cp.hasPredicate)
+                    hasPred = true;
+                if (cp.guardedByEoi)
+                    guardedEoi = true;
+                if (cp.indeterminate) {
+                    if (!prefixLit.length)
+                        indet = true;
+                    exactAll = false;
+                    break;
+                }
+                if (cp.literal.length) {
+                    prefixLit ~= cp.literal;
+                    if (!cp.exact) {
+                        exactAll = false;
+                        break;
+                    }
+                }
+            }
+            return BranchPrefix(prefixLit, exactAll && !hasPred && !guardedEoi, guardedEoi, hasPred, indet);
+        }
+        BranchPrefix ind;
+        ind.indeterminate = true;
+        ind.exact = false;
+        return ind;
+    }
+
+    private BranchDiscrimination compareBranches(size_t firstChild, size_t secondChild, size_t i, size_t j) nothrow {
+        BranchDiscrimination result;
+        result.firstIndex = i;
+        result.secondIndex = j;
+
+        const bool firstHasFacts = firstChild < facts.length;
+        const bool secondHasFacts = secondChild < facts.length;
+        bool overlap = false;
+        if (firstHasFacts && secondHasFacts) {
+            overlap = facts[firstChild].first.intersects(facts[secondChild].first);
+            if (!overlap && facts[firstChild].nullable == Nullable.yes && facts[secondChild].nullable == Nullable
+                    .yes)
+                overlap = true;
+        }
+
+        if (!overlap) {
+            result.kind = DiscriminationKind.disjointFirst;
+            result.detail = "disjoint FIRST byte sets";
+            return result;
+        }
+
+        const a = inspectBranch(firstChild);
+        const b = inspectBranch(secondChild);
+
+        size_t commonLen = 0;
+        while (commonLen < a.literal.length && commonLen < b.literal.length
+                && a.literal[commonLen] == b.literal[commonLen])
+            ++commonLen;
+
+        result.commonPrefixLength = commonLen;
+        result.commonPrefix = a.literal[0 .. commonLen];
+
+        if (commonLen < a.literal.length && commonLen < b.literal.length) {
+            result.kind = DiscriminationKind.disjointTails;
+            result.discriminatingDepth = cast(ubyte)(commonLen + 1);
+            result.detail = "disjoint tails after prefix \"" ~ result.commonPrefix ~ "\" at depth "
+                ~ toDec(commonLen + 1) ~ " ('" ~ a.literal[commonLen] ~ "' vs '" ~ b.literal[commonLen] ~ "')";
+            return result;
+        }
+
+        if (commonLen == a.literal.length && commonLen < b.literal.length) {
+            if (a.guardedByEoi) {
+                result.kind = DiscriminationKind.guarded;
+                result.discriminatingDepth = cast(ubyte)(commonLen + 1);
+                result.detail = "guarded: earlier alternative " ~ toDec(i) ~ " (\"" ~ a.literal
+                    ~ "\") is guarded by eoi";
+                return result;
+            }
+            if (a.hasPredicate) {
+                result.kind = DiscriminationKind.guarded;
+                result.discriminatingDepth = cast(ubyte)(commonLen + 1);
+                result.detail = "guarded: earlier alternative " ~ toDec(
+                        i) ~ " (\"" ~ a.literal ~ "\") has lookahead predicate";
+                return result;
+            }
+            if (a.exact) {
+                result.kind = DiscriminationKind.shadowed;
+                result.discriminatingDepth = cast(ubyte)commonLen;
+                result.detail = "shadowed: earlier alternative " ~ toDec(
+                        i) ~ " (\"" ~ a.literal ~ "\") is unguarded prefix of alternative " ~ toDec(j);
+                return result;
+            }
+            result.kind = DiscriminationKind.unbounded;
+            result.detail = "unbounded: earlier alternative has non-literal tail";
+            return result;
+        }
+
+        if (commonLen == a.literal.length && commonLen == b.literal.length && a.literal.length > 0) {
+            if (a.guardedByEoi || a.hasPredicate) {
+                result.kind = DiscriminationKind.guarded;
+                result.detail = "guarded: earlier alternative " ~ toDec(i) ~ " has guard";
+                return result;
+            }
+            if (a.exact && b.exact) {
+                result.kind = DiscriminationKind.shadowed;
+                result.discriminatingDepth = cast(ubyte)commonLen;
+                result.detail = "shadowed: alternative " ~ toDec(j) ~ " is identical to earlier alternative " ~ toDec(
+                        i);
+                return result;
+            }
+            result.kind = DiscriminationKind.unbounded;
+            result.detail = "unbounded: identical prefix with non-literal tail";
+            return result;
+        }
+
+        if (commonLen == b.literal.length && commonLen < a.literal.length) {
+            result.kind = DiscriminationKind.disjointTails;
+            result.discriminatingDepth = cast(ubyte)(commonLen + 1);
+            result.detail = "disjoint tails: alternative " ~ toDec(i) ~ " requires byte '"
+                ~ a.literal[commonLen] ~ "' after prefix \"" ~ result.commonPrefix ~ "\"";
+            return result;
+        }
+
+        result.kind = DiscriminationKind.unbounded;
+        result.detail = "unbounded: non-literal or recursive overlap";
+        return result;
+    }
+
+    ChoiceDiscrimination analyzePrefixDiscrimination(size_t exprIndex) nothrow {
+        ChoiceDiscrimination result;
+        result.expressionIndex = exprIndex;
+        if (exprIndex >= expressions.length)
+            return result;
+        const node = expressions[exprIndex];
+        if (node.kind != ExpressionKind.choice)
+            return result;
+
+        foreach (i, root; roots) {
+            if (root == exprIndex && i < names.length) {
+                result.ruleName = names[i];
+                break;
+            }
+        }
+
+        const branches = node.children;
+        foreach (i; 0 .. branches.length) {
+            foreach (j; i + 1 .. branches.length) {
+                auto pair = compareBranches(branches[i], branches[j], i, j);
+                if (pair.kind != DiscriminationKind.disjointFirst)
+                    result.hasOverlap = true;
+                result.pairs ~= pair;
+            }
+        }
+        return result;
+    }
+
+    ChoiceDiscrimination[] analyzeAllPrefixDiscriminations() nothrow {
+        ChoiceDiscrimination[] results;
+        foreach (i, const ref expr; expressions) {
+            if (expr.kind == ExpressionKind.choice)
+                results ~= analyzePrefixDiscrimination(i);
+        }
+        return results;
+    }
+
+    nothrow unittest {
+        alias K = ExpressionKind;
+        alias N = Nullable;
+        CharSetMask a, b;
+        a.addChar('a');
+        b.addChar('b');
+
+        // Test 1: "ab" / "ac"
+        GrammarAnalysis g1;
+        g1.names = ["Root"];
+        g1.expressions = [
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"ab\""),
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"ac\""),
+            Expression(K.choice, [0, 1], null, CharSetMask.init, N.no, true, "or!(literal!\"ab\", literal!\"ac\")")
+        ];
+        g1.roots = [2];
+        g1.solve();
+        auto d1 = g1.analyzePrefixDiscrimination(2);
+        assert(d1.hasOverlap);
+        assert(d1.pairs.length == 1);
+        assert(d1.pairs[0].kind == DiscriminationKind.disjointTails);
+        assert(d1.pairs[0].commonPrefix == "a");
+        assert(d1.pairs[0].commonPrefixLength == 1);
+        assert(d1.pairs[0].discriminatingDepth == 2);
+
+        // Test 2: "a" / "ab"
+        GrammarAnalysis g2;
+        g2.names = ["Root"];
+        g2.expressions = [
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"a\""),
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"ab\""),
+            Expression(K.choice, [0, 1], null, CharSetMask.init, N.no, true, "or!(literal!\"a\", literal!\"ab\")")
+        ];
+        g2.roots = [2];
+        g2.solve();
+        auto d2 = g2.analyzePrefixDiscrimination(2);
+        assert(d2.hasOverlap);
+        assert(d2.pairs.length == 1);
+        assert(d2.pairs[0].kind == DiscriminationKind.shadowed);
+        assert(d2.pairs[0].commonPrefix == "a");
+        assert(d2.pairs[0].discriminatingDepth == 1);
+
+        // Test 3: "a" eoi / "ab"
+        GrammarAnalysis g3;
+        g3.names = ["Root"];
+        g3.expressions = [
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"a\""),
+            Expression(K.terminal, null, null, CharSetMask.init, N.yes, true, "eoi"),
+            Expression(K.sequence, [0, 1], null, CharSetMask.init, N.no, true,
+                    "and!(literal!\"a\", eoi)"),
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"ab\""),
+            Expression(K.choice, [2, 3], null, CharSetMask.init, N.no, true,
+                    "or!(and!(literal!\"a\", eoi), literal!\"ab\")")
+        ];
+        g3.roots = [4];
+        g3.solve();
+        auto d3 = g3.analyzePrefixDiscrimination(4);
+        assert(d3.hasOverlap);
+        assert(d3.pairs.length == 1);
+        assert(d3.pairs[0].kind == DiscriminationKind.guarded);
+        assert(d3.pairs[0].commonPrefix == "a");
+
+        // Test 4: &'ax' 'a' / 'ab'
+        GrammarAnalysis g4;
+        g4.names = ["Root"];
+        g4.expressions = [
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"ax\""),
+            Expression(K.predicate, [0], null, CharSetMask.init, N.yes, true,
+                    "posLookahead!(literal!\"ax\")"),
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"a\""),
+            Expression(K.sequence, [1, 2], null, CharSetMask.init, N.no, true,
+                    "and!(posLookahead!(literal!\"ax\"), literal!\"a\")"),
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"ab\""),
+            Expression(K.choice, [3, 4], null, CharSetMask.init, N.no, true,
+                    "or!(and!(posLookahead!(literal!\"ax\"), literal!\"a\"), literal!\"ab\")")
+        ];
+        g4.roots = [5];
+        g4.solve();
+        auto d4 = g4.analyzePrefixDiscrimination(5);
+        assert(d4.hasOverlap);
+        assert(d4.pairs.length == 1);
+        assert(d4.pairs[0].kind == DiscriminationKind.guarded);
+
+        // Test 5: "a" / "b" (disjoint FIRST)
+        GrammarAnalysis g5;
+        g5.names = ["Root"];
+        g5.expressions = [
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"a\""),
+            Expression(K.terminal, null, null, b, N.no, true, "literal!\"b\""),
+            Expression(K.choice, [0, 1], null, CharSetMask.init, N.no, true, "or!(literal!\"a\", literal!\"b\")")
+        ];
+        g5.roots = [2];
+        g5.solve();
+        auto d5 = g5.analyzePrefixDiscrimination(2);
+        assert(!d5.hasOverlap);
+        assert(d5.pairs.length == 1);
+        assert(d5.pairs[0].kind == DiscriminationKind.disjointFirst);
+
+        // Test 6: non-choice node, out-of-range index, and all discriminations
+        assert(!g5.analyzePrefixDiscrimination(0).hasOverlap);
+        assert(!g5.analyzePrefixDiscrimination(999).hasOverlap);
+        assert(g5.analyzeAllPrefixDiscriminations().length == 1);
+
+        // Test 7: "ab" / "ab" (identical -> shadowed)
+        GrammarAnalysis g7;
+        g7.expressions = [
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"ab\""),
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"ab\""),
+            Expression(K.choice, [0, 1], null, CharSetMask.init, N.no, true, "or!(literal!\"ab\", literal!\"ab\")")
+        ];
+        g7.solve();
+        auto d7 = g7.analyzePrefixDiscrimination(2);
+        assert(d7.pairs[0].kind == DiscriminationKind.shadowed);
+
+        // Test 8: "ab" / "a" (longer first -> disjoint tails)
+        GrammarAnalysis g8;
+        g8.expressions = [
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"ab\""),
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"a\""),
+            Expression(K.choice, [0, 1], null, CharSetMask.init, N.no, true, "or!(literal!\"ab\", literal!\"a\")")
+        ];
+        g8.solve();
+        auto d8 = g8.analyzePrefixDiscrimination(2);
+        assert(d8.pairs[0].kind == DiscriminationKind.disjointTails);
+
+        // Test 9: special terminals: doublequote, quote, backslash, slash, tab, backquote, eps, eoi
+        GrammarAnalysis g9;
+        g9.expressions = [
+            Expression(K.terminal, null, null, CharSetMask.fromChars('"'), N.no, true,
+                    "doublequote"),
+            Expression(K.terminal, null, null, CharSetMask.fromChars('\''), N.no, true, "quote"),
+            Expression(K.terminal, null, null, CharSetMask.fromChars('\\'), N.no, true,
+                    "backslash"),
+            Expression(K.terminal, null, null, CharSetMask.fromChars('/'), N.no, true, "slash"),
+            Expression(K.terminal, null, null, CharSetMask.fromChars('\t'), N.no, true, "tab"),
+            Expression(K.terminal, null, null, CharSetMask.fromChars('`'), N.no, true,
+                    "backquote"),
+            Expression(K.terminal, null, null, CharSetMask.init, N.yes, true, "eps"),
+            Expression(K.terminal, null, null, CharSetMask.init, N.yes, true, "endOfInput"),
+            Expression(K.choice, [0, 1, 2, 3, 4, 5, 6, 7])
+        ];
+        g9.solve();
+        auto d9 = g9.analyzePrefixDiscrimination(8);
+        assert(d9.pairs.length == 28);
+
+        // Test 10: references (valid, unknown, left-recursive), wrappers (with/without children), unknown nodes
+        GrammarAnalysis g10;
+        g10.names = ["Target", "Rec"];
+        g10.roots = [0, 2];
+        g10.expressions = [
+            Expression(K.terminal, null, null, a, N.no, true, "literal!\"a\""), // 0
+            Expression(K.reference,
+                    null, "Target"), // 1 -> Target (valid)
+            Expression(K.reference, null, "Rec"), // 2 -> Rec (recursive)
+            Expression(K.reference, null, "Missing"), // 3 -> Missing
+            Expression(K.wrapper, [0]), // 4 -> wrapper with child
+            Expression(K.unknown), // 5 -> unknown node
+            Expression(K.terminal, null, null, a, N.no, true, "any"), // 6 -> non-literal terminal
+            Expression(K.sequence, [6,
+                0]), // 7 -> sequence with indeterminate prefix
+            Expression(K.sequence, [0, 6]), // 8 -> sequence with non-exact suffix
+            Expression(K.choice, [1, 4, 3, 2, 5, 7, 8]) // 9
+        ];
+        g10.leftRecursive = [false, true];
+        g10.solve();
+        auto d10 = g10.analyzePrefixDiscrimination(9);
+        assert(d10.pairs.length > 0);
+
+        // Test 11: both nullable overlap, guarded identical, and unbounded non-literal overlap
+        GrammarAnalysis g11;
+        g11.expressions = [
+            Expression(K.terminal, null, null, CharSetMask.init, N.yes, true, "eps"), // 0
+            Expression(K.terminal,
+                    null, null, CharSetMask.init, N.yes, true, "eps"), // 1
+            Expression(K.sequence, [0,
+                0]), // 2
+            Expression(K.choice, [0, 1]), // 3
+            Expression(K.choice, [2, 0]) // 4
+        ];
+        g11.solve();
+        auto d11 = g11.analyzePrefixDiscrimination(3);
+        assert(d11.hasOverlap);
     }
 
     /// Only closed, acyclic expressions with understood effects may be shared.

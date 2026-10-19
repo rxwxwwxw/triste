@@ -4,7 +4,8 @@ module npegged.grammar;
 public import npegged.peg;
 public import npegged.dfa;
 import npegged.io;
-public import npegged.analysis : RuleEligibility;
+public import npegged.analysis : RuleEligibility, DiscriminationKind, BranchDiscrimination,
+    ChoiceDiscrimination, renderDiscrimination;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
 nothrow:
@@ -3420,6 +3421,61 @@ nothrow unittest {
     assert(invalid.status == Status.invalidInput && invalid.diagnostic.message.length);
     auto badFormat = eligibilityReport("Valid: Root <- 'a'", cast(EligibilityFormat)99);
     assert(badFormat.status == Status.invalidInput && badFormat.diagnostic.message.length);
+}
+
+/// Bounded literal-prefix discrimination report for ordered choice alternatives.
+struct PrefixDiscriminationResult {
+    Status status = Status.invalidInput;
+    Diagnostic diagnostic;
+    string grammarName;
+    ChoiceDiscrimination[] choices;
+    string report;
+}
+
+PrefixDiscriminationResult prefixDiscriminationReport(string definition,
+        EligibilityFormat format = EligibilityFormat.json) nothrow {
+    PrefixDiscriminationResult result;
+    if (format != EligibilityFormat.json && format != EligibilityFormat.text) {
+        result.diagnostic = Diagnostic(0, "Unknown prefix discrimination report format");
+        return result;
+    }
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.diagnostic = Diagnostic(begin, "Prefix discrimination report input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    result.grammarName = frontend.name;
+    frontend.prepareAnalysis();
+    result.choices = frontend.analyzed.analyzeAllPrefixDiscriminations();
+    result.report = renderDiscrimination(result.choices, format == EligibilityFormat.json);
+    result.status = Status.ok;
+    return result;
+}
+
+nothrow unittest {
+    auto res = prefixDiscriminationReport("TestChoice: Root <- 'ab' / 'ac'");
+    assert(res.status == Status.ok && res.grammarName == "TestChoice");
+    assert(res.choices.length == 1 && res.choices[0].hasOverlap);
+    assert(res.choices[0].pairs.length == 1);
+    assert(res.choices[0].pairs[0].kind == DiscriminationKind.disjointTails);
+    assert(res.choices[0].pairs[0].commonPrefix == "a");
+    auto badEnc = prefixDiscriminationReport("Bad: Root <- 'a' #\x80");
+    assert(badEnc.status == Status.invalidInput);
+    auto badFmt = prefixDiscriminationReport("BadFmt: Root <- 'a'", cast(EligibilityFormat)99);
+    assert(badFmt.status == Status.invalidInput);
+    auto broken = prefixDiscriminationReport("Broken:");
+    assert(broken.status == Status.invalidInput);
 }
 
 GenerationResult generate(Memoization memo = Memoization.yes, alias Selector = void,

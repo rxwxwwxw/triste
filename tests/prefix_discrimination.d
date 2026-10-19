@@ -1,0 +1,102 @@
+module tests.prefix_discrimination;
+
+import npegged.analysis;
+import npegged.grammar;
+import core.memory : GC;
+import core.stdc.stdio : printf;
+import core.sys.posix.unistd : alarm;
+
+int main() nothrow {
+    alarm(45);
+
+    // 1. Fixture "ab" / "ac"
+    auto r1 = prefixDiscriminationReport("DisjointChoice: Root <- 'ab' / 'ac'");
+    assert(r1.status == Status.ok);
+    assert(r1.choices.length == 1);
+    assert(r1.choices[0].hasOverlap);
+    assert(r1.choices[0].pairs.length == 1);
+    assert(r1.choices[0].pairs[0].kind == DiscriminationKind.disjointTails);
+    assert(r1.choices[0].pairs[0].commonPrefix == "a");
+    assert(r1.choices[0].pairs[0].commonPrefixLength == 1);
+    assert(r1.choices[0].pairs[0].discriminatingDepth == 2);
+
+    // 2. Fixture "a" / "ab" (ordered choice shadowing)
+    auto r2 = prefixDiscriminationReport("ShadowedChoice: Root <- 'a' / 'ab'");
+    assert(r2.status == Status.ok);
+    assert(r2.choices.length == 1);
+    assert(r2.choices[0].hasOverlap);
+    assert(r2.choices[0].pairs.length == 1);
+    assert(r2.choices[0].pairs[0].kind == DiscriminationKind.shadowed);
+    assert(r2.choices[0].pairs[0].commonPrefix == "a");
+    assert(r2.choices[0].pairs[0].commonPrefixLength == 1);
+    assert(r2.choices[0].pairs[0].discriminatingDepth == 1);
+
+    // 3. Fixture "a" eoi / "ab" (EOF guard)
+    auto r3 = prefixDiscriminationReport("GuardedEoi: Root <- 'a' eoi / 'ab'");
+    assert(r3.status == Status.ok);
+    assert(r3.choices.length == 1);
+    assert(r3.choices[0].hasOverlap);
+    assert(r3.choices[0].pairs.length == 1);
+    assert(r3.choices[0].pairs[0].kind == DiscriminationKind.guarded);
+    assert(r3.choices[0].pairs[0].commonPrefix == "a");
+    assert(r3.choices[0].pairs[0].commonPrefixLength == 1);
+
+    // 4. Fixture predicates
+    auto r4 = prefixDiscriminationReport("GuardedPred: Root <- &'ax' 'a' / 'ab'");
+    assert(r4.status == Status.ok);
+    assert(r4.choices.length == 1);
+    assert(r4.choices[0].hasOverlap);
+    assert(r4.choices[0].pairs.length == 1);
+    assert(r4.choices[0].pairs[0].kind == DiscriminationKind.guarded);
+
+    auto r5 = prefixDiscriminationReport("GuardedNegPred: Root <- !'b' 'a' / 'ab'");
+    assert(r5.status == Status.ok);
+    assert(r5.choices.length == 1);
+    assert(r5.choices[0].hasOverlap);
+    assert(r5.choices[0].pairs.length == 1);
+    assert(r5.choices[0].pairs[0].kind == DiscriminationKind.guarded);
+
+    // 5. Fixture "a" / "b" (disjoint FIRST)
+    auto r6 = prefixDiscriminationReport("DisjointFirst: Root <- 'a' / 'b'");
+    assert(r6.status == Status.ok);
+    assert(r6.choices.length == 1);
+    assert(!r6.choices[0].hasOverlap);
+    assert(r6.choices[0].pairs.length == 1);
+    assert(r6.choices[0].pairs[0].kind == DiscriminationKind.disjointFirst);
+
+    // 6. Multi-branch choice: "ab" / "ac" / "ad"
+    auto r7 = prefixDiscriminationReport("MultiChoice: Root <- 'ab' / 'ac' / 'ad'");
+    assert(r7.status == Status.ok);
+    assert(r7.choices.length == 1);
+    assert(r7.choices[0].hasOverlap);
+    assert(r7.choices[0].pairs.length == 3);
+    assert(r7.choices[0].pairs[0].kind == DiscriminationKind.disjointTails);
+    assert(r7.choices[0].pairs[1].kind == DiscriminationKind.disjointTails);
+    assert(r7.choices[0].pairs[2].kind == DiscriminationKind.disjointTails);
+
+    // 7. Text and JSON reports
+    auto textReport = prefixDiscriminationReport("MultiChoice: Root <- 'ab' / 'ac' / 'ad'", EligibilityFormat
+            .text);
+    assert(textReport.status == Status.ok);
+    assert(textReport.report.length > 0);
+
+    // Deterministic reporting check
+    auto repeated = prefixDiscriminationReport("DisjointChoice: Root <- 'ab' / 'ac'");
+    assert(r1.report == repeated.report);
+
+    // Invalid input error handling
+    auto invalid = prefixDiscriminationReport("Invalid: Root <-");
+    assert(invalid.status == Status.invalidInput);
+
+    // Print JSON reports for script verification
+    printf("%.*s\n", cast(int)r1.report.length, r1.report.ptr);
+    printf("%.*s\n", cast(int)r2.report.length, r2.report.ptr);
+    printf("%.*s\n", cast(int)r3.report.length, r3.report.ptr);
+    printf("%.*s\n", cast(int)r4.report.length, r4.report.ptr);
+    printf("%.*s\n", cast(int)r5.report.length, r5.report.ptr);
+    printf("%.*s\n", cast(int)r6.report.length, r6.report.ptr);
+    printf("%.*s\n", cast(int)r7.report.length, r7.report.ptr);
+
+    printf("prefix discrimination oracle passed\n");
+    return 0;
+}
