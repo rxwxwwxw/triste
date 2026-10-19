@@ -74,6 +74,11 @@ nothrow:
     size_t[] altBase; // node -> offset into altWeight, size_t.max for non-choices
     ubyte[] repeatBias; // node -> 0 default, 1 empty/skip, 2 one/take, 3 many
     bool[] proposedAlt; // alternatives the *walk* chose (not necessarily accepted), same layout as altWeight
+    /// Policy hooks (G4). Unset values keep the G1 behavior bit for bit.
+    ulong[][] repeatHist; // node -> weight per repetition count (index = count); empty = default distribution
+    ushort[] optionalPermille; // node -> probability of taking `e?` in 1/1000, 0xFFFF = default 1/2
+    ulong attenuationPermille = 1000; // weight of a recursive alternative is scaled by (attenuation/1000)^depth
+    bool[] altRecursive; // alternative can reach its own rule again; same layout as altWeight
 
     this(ref GrammarAnalysis graph, size_t startRule, GeneratorOptions options = GeneratorOptions
             .init) {
@@ -95,6 +100,72 @@ nothrow:
         altWeight = new ulong[total];
         altWeight[] = 1;
         proposedAlt = new bool[total];
+        altRecursive = new bool[total];
+        repeatHist = new ulong[][graph.expressions.length];
+        optionalPermille = new ushort[graph.expressions.length];
+        optionalPermille[] = 0xFFFF;
+        markRecursiveAlternatives();
+    }
+
+    /// An alternative is recursive when following references from it can reach the rule that owns the choice.
+    private void markRecursiveAlternatives() {
+        const rules = graph.roots.length;
+        auto reaches = new bool[][rules];
+        foreach (rule; 0 .. rules) {
+            reaches[rule] = new bool[rules];
+            auto seen = new bool[graph.expressions.length];
+            void visit(size_t index) nothrow {
+                if (index >= graph.expressions.length || seen[index])
+                    return;
+                seen[index] = true;
+                auto node = graph.expressions[index];
+                if (node.kind == ExpressionKind.reference) {
+                    const target = graph.referenceRule(node);
+                    if (target != size_t.max && !reaches[rule][target]) {
+                        reaches[rule][target] = true;
+                        visit(graph.roots[target]);
+                    }
+                }
+                foreach (child; node.children)
+                    visit(child);
+            }
+
+            visit(graph.roots[rule]);
+        }
+        foreach (rule, root; graph.roots) {
+            auto seen = new bool[graph.expressions.length];
+            void own(size_t index) nothrow {
+                if (index >= graph.expressions.length || seen[index])
+                    return;
+                seen[index] = true;
+                auto node = graph.expressions[index];
+                if (node.kind == ExpressionKind.choice)
+                    foreach (alternative, child; node.children) {
+                        auto inner = new bool[graph.expressions.length];
+                        bool recursive;
+                        void scan(size_t at) nothrow {
+                            if (at >= graph.expressions.length || inner[at] || recursive)
+                                return;
+                            inner[at] = true;
+                            auto n = graph.expressions[at];
+                            if (n.kind == ExpressionKind.reference) {
+                                const target = graph.referenceRule(n);
+                                if (target != size_t.max && (target == rule || reaches[target][rule]))
+                                    recursive = true;
+                            }
+                            foreach (c; n.children)
+                                scan(c);
+                        }
+
+                        scan(child);
+                        altRecursive[altBase[index] + alternative] = recursive;
+                    }
+                foreach (child; node.children)
+                    own(child);
+            }
+
+            own(root);
+        }
     }
 
     /// Weight 0 disables an alternative; if every alternative of a choice is disabled the walk reports a failure.
@@ -238,6 +309,24 @@ nothrow:
         return at + 1 < source.length && source[at + 1] == ')';
     }
 
+    /// Weight after recursion attenuation. With attenuation active every weight is scaled by 1000 so that a recursive
+    /// alternative, multiplied by (attenuation/1000) per level of depth, keeps resolution; a positive weight never drops
+    /// to zero (attenuation changes likelihood, never availability).
+    private ulong effectiveWeight(size_t slot, size_t depth) {
+        ulong weight = altWeight[slot];
+        if (attenuationPermille >= 1000 || !weight)
+            return weight;
+        weight *= 1000;
+        if (!altRecursive[slot])
+            return weight;
+        foreach (_; 0 .. depth) {
+            weight = weight * attenuationPermille / 1000;
+            if (weight == 0)
+                return 1;
+        }
+        return weight ? weight : 1;
+    }
+
     private void fail(GenStatus status, string reason) {
         if (!failed) {
             failed = true;
@@ -319,18 +408,19 @@ nothrow:
                 const base = altBase[index];
                 ulong total;
                 foreach (i; 0 .. node.children.length)
-                    total += altWeight[base + i];
+                    total += effectiveWeight(base + i, depth);
                 if (!total) {
                     fail(GenStatus.unsupported, "every alternative of a choice is disabled");
                     return;
                 }
                 ulong pick = roll() % total;
                 foreach (i; 0 .. node.children.length) {
-                    if (pick < altWeight[base + i]) {
+                    const weight = effectiveWeight(base + i, depth);
+                    if (pick < weight) {
                         chosen = i;
                         break;
                     }
-                    pick -= altWeight[base + i];
+                    pick -= weight;
                 }
             }
             proposedAlt[altBase[index] + chosen] = true;
@@ -339,13 +429,15 @@ nothrow:
         case ExpressionKind.optional:
             if (depth < options.softDepth) {
                 const bias = repeatBias[index];
-                const take = bias == 1 ? false : bias >= 2 ? true : chance(1, 2);
+                const permille = optionalPermille[index];
+                const take = bias == 1 ? false : bias >= 2 ? true : permille != 0xFFFF
+                    ? chance(permille, 1000) : chance(1, 2);
                 if (take)
                     walk(node.children[0], depth + 1);
             }
             return;
         case ExpressionKind.repetition:
-            repeat(node.children[0], 0, depth, repeatBias[index]);
+            repeat(node.children[0], 0, depth, repeatBias[index], index);
             return;
         case ExpressionKind.predicate:
             return; // zero-width: the oracle decides whether the surrounding sequence is accepted
@@ -359,9 +451,25 @@ nothrow:
         }
     }
 
-    private void repeat(size_t body, size_t least, size_t depth, ubyte bias = 0) {
+    private void repeat(size_t body, size_t least, size_t depth, ubyte bias = 0, size_t node = size_t
+            .max) {
         size_t count = least;
-        if (depth < options.softDepth && bias != 0 && chance(3, 4)) {
+        if (node != size_t.max && repeatHist[node].length && depth < options.softDepth) {
+            // Policy histogram: weight per repetition count; counts below the minimum are clamped to it.
+            ulong total;
+            foreach (weight; repeatHist[node])
+                total += weight;
+            if (total) {
+                ulong pick = roll() % total;
+                foreach (length, weight; repeatHist[node]) {
+                    if (pick < weight) {
+                        count = length < least ? least : length;
+                        break;
+                    }
+                    pick -= weight;
+                }
+            }
+        } else if (depth < options.softDepth && bias != 0 && chance(3, 4)) {
             // Guided: aim at a specific bucket (empty / one / many), still respecting the minimum.
             count = bias == 1 ? least : bias == 2 ? (least > 1 ? least : 1) : (least > 3 ? least : 3);
         } else if (depth < options.softDepth) {

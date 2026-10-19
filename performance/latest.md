@@ -52,7 +52,8 @@ Last updated 2026-10-19.
 | **New baseline on `direct`** | 78/171 within 1.5x, geomean 1.47 | `baselines/20261019T224838Z-*` |
 | **S1 register-resident step accounting in cursors** (exact; dense differential sweeps) | 96/171 within 1.5x (56%), p90 2.04, geomean 1.32; 10 PEGGrammar regressions <= 12% disclosed | `milestones/S1/notes-s1.md`, S1b alternative |
 | G1 seeded candidate generator, G2 full-acceptance oracle | done (cold modules, no codegen change) | `docs/GENERATION.md`, `tests/{generator,acceptance_oracle}.d` |
-| P3-P5, P7-P8, L4-L6, G3-G7, X* | not started | — |
+| G3 coverage-guided generation (76/80 vs 57/80 targets at 12 samples), G4 external weighted policies | done (cold modules) | `docs/GENERATION.md`, `tests/{coverage_generation,policy_generation}.d` |
+| P3-P5, P7-P8, L4-L6, G5-G7, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,
 CSV.Flat/validation -73%. Remaining >5% slowdowns: Numbers.BinaryLong/validation +5.2%,

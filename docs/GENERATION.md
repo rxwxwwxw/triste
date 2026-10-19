@@ -51,3 +51,30 @@ use); they differ for `('a' / 'ab') 'c'` (2 vs 1). The attempt budget bounds unr
 
 Measured (`tests/coverage_generation.d`, ten-alternative choice, 8 seeds): 12 samples cover 76/80 targets with guidance vs 57/80 without;
 20 samples cover 80/80 vs 70/80. Fixed seeds reproduce results.
+
+## G4: weighted choice and repetition policies (`generateWithPolicy!(parser)`, `src/npegged/policy.d`)
+
+Weights live **outside** the grammar syntax, in a line-based policy text (`#` comments):
+
+```
+choice   <Rule> <k> weights <w0> <w1> ...     # k-th choice in the rule body (preorder; references not followed)
+optional <Rule> <k> probability <0..1>        # up to three decimals
+repeat   <Rule> <k> histogram <n>:<w> ...     # relative weight of each repetition count n (e.g. long-tail runs)
+attenuation <0..1>                            # recursive alternatives are scaled by attenuation^depth
+zero-weights allow|deny                       # default allow
+```
+
+Validation is strict and reports every error with its line: weights and counts are plain non-negative decimal integers (negative,
+NaN, infinite, decimal or malformed numbers are rejected), probabilities have at most three decimals (nothing is rounded silently),
+a zero weight disables an alternative only when allowed and when another alternative of that choice stays positive, histograms need a
+positive total. A policy with errors, or one that does not bind (unknown rule or ordinal, wrong number of weights), generates nothing
+and reports `problems` — there is no silent fallback to default weights. Output and depth budgets stay in `GeneratorOptions`.
+
+Attenuation keeps availability: with it active every weight is scaled by 1000, a recursive alternative (one that can reach its own
+rule again) is multiplied by `attenuation/1000` per level of depth and floored at 1, so recursion becomes less likely, never impossible.
+
+`PolicyGeneration.metadata` is the normalized policy as JSON (weights, share in permille, probabilities, histograms), so a generated
+corpus records how it was made. Same grammar, seed and policy reproduce the stream exactly. Defaults reproduce G1 behavior bit for bit.
+
+Tests (`tests/policy_generation.d`): 80%/10% distribution, disabled branch, malformed and unbound policies, long-tail histogram, optional
+probability (0.9 and 0), attenuation shortening recursive derivations, and output-budget failures (not truncated samples).

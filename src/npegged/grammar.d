@@ -11,6 +11,7 @@ import npegged.bites : renderBites, annotateBites, renderNextBites, renderCommit
 import npegged.language : Budget;
 public import npegged.generator : CandidateGenerator, GeneratorOptions, GenStatus;
 import npegged.coverage : Coverage, Attributor, buildTargets, TargetKind;
+import npegged.policy : parsePolicy, applyPolicy, policyMetadata;
 import npegged.ll : classifyRegions, renderRegions, renderEbnf, RegionClass, firstCertifiedRules;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
@@ -4051,6 +4052,71 @@ CoveringSet generateCovering(alias parser)(string definition, string startRule, 
             result.proposedAlternatives += generator.proposedAlt[base + target.alternative];
         }
     }
+    return result;
+}
+
+/// Result of policy-driven generation (G4). A policy with errors or bindings that do not resolve is reported and
+/// nothing is generated (no silent fallback to default weights).
+struct PolicyGeneration {
+    AcceptedSet accepted;
+    bool policyOk;
+    string[] problems; /// parse errors and unresolved bindings
+    string metadata; /// normalized policy as JSON, for the provenance of a generated corpus
+}
+
+/// Weighted generation (G4): choice weights, optional probabilities, repetition histograms and recursion attenuation
+/// from an external policy text (see `npegged.policy`), with the G2 oracle on top. Same seed and policy give the same stream.
+PolicyGeneration generateWithPolicy(alias parser)(string definition, string startRule, size_t count,
+        string policyText, GeneratorOptions options = GeneratorOptions.init, size_t maxAttempts = 20_000) nothrow {
+    PolicyGeneration result;
+    auto parsed = parsePolicy(policyText);
+    result.problems = parsed.errors;
+    result.metadata = policyMetadata(parsed.policy);
+    if (!parsed.ok)
+        return result;
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.accepted.diagnostic = frontend.error;
+        return result;
+    }
+    frontend.prepareAnalysis();
+    const rule = frontend.analyzed.ruleIndex(startRule);
+    if (rule == size_t.max) {
+        result.accepted.diagnostic = Diagnostic(0, "Unknown start rule");
+        return result;
+    }
+    auto generator = CandidateGenerator(frontend.analyzed, rule, options);
+    result.problems ~= applyPolicy(generator, frontend.analyzed, parsed.policy);
+    if (result.problems.length)
+        return result;
+    result.policyOk = true;
+    size_t attempts;
+    while (result.accepted.texts.length < count) {
+        if (attempts++ >= maxAttempts) {
+            result.accepted.exhausted = true;
+            break;
+        }
+        auto candidate = generator.next();
+        if (candidate.status != GenStatus.ok) {
+            ++result.accepted.generationFailures;
+            bool known;
+            foreach (reason; result.accepted.failureReasons)
+                known = known || reason == candidate.reason;
+            if (!known && result.accepted.failureReasons.length < 8)
+                result.accepted.failureReasons ~= candidate.reason;
+            continue;
+        }
+        ++result.accepted.proposed;
+        ParseContext context;
+        auto verdict = check!parser(context, candidate.text);
+        if (verdict.status == Status.ok && verdict.successful && verdict.end == candidate.text.length)
+            result.accepted.texts ~= candidate.text;
+        else
+            ++result.accepted.rejected;
+    }
+    result.accepted.status = Status.ok;
     return result;
 }
 
