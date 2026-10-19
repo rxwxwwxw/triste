@@ -119,3 +119,30 @@ the options (seed, iterations, `maxLength`, `stepLimit`) plus a wall-clock `dead
 Tests (`tests/fuzz_differential.d`): the combinators and direct backends agree over 1500+ inputs; an intentionally mismatching pair is found,
 shrunk to one byte, replayable, and reproducible; valid mutations are not mislabeled; damaged UTF-8 and truncation agree across backends;
 the deadline stops a long run; the on-disk regression seeds replay clean.
+
+## G7: representative benchmark corpora (`performance/corpora/`, `performance/scripts/make_corpora.py`)
+
+`make_corpora.py` builds `make_corpora.d`, which uses `corpus_lib.d` (shared with `tests/corpus_generation.d`), and writes the
+corpora and `manifest.json`. Everything is a pure function of the grammars, seeds, policies and the real-corpus snapshot.
+
+Families: `json`, `arithmetic`, `csv` (benchmark grammars). Per family and seed: a small input (closest sample to 200 bytes), a medium
+input (about 8 KiB) and a large input (about 256 KiB), built by composing accepted samples (`[v,v,...]`, `e + e`, rows joined by newlines)
+and **re-validated whole by the real parser**; an oracle-verified invalid variant (G6 mutation of the small input); and one
+handwritten adversarial outlier (200-deep nesting, 600-term sum, a 16 KB quoted field). JSON also has a second build whose weights
+were **learned (G5) from the training half of a real corpus**.
+
+Labels (in `manifest.json`): `real` (this repository's own JSON — recorded run metadata, workload registry, test fixtures; snapshot in
+`corpora/real/json/`, licensed as the repository, 26 files), `synthetic` with provenance `synthetic-default` or
+`synthetic-learned(real-json:training)`, and `adversarial`. Learned weights are marginal statistics (see G5), so learned entries are
+"synthetic learned from corpus", never "real".
+
+Size policy: small, medium and adversarial entries are committed (53 KB total, budget 256 KB); large entries are **not** committed. The
+manifest records their sha256, and `make_corpora.py` regenerates them into `build/corpora-large/`.
+
+Validation: `tests/corpus_generation.d` regenerates all 19 entries and compares the committed files byte for byte, checks per-class size
+budgets, full acceptance (and the invalid label) with the real parser, identical observations from the combinator and direct backends,
+that all real files are accepted, and that learned weights are closer than default weights to the held-out real half (alternative share
+distance 140 vs 295 permille). `tests/test_corpora.py` checks manifest checksums, labels, the valid/invalid mix and the committed
+budget. Generated corpora are not the only benchmark input: the A1 fixtures in `benchmark/` remain the timed corpus, and the new
+corpora are **not yet wired into the timing runner**; they are inputs for the next benchmark milestones, with their labels carried in
+the manifest so dashboards can report synthetic and real separately.

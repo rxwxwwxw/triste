@@ -23,7 +23,8 @@ Last updated 2026-10-19.
 | G3 coverage-guided generation (76/80 vs 57/80 targets at 12 samples), G4 external weighted policies | done (cold modules) | `docs/GENERATION.md`, `tests/{coverage_generation,policy_generation}.d` |
 | G5 weight learning from corpora | done (marginal model, holdout comparison) | `tests/learning.d` |
 | G6 mutation/differential fuzzing/shrinking, regression seeds | done; combinators vs direct agree over 1500+ inputs | `tests/fuzz_differential.d`, `tests/regression/` |
-| P3-P5, P7-P8, L4-L6, G7, X* | not started | — |
+| G7 reproducible corpora (json/arithmetic/csv; real + synthetic + learned + adversarial; manifest) | done; **not yet wired into the timing runner** | `performance/corpora/`, `tests/corpus_generation.d`, `tests/test_corpora.py` |
+| P3-P5, P7-P8, L4-L6, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,
 CSV.Flat/validation -73%. Remaining >5% slowdowns: Numbers.BinaryLong/validation +5.2%,
