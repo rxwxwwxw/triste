@@ -1,0 +1,1431 @@
+{
+ "schema": 1,
+ "note": "Generated from --export-corpus; family labels are approximate. Missing families (lex_utf8, failure, pathological, nested_expr) have no registry entry yet: TODO under later milestones.",
+ "workloads": [
+  {
+   "workload_id": "json-ambiguity/JSON.Small",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 60,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/JSON.Medium",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 317,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/JSON.LargeString",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8203,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/JSON.EscapeHeavy",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 1547,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/JSON.WhitespaceHeavy",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 6152,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/JSON.DeepNesting",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 129,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/JSON.InvalidEscape",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 10,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/JSON.InvalidNumber",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/JSON.InvalidTrailing",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 9,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/JSON.InvalidTruncated",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 128,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/Ambiguous.First",
+   "grammar": "ambiguous",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 257,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/Ambiguous.Retry",
+   "grammar": "ambiguous",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 257,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/Ambiguous.Invalid",
+   "grammar": "ambiguous",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 257,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 0,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 2,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 2,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 2,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 2,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 4,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 4,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 13,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 9,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 1,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 7,
+   "validity": "invalid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 2,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 2,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 4,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 9,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 45,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "json-ambiguity/AcceptanceGate",
+   "grammar": "json",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 7,
+   "validity": "valid",
+   "family": "structured",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": false
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.Small",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 15,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.Medium",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 54,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.Nested",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 88,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.SingleLine",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 47,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.MultiLine",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 437,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.Scientific",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 11,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/PEGGrammar.Small",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 50,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/PEGGrammar.Medium",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 277,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.Unary",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 11,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.Truncated",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 12,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.Trailing",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 6,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.InvalidNumber",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 2,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.Empty",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 0,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.Empty",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 0,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.EmptyQuoted",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 10,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.MultilineQuoted",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 20,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.Truncated",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 15,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.InvalidSpacing",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 5,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.Trailing",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 4,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.ScientificTruncated",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 5,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.ScientificTrailing",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 6,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.ScientificEmpty",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 0,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.Hexa",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 18,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.HexaInvalid",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 4,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.Binary",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 12,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.BinaryInvalid",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 4,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/PEGGrammar.Permissive",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 15,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/PEGGrammar.Truncated",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 12,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/PEGGrammar.Trailing",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 13,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/PEGGrammar.Empty",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 2,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.Flat",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 1025,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.Deep",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 129,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Arithmetic.LongNumber",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8192,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.Flat",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 1025,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.LongField",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8192,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.LongQuoted",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8194,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/CSV.LongTruncated",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8193,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.ScientificLong",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 16390,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.HexaLong",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8192,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/Numbers.BinaryLong",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8194,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/PEGGrammar.ManyRules",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 1538,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/PEGGrammar.Deep",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 139,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/PEGGrammar.LongLiteral",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8202,
+   "validity": "valid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  },
+  {
+   "workload_id": "handwritten-workloads/PEGGrammar.LongTruncated",
+   "grammar": "workload",
+   "start_rule": "default",
+   "input": "in-repo fixture (benchmark/*.d via --export-corpus)",
+   "input_bytes": 8201,
+   "validity": "invalid",
+   "family": "lex_ascii",
+   "modes": [
+    "validation",
+    "spans",
+    "tree"
+   ],
+   "backend": "combinators",
+   "compiler": "ldc2 (dmd supported by scripts/benchmark.sh via DC=)",
+   "reference": "benchmark/handwritten/*.d",
+   "equivalence": "identical output records/hash, checked before timing",
+   "timed": true
+  }
+ ]
+}
