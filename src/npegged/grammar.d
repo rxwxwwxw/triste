@@ -6,7 +6,8 @@ public import npegged.dfa;
 import npegged.io;
 public import npegged.analysis : RuleEligibility, DiscriminationKind, BranchDiscrimination,
     ChoiceDiscrimination, renderDiscrimination;
-import npegged.bites : renderBites, annotateBites, renderNextBites, renderCommitSites;
+import npegged.bites : renderBites, annotateBites, renderNextBites, renderCommitSites,
+    unifiedDiagnostics, renderUnified;
 import npegged.language : Budget;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
@@ -3592,6 +3593,41 @@ BitesResult commitSiteReport(string definition, size_t budgetStates = Budget.ini
     Budget budget;
     budget.maxStates = budgetStates;
     result.report = renderCommitSites(frontend.analyzed, budget);
+    result.status = Status.ok;
+    return result;
+}
+
+/// Unified FIRST / BITES / NEXTBITES diagnostics per choice and star (B8): lint verdict and optimization candidate
+/// are separate, with the governing theorem and blockers. Report-only; generated code is unaffected.
+BitesResult diagnosticReport(string definition, EligibilityFormat format = EligibilityFormat.json,
+        size_t budgetStates = Budget.init.maxStates, bool regularSucc = false) nothrow {
+    BitesResult result;
+    if (format != EligibilityFormat.json && format != EligibilityFormat.text) {
+        result.diagnostic = Diagnostic(0, "Unknown diagnostic report format");
+        return result;
+    }
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.diagnostic = Diagnostic(begin, "Diagnostic report input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    result.grammarName = frontend.name;
+    frontend.prepareAnalysis();
+    Budget budget;
+    budget.maxStates = budgetStates;
+    result.report = renderUnified(unifiedDiagnostics(frontend.analyzed, budget, regularSucc),
+            format == EligibilityFormat.json);
     result.status = Status.ok;
     return result;
 }

@@ -132,3 +132,20 @@ limits) are handled by treating them as non-well-formed or unknown, never as pro
 See `performance/milestones/B7/notes.md`. `BitesAnalysis(graph, budget, regularSucc=true)` adds fixed-length and zero-width
 sequence steps and `SUCC(!e) = Σ* \ MAYSUCC(e)`; measured gain on 105 real grammars was +2 certified pairs of 25520 for +60%
 analysis time, so it stays off by default.
+
+## B8: unified diagnostics (`diagnosticReport(definition, format)`)
+
+One entry per choice and star expression combining F3 (FIRST, FIRST/FOLLOW), B4 (BITES), B5/B6 (NEXTBITES premises, theorem):
+
+- `first`: `disjoint` | `overlap` (choice); `firstFollowConflict` with `followKnown`.
+- `bites`: `proven-disjoint` | `possible-overlap` | `unknown`; `theorem`: governing proposition or "".
+- `lint.hiding`: `definite` (proven unguarded literal-prefix shadowing) | `none-proven` (Proposition 5, 10 or 12, named in `reason`)
+  | `possible` | `unknown` (not well-formed, unknown nodes, effects). Lint says nothing about whether a transformation is safe.
+- `optimization`: `backend` recommendation (`predictiveChoice (emitted today)`, `cut candidate after first bite (not emitted)`,
+  `literalChoice2 (opt-in NPeggedFirst2)`, `ordered choice`, `repetition loop`), `cutCandidate`, `cutEmitted` (always false) and
+  `blockers`, which always include why no cut exists ("cuts are never emitted by the generator").
+
+Source location is the owning rule, the expression's source text and graph index (the graph has no byte offsets).
+The report is analysis-only and independent of the parser backend and memoization policy, unlike `eligibilityReport`.
+It is a separate API rather than extra `eligibilityReport` fields so existing consumers are untouched.
+Tests: `tests/diagnostics.d` (JSON stability, text form, lookahead, nullable, star, unknown, effects, left recursion).

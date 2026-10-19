@@ -956,6 +956,175 @@ string renderCommitSites(ref GrammarAnalysis graph, Budget budget = Budget.init)
     return result ~ "]}";
 }
 
+private string flagText(bool value) nothrow {
+    return value ? "true" : "false";
+}
+
+private string[] splitBlockers(const string[] values) nothrow {
+    return values.dup;
+}
+
+private string joinJson(const string[] values) nothrow {
+    string text = "[";
+    foreach (i, value; values)
+        text ~= (i ? "," : "") ~ quoteWitness(value);
+    return text ~ "]";
+}
+
+/// One unified diagnostic per choice or star expression (B8). Source locations are the owning rule plus the
+/// expression's source text and graph index; the grammar graph carries no byte offsets.
+struct UnifiedDiagnostic {
+    string ruleName, kind, source;
+    size_t expressionIndex;
+    string first; // "disjoint", "overlap" or "n/a" (star: FIRST(body) vs FOLLOW)
+    bool firstFollowConflict, followKnown;
+    string bitesStatus; // "proven-disjoint", "possible-overlap", "unknown" or "n/a"
+    string theorem; // governing proposition, "" when none
+    string hiding; // lint: "definite", "none-proven", "possible" or "unknown"
+    string hidingReason;
+    string backend; // optimization: recommended code path
+    bool cutCandidate; // optimization candidate only; the generator never emits cuts
+    string[] blockers;
+}
+
+/// Lint (language hiding) and optimization (backend, cut) views are kept separate: the lint never implies a
+/// transformation is safe, and a candidate is not an emitted optimization.
+UnifiedDiagnostic[] unifiedDiagnostics(ref GrammarAnalysis graph, Budget budget = Budget.init, bool regularSucc = false) nothrow {
+    auto choices = graph.analyzeAllPrefixDiscriminations();
+    annotateBites(graph, choices, budget, regularSucc);
+    auto bites = BitesAnalysis(graph, budget, regularSucc);
+    auto next = NextBites(graph, bites, budget);
+    const checks = checkPremises(graph, bites, next);
+    const sites = commitSites(checks);
+    const follow = followSets(graph);
+    UnifiedDiagnostic[] result;
+    foreach (i, check; checks) {
+        UnifiedDiagnostic item;
+        item.expressionIndex = check.expressionIndex;
+        item.ruleName = check.ruleName;
+        item.kind = check.kind;
+        string text = graph.expressions[check.expressionIndex].source;
+        item.source = text.length > 160 ? text[0 .. 160] ~ "..." : text;
+        item.blockers = splitBlockers(sites[i].blockers);
+        item.theorem = sites[i].theorem;
+        item.cutCandidate = sites[i].candidate;
+        size_t ruleIndex = size_t.max;
+        foreach (r, name; graph.names)
+            if (name == check.ruleName)
+                ruleIndex = r;
+        const ownerFollow = ruleIndex < follow.known.length && follow.known[ruleIndex];
+        if (check.kind == "choice") {
+            const choice = {
+                foreach (ref candidate; choices)
+                    if (candidate.expressionIndex == check.expressionIndex)
+                        return candidate;
+                return ChoiceDiscrimination.init;
+            }();
+            item.followKnown = choice.followKnown;
+            item.firstFollowConflict = choice.firstFollowConflict;
+            item.first = choice.pairs.length && !choice.hasOverlap ? "disjoint" : "overlap";
+            bool anyDefinite, anyUnknown, anyPossible, allProven = choice.pairs.length != 0;
+            foreach (pair; choice.pairs) {
+                anyDefinite = anyDefinite || pair.definite;
+                anyUnknown = anyUnknown || pair.bites == "unknown";
+                anyPossible = anyPossible || pair.bites == "possible-overlap";
+                allProven = allProven && pair.bites == "proven-disjoint";
+            }
+            item.bitesStatus = allProven ? "proven-disjoint" : anyUnknown ? "unknown" : anyPossible
+                ? "possible-overlap" : "unknown";
+            if (anyDefinite) {
+                item.hiding = "definite";
+                item.hidingReason = "an earlier alternative is an unguarded proper prefix of a later one";
+            } else if (choice.noHidingProven) {
+                item.hiding = "none-proven";
+                item.hidingReason = "Proposition 5: disjoint BITES, nonnullable alternatives";
+            } else if (check.prop10) {
+                item.hiding = "none-proven";
+                item.hidingReason = "Proposition 10: nullable-choice conditions (4) and (5)";
+            } else if (!check.wellFormed || anyUnknown) {
+                item.hiding = "unknown";
+                item.hidingReason = "grammar not well-formed for the analysis, or an alternative has unknown parts";
+            } else {
+                item.hiding = "possible";
+                item.hidingReason = "BITES of alternatives overlap or nullable continuation is not proven safe";
+            }
+            if (item.first == "disjoint")
+                item.backend = "predictiveChoice (emitted today)";
+            else if (item.cutCandidate)
+                item.backend = "cut candidate after first bite (not emitted)";
+            else {
+                bool tiny = choice.pairs.length != 0;
+                foreach (child; graph.expressions[check.expressionIndex].children) {
+                    const text2 = BitesAnalysis.plainLiteral(graph.expressions[child].source);
+                    tiny = tiny && graph.expressions[child].source.length > 0 && text2.length >= 1 && text2
+                        .length <= 2;
+                }
+                item.backend = tiny ? "literalChoice2 (opt-in NPeggedFirst2)" : "ordered choice";
+            }
+        } else {
+            item.first = "n/a";
+            item.followKnown = ownerFollow;
+            const 
+            body = graph.expressions[check.expressionIndex].children[0];
+            if (ownerFollow && body < graph.facts.length)
+                foreach (w; 0 .. 4)
+                    if (graph.facts[body].first.bits[w] & follow.follow[ruleIndex].bits[w])
+                        item.firstFollowConflict = true;
+            item.bitesStatus = "n/a";
+            if (check.prop12) {
+                item.hiding = "none-proven";
+                item.hidingReason = "Proposition 12: BITES(e) and NEXTBITES(E, succ) are disjoint";
+            } else if (!check.wellFormed) {
+                item.hiding = "unknown";
+                item.hidingReason = "grammar not well-formed for the analysis";
+            } else {
+                item.hiding = "possible";
+                item.hidingReason = "the repeated body may bite what follows the repetition";
+            }
+            item.backend = "repetition loop";
+        }
+        if (!item.cutCandidate && !item.blockers.length)
+            item.blockers ~= "no commit theorem applies";
+        item.blockers ~= "cuts are never emitted by the generator (report-only)";
+        result ~= item;
+    }
+    return result;
+}
+
+string renderUnified(const UnifiedDiagnostic[] items, bool json) nothrow {
+    if (!json) {
+        string text;
+        foreach (item; items) {
+            text ~= item.kind ~ " in rule \"" ~ item.ruleName ~ "\" (node " ~ decimal(
+                    item.expressionIndex) ~ "): " ~ item.source ~ "\n  lint: hiding=" ~ item.hiding
+                ~ " (" ~ item.hidingReason ~ ")\n  first=" ~ item.first ~ " first/follow=" ~ (
+                        !item.followKnown ? "unknown" : item.firstFollowConflict ? "conflict" : "clear") ~ " bites=" ~ item
+                    .bitesStatus ~ " theorem=" ~ (item.theorem.length ? item.theorem
+                            : "none") ~ "\n  optimization: backend="
+                ~ item.backend ~ " cutCandidate=" ~ flagText(item.cutCandidate);
+            foreach (blocker; item.blockers)
+                text ~= "\n    - " ~ blocker;
+            text ~= "\n";
+        }
+        return text;
+    }
+    string result = "{\"scope\":\"lint and optimization candidates are separate; no cut is emitted\",\"items\":[";
+    foreach (i, item; items)
+        result ~= (i ? "," : "") ~ "{\"rule\":" ~ quoteWitness(
+                item.ruleName) ~ ",\"expressionIndex\":" ~ decimal(item.expressionIndex)
+            ~ ",\"kind\":\"" ~ item.kind ~ "\",\"source\":" ~ quoteWitness(item.source)
+            ~ ",\"first\":\"" ~ item.first ~ "\",\"followKnown\":" ~ flagText(
+                    item.followKnown) ~ ",\"firstFollowConflict\":" ~ flagText(
+                    item.firstFollowConflict)
+            ~ ",\"bites\":\"" ~ item.bitesStatus ~ "\",\"theorem\":" ~ quoteWitness(
+                    item.theorem) ~ ",\"lint\":{\"hiding\":\"" ~ item.hiding ~ "\",\"reason\":"
+            ~ quoteWitness(
+                    item.hidingReason) ~ "},\"optimization\":{\"backend\":" ~ quoteWitness(
+                    item.backend) ~ ",\"cutCandidate\":" ~ flagText(item.cutCandidate)
+            ~ ",\"cutEmitted\":false," ~ "\"blockers\":" ~ joinJson(item.blockers) ~ "}}";
+    return result ~ "]}";
+}
+
 /// How a language relates to the extremes, for reports.
 string languageStatus(const InputLanguage value) nothrow {
     if (value.emptiness() == Proof.provenEmpty)
