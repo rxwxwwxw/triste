@@ -1,2 +1,0 @@
-dmd-combinators-selective-all-uninstrumented: exact cross-build record/status/effect/resource transcript passed
-ldc2-combinators-selective-all-uninstrumented: exact cross-build record/status/effect/resource transcript passed

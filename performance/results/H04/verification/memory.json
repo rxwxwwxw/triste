@@ -1,9 +1,0 @@
-{
-  "asanLsanExit": 0,
-  "memcheckExit": 0,
-  "memcheckErrors": 0,
-  "definitelyLostBytes": 0,
-  "indirectlyLostBytes": 0,
-  "transcriptLines": 2969,
-  "transcriptSha256": "cf267a6cb15c936f9d270283531e48624b1cc0a2367d8c1d52b2dce3b0f01ff4"
-}

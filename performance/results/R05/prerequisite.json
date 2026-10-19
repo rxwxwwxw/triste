@@ -1,6 +1,0 @@
-{
-  "command": "bash scripts/shared-records-check.sh",
-  "expectedResult": "compile failure: SharedRecordStore and SharedRecordSnapshot are not implemented",
-  "reference": "existing RecordBuffer.snapshot/restore",
-  "scope": "test-first diagnostic; parser remains unchanged"
-}

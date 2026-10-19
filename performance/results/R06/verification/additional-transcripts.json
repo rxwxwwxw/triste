@@ -1,6 +1,0 @@
-{
-  "build/R06/sanitizer/asan-transcript.txt": "065b97ef296270fdba4d322ce20afb79072540714538be44b52e881344a29537",
-  "build/R06/sanitizer/valgrind-transcript.txt": "065b97ef296270fdba4d322ce20afb79072540714538be44b52e881344a29537",
-  "build/R06/dmd-combinators-selective-all-uninstrumented-candidate.txt": "065b97ef296270fdba4d322ce20afb79072540714538be44b52e881344a29537",
-  "build/R06/ldc2-combinators-selective-all-uninstrumented-candidate.txt": "065b97ef296270fdba4d322ce20afb79072540714538be44b52e881344a29537"
-}

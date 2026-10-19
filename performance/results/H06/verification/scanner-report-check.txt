@@ -1,2 +1,0 @@
-dmd: scanner diagnostics preserve transcript
-ldc2: scanner diagnostics preserve transcript

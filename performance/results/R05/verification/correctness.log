@@ -1,5 +1,0 @@
-dmd: shared record oracle passed
-dmd-normal: shared record oracle passed
-ldc2: shared record oracle passed
-ldc2-optimized: shared record oracle passed
-ldc2-normal: shared record oracle passed

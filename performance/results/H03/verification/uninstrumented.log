@@ -1,2 +1,0 @@
-dmd-selective-all: exact pure-island oracle passed
-ldc2-selective-all: exact pure-island oracle passed

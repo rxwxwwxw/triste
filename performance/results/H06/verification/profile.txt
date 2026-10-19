@@ -1,1 +1,0 @@
-Wrote 41 static rows and 1352 event rows to performance/results/H06
