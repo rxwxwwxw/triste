@@ -1,0 +1,35 @@
+{
+  "milestone": "P11",
+  "title": "Prototype Zero-Overhead Flat Specialization Under Experimental Flag",
+  "disposition": "accept_keep_opt_in_prototype",
+  "experimental_flag": "version (NPeggedFlatSpecialization)",
+  "compiler_flags": {
+    "ldc2": "-d-version=NPeggedFlatSpecialization",
+    "dmd": "-version=NPeggedFlatSpecialization"
+  },
+  "targeted_class": "proven_nonrecursive_grammars",
+  "benchmarks": {
+    "csv_baseline_ns": 2651,
+    "csv_specialized_ns": 2615,
+    "csv_ratio": 0.9864,
+    "json_baseline_ns": 3593,
+    "json_specialized_ns": 3734,
+    "json_ratio": 1.0392,
+    "recursive_depth2048_baseline_ns": 67467705,
+    "recursive_depth2048_specialized_ns": 70321448,
+    "recursive_ratio": 1.0423
+  },
+  "code_size": {
+    "baseline_text_bytes": 494962,
+    "specialized_text_bytes": 498810,
+    "delta_bytes": 3848,
+    "delta_pct": 0.77
+  },
+  "verification": {
+    "flat_specialization_test_passed": true,
+    "shared_output_oracle_passed": true,
+    "asan_clean": true,
+    "valgrind_clean": true,
+    "multi_compiler_clean": true
+  }
+}

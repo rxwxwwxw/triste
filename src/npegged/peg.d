@@ -750,7 +750,12 @@ struct State(bool CT, int Check = 0) {
         static if (Check == 2) {
             if (!records.suppressed)
                 records.restore(saved);
-            syncOutput();
+            version (NPeggedFlatSpecialization) {
+                if (records.sharingEnabled)
+                    syncOutput();
+            } else {
+                syncOutput();
+            }
         }
     }
 
@@ -1616,14 +1621,27 @@ CompactResult parseRecords(alias parser, alias selector, bool OwnInput = true)(
     records.arena = &result.outputArena;
     records.selector = &selector;
     version (NPeggedSharedOutput) {
-        SharedRecordStore sharedStore;
-        sharedStore.arena = &result.arena;
-        static if (__traits(hasMember, Owner, "npeggedSharedOutputEligible")) {
-            static if (Owner.npeggedSharedOutputEligible) {
+        version (NPeggedFlatSpecialization) {
+            static if (__traits(hasMember, Owner, "npeggedSharedOutputEligible") && Owner
+                    .npeggedSharedOutputEligible) {
+                SharedRecordStore sharedStore;
+                sharedStore.arena = &result.arena;
                 if (context.sharedOutput && context.trace is null && context.stepLimit == size_t.max
                         && context.depthLimit == size_t.max && context.memoryLimit == size_t.max
                         && outputLimit == size_t.max)
                     records.enableSharedOutput(sharedStore, result.arena);
+            }
+        } else {
+            SharedRecordStore sharedStore;
+            sharedStore.arena = &result.arena;
+            static if (__traits(hasMember, Owner, "npeggedSharedOutputEligible")) {
+                static if (Owner.npeggedSharedOutputEligible) {
+                    if (context.sharedOutput && context.trace is null
+                            && context.stepLimit == size_t.max
+                            && context.depthLimit == size_t.max && context.memoryLimit == size_t.max
+                            && outputLimit == size_t.max)
+                        records.enableSharedOutput(sharedStore, result.arena);
+                }
             }
         }
     }

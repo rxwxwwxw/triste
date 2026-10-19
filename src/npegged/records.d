@@ -259,8 +259,14 @@ struct RecordBuffer {
     }
 
     @property CompactNode[] nodes() return @nogc nothrow {
-        version (NPeggedSharedOutput)
-            spanCount = 0;
+        version (NPeggedSharedOutput) {
+            version (NPeggedFlatSpecialization) {
+                if (sharedStore !is null)
+                    spanCount = 0;
+            } else {
+                spanCount = 0;
+            }
+        }
         return storage[0 .. _length];
     }
 
@@ -322,9 +328,15 @@ struct RecordBuffer {
     pragma(inline, true) void finish(size_t index, size_t end) @nogc nothrow {
         if (index != size_t.max) {
             assert(index < _length);
-            version (NPeggedSharedOutput)
-                if (spanCount)
-                    invalidateShared(index);
+            version (NPeggedSharedOutput) {
+                version (NPeggedFlatSpecialization) {
+                    if (sharedStore !is null && spanCount)
+                        invalidateShared(index);
+                } else {
+                    if (spanCount)
+                        invalidateShared(index);
+                }
+            }
             storage[index].end = end;
         }
     }
@@ -332,9 +344,17 @@ struct RecordBuffer {
     void rollback(size_t checkpoint) @nogc nothrow {
         assert(checkpoint <= _length);
         _length = checkpoint;
-        version (NPeggedSharedOutput)
-            while (spanCount && spans[spanCount - 1].end > checkpoint)
-                --spanCount;
+        version (NPeggedSharedOutput) {
+            version (NPeggedFlatSpecialization) {
+                if (sharedStore !is null) {
+                    while (spanCount && spans[spanCount - 1].end > checkpoint)
+                        --spanCount;
+                }
+            } else {
+                while (spanCount && spans[spanCount - 1].end > checkpoint)
+                    --spanCount;
+            }
+        }
     }
 
     RecordSnapshot snapshot(ref Arena owner, size_t checkpoint) @nogc nothrow {
