@@ -2107,3 +2107,189 @@ unittest {
     assert(graph.facts[12].neverFails && graph.facts[12].neverAdvances); // empty sequence
     assert(!graph.facts[13].neverFails && graph.facts[13].neverAdvances); // empty choice always fails
 }
+
+/// Classical CFG-style FOLLOW for each rule, report-only (F2).
+/// This is NOT NEXTBITES: PEG ordered choice and greedy repetition make FOLLOW an
+/// over-approximation of continuations only for CFG-like, action-free, predicate-free regions.
+struct FollowResult {
+    CharSetMask[] follow; /// bytes that may follow the rule, per rule
+    bool[] eof; /// end of input may follow
+    bool[] known; /// false: ineligible neighbourhood, follow is top (all bytes and EOF)
+}
+
+private bool followEligible(ref GrammarAnalysis graph, size_t index, ref bool[] seen) nothrow {
+    if (seen[index])
+        return true;
+    seen[index] = true;
+    auto expression = graph.expressions[index];
+    if (expression.kind == ExpressionKind.unknown || expression.kind == ExpressionKind.predicate)
+        return false;
+    if (expression.kind == ExpressionKind.reference && graph.referenceRule(expression) == size_t.max)
+        return false;
+    foreach (child; expression.children)
+        if (!followEligible(graph, child, seen))
+            return false;
+    return true;
+}
+
+/// FOLLOW sets for rules of `graph`; rule 0 is the start rule and is followed by EOF.
+FollowResult followSets(ref GrammarAnalysis graph) nothrow {
+    FollowResult result;
+    const rules = graph.roots.length;
+    result.follow = new CharSetMask[rules];
+    result.eof = new bool[rules];
+    result.known = new bool[rules];
+    if (!rules)
+        return result;
+    auto eligible = new bool[rules];
+    foreach (r; 0 .. rules) {
+        auto seen = new bool[graph.expressions.length];
+        eligible[r] = followEligible(graph, graph.roots[r], seen);
+    }
+    bool changed = true;
+    void add(size_t rule, CharSetMask mask, bool eof) nothrow {
+        foreach (i; 0 .. 4) {
+            const merged = result.follow[rule].bits[i] | mask.bits[i];
+            if (merged != result.follow[rule].bits[i]) {
+                result.follow[rule].bits[i] = merged;
+                changed = true;
+            }
+        }
+        if (eof && !result.eof[rule]) {
+            result.eof[rule] = true;
+            changed = true;
+        }
+    }
+
+    void visit(size_t index, CharSetMask mask, bool eof) nothrow {
+        auto expression = graph.expressions[index];
+        final switch (expression.kind) {
+        case ExpressionKind.unknown:
+        case ExpressionKind.terminal:
+        case ExpressionKind.predicate:
+            return;
+        case ExpressionKind.reference:
+            const rule = graph.referenceRule(expression);
+            if (rule != size_t.max)
+                add(rule, mask, eof);
+            return;
+        case ExpressionKind.sequence:
+            foreach_reverse (child; expression.children) {
+                visit(child, mask, eof);
+                const fact = graph.facts[child];
+                foreach (i; 0 .. 4)
+                    mask.bits[i] = (fact.nullable == Nullable.no ? 0 : mask.bits[i]) | fact.first
+                        .bits[i];
+                if (fact.nullable == Nullable.no)
+                    eof = false;
+                if (fact.eofOnly)
+                    eof = true;
+            }
+            return;
+        case ExpressionKind.choice:
+            foreach (child; expression.children)
+                visit(child, mask, eof);
+            return;
+        case ExpressionKind.optional:
+        case ExpressionKind.wrapper:
+            visit(expression.children[0], mask, eof);
+            return;
+        case ExpressionKind.repetition:
+            const first = graph.facts[expression.children[0]].first;
+            foreach (i; 0 .. 4)
+                mask.bits[i] |= first.bits[i];
+            visit(expression.children[0], mask, eof);
+            return;
+        }
+    }
+
+    result.eof[0] = true;
+    while (changed) {
+        changed = false;
+        foreach (r; 0 .. rules)
+            if (eligible[r])
+                visit(graph.roots[r], result.follow[r], result.eof[r]);
+    }
+    // A rule is trusted only if it and every rule that can reference it is eligible.
+    foreach (r; 0 .. rules)
+        result.known[r] = eligible[r];
+    foreach (r; 0 .. rules)
+        if (!eligible[r]) {
+            bool[] seen = new bool[graph.expressions.length];
+            void taint(size_t index) nothrow {
+                if (seen[index])
+                    return;
+                seen[index] = true;
+                auto expression = graph.expressions[index];
+                if (expression.kind == ExpressionKind.reference) {
+                    const target = graph.referenceRule(expression);
+                    if (target != size_t.max)
+                        result.known[target] = false;
+                }
+                foreach (child; expression.children)
+                    taint(child);
+            }
+
+            taint(graph.roots[r]);
+        }
+    foreach (r; 0 .. rules)
+        if (!result.known[r]) {
+            result.follow[r].bits[] = ulong.max;
+            result.eof[r] = true;
+        }
+    return result;
+}
+
+unittest {
+    alias K = ExpressionKind;
+    alias N = Nullable;
+    CharSetMask a, b, c;
+    a.addChar('a');
+    b.addChar('b');
+    c.addChar('c');
+    GrammarAnalysis graph;
+    // S <- A 'c' / B ; A <- 'a' B? ; B <- 'b' A?  (mutual recursion, nullable suffixes)
+    graph.names = ["S", "A", "B", "P"];
+    graph.expressions = [
+        Expression(K.reference, null, "A"), // 0
+        Expression(K.terminal, null, null, c, N.no, true), // 1
+        Expression(K.sequence, [0, 1]), // 2
+        Expression(K.reference, null, "B"), // 3
+        Expression(K.choice, [2, 3]), // 4: S
+        Expression(K.terminal, null, null, a, N.no, true), // 5
+        Expression(K.optional, [3]), // 6
+        Expression(K.sequence, [5, 6]), // 7: A
+        Expression(K.terminal, null, null, b, N.no, true), // 8
+        Expression(K.optional, [0]), // 9
+        Expression(K.sequence, [8, 9]), // 10: B
+        Expression(K.predicate, [1]), // 11
+        Expression(K.sequence, [11, 5]), // 12: P (ineligible)
+    ];
+    graph.roots = [4, 7, 10, 12];
+    graph.solve();
+    const result = followSets(graph);
+    assert(result.eof[0] && result.follow[0].empty);
+    // A is followed by 'c' (in S); B (end of S, end of A) inherits both.
+    assert(result.follow[1].contains('c') && !result.follow[1].contains('a'));
+    assert(result.eof[1] && result.known[1]);
+    assert(result.follow[2].contains('c') && result.eof[2]);
+    assert(!result.follow[2].contains('a') && !result.follow[2].contains('b'));
+    // Predicate rule is ineligible: top, and nothing it references is trusted.
+    assert(!result.known[3] && result.eof[3] && result.follow[3].contains('z'));
+    // Repetition makes the body its own follower; EOF only marks eoi-terminated tails.
+    GrammarAnalysis loop;
+    loop.names = ["R"];
+    loop.expressions = [
+        Expression(K.terminal, null, null, a, N.no, true), // 0
+        Expression(K.repetition, [0]), // 1
+        Expression(K.terminal, null, null, CharSetMask.init, N.yes,
+                true, "eoi"), // 2
+        Expression(K.sequence, [1, 2]), // 3
+    ];
+    loop.roots = [3];
+    loop.solve();
+    const only = followSets(loop);
+    assert(only.eof[0] && only.known[0]);
+    GrammarAnalysis none;
+    assert(followSets(none).follow.length == 0);
+}
