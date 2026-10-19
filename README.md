@@ -97,10 +97,10 @@ NPegged supports multiple execution backends, output contracts, and optimization
 | Mode | Invocation | Characteristics |
 |---|---|---|
 | **Reference ParseTree** | `Grammar(context, input)` | Default; complete `ParseTree` AST, full memoization, scoped arena. |
-| **Selective Recognition** | `check!(Grammar.opCall)(context, input)` | Direct byte scanners, zero allocation, returns `CheckResult`. |
-| **Compact Records** | `parseRecords!(Grammar.opCall, selector)(context, input)` | Linear `CompactNode[]` records, zero GC; flat specialization eliminates overhead on non-recursive grammars. |
-| **Shared Left Recursion** | `parseRecords` with `context.sharedOutput = true` | Compile with `-d-version=NPeggedSharedOutput`; up to 2.16× speedup on deep recursive grammars. |
-| **Action Pure Islands** | `check` or `parseRecords` with pure rules | Compile with `-d-version=NPeggedPureIslands`; compiles pure sub-rules to scalar code in action grammars. |
+| **Selective Recognition** | `check!(Grammar.opCall)(context, input)` | Returns `CheckResult`; scanner eligibility, memoization and action fallback determine allocation. |
+| **Compact Records** | `parseRecords!(Grammar.opCall, selector)(context, input)` | Result-owned compact records, `@nogc`; input is copied by default. No universal zero-overhead or handwritten-ratio claim. |
+| **Shared Left Recursion (opt-in)** | Eligible `parseRecords` with sharing requested | Requires explicit unlimited context/output limits and no trace. Active synthetic results and finite-policy limits are documented in [C01/C02](performance/phase3/C01-report.md). |
+| **Action Pure Islands (opt-in)** | Explicit `check` or proved `parseRecords` entry | Requires a generated direct backend, eligible entry/projection, no trace and explicit unlimited limits. Default finite policies fall back; see the [mode contract](docs/PURE_ISLAND_POLICY.md). |
 
 ## Building and checking
 

@@ -1,3 +1,4 @@
+// Legacy single-batch probe; use scripts/d01_pure_islands.py for promotion evidence.
 module tests.pure_islands_perf;
 
 import npegged.grammar;
@@ -6,6 +7,8 @@ import core.sys.posix.time : clock_gettime, CLOCK_MONOTONIC, timespec;
 import core.sys.posix.unistd : alarm;
 
 private uint selected(string name) @nogc nothrow pure {
+    if (!name.length)
+        return uint.max;
     return name.length >= 5 && name[$ - 5 .. $] == ".Root" ? 0 : 1;
 }
 
@@ -43,6 +46,18 @@ private void makeInput(char[] buf, size_t len) @nogc nothrow {
 
 int main() @nogc nothrow {
     alarm(30);
+    version (NPeggedPureIslands)
+        version (NPeggedMetrics) {
+            ParseContext proof;
+            proof.stepLimit = proof.depthLimit = proof.memoryLimit = size_t.max;
+            ParseMetrics metrics;
+            proof.metrics = &metrics;
+            auto recognized = check!(Candidate.Root)(proof, "abc");
+            assert(recognized.successful && metrics.pureIslandEntries > 0);
+            metrics = ParseMetrics.init;
+            auto records = parseRecords!(Candidate.Root, selected)(proof, "abc", size_t.max);
+            assert(records.successful && metrics.pureIslandEntries > 0);
+        }
 
     char[1024] buf;
     const size_t[4] sizes = [16, 64, 256, 1024];
@@ -57,6 +72,7 @@ int main() @nogc nothrow {
         const iter = iters[idx];
 
         ParseContext ctx;
+        ctx.stepLimit = ctx.depthLimit = ctx.memoryLimit = size_t.max;
         // Warmup
         foreach (_; 0 .. 500) {
             check!(Reference.Root)(ctx, input);
@@ -92,9 +108,10 @@ int main() @nogc nothrow {
         const iter = iters[idx];
 
         ParseContext ctx;
+        ctx.stepLimit = ctx.depthLimit = ctx.memoryLimit = size_t.max;
         ulong t0 = now();
         foreach (_; 0 .. iter) {
-            auto r = parseRecords!(Reference.Root, selected)(ctx, input);
+            auto r = parseRecords!(Reference.Root, selected)(ctx, input, size_t.max);
             assert(r.status == Status.ok);
         }
         ulong t1 = now();
@@ -102,7 +119,7 @@ int main() @nogc nothrow {
 
         ulong t2 = now();
         foreach (_; 0 .. iter) {
-            auto r = parseRecords!(Candidate.Root, selected)(ctx, input);
+            auto r = parseRecords!(Candidate.Root, selected)(ctx, input, size_t.max);
             assert(r.status == Status.ok);
         }
         ulong t3 = now();

@@ -1,0 +1,13 @@
+size,mode,ref_ns,cand_ns,ratio
+16,check_unbounded,1360,242,0.1779
+64,check_unbounded,3937,318,0.0808
+256,check_unbounded,14458,698,0.0483
+1024,check_unbounded,54093,2248,0.0416
+16,records_unbounded,1595,505,0.3166
+64,records_unbounded,4246,652,0.1536
+256,records_unbounded,15439,1403,0.0909
+1024,records_unbounded,55289,3787,0.0685
+16,check_budgeted,303,314,1.0363
+64,check_budgeted,311,312,1.0032
+16,check_traced,1367,1406,1.0285
+64,check_traced,4011,4024,1.0032

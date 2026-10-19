@@ -5,6 +5,8 @@ import core.stdc.stdio : printf;
 import core.sys.posix.unistd : alarm;
 
 private uint selected(string name) @nogc nothrow pure {
+    if (!name.length)
+        return uint.max;
     return name.length >= 5 && name[$ - 5 .. $] == ".Root" ? 0 : 1;
 }
 
@@ -71,6 +73,7 @@ int main() @nogc nothrow {
 
     // A. Pure Entry: Check mode without budgets (Pure Island Active)
     ParseContext ctxUnbounded;
+    ctxUnbounded.stepLimit = ctxUnbounded.depthLimit = ctxUnbounded.memoryLimit = size_t.max;
     auto resCandidatePure = check!(Candidate.Root)(ctxUnbounded, pureInput);
     auto resReferencePure = check!(Reference.Root)(ctxUnbounded, pureInput);
     assert(resCandidatePure.status == Status.ok);
@@ -78,9 +81,11 @@ int main() @nogc nothrow {
     assert(resCandidatePure.end == resReferencePure.end);
     assert(resCandidatePure.failEnd == resReferencePure.failEnd);
 
-    // B. Pure Entry: Records mode without budgets
-    auto recCandidatePure = parseRecords!(Candidate.Root, selected)(ctxUnbounded, pureInput);
-    auto recReferencePure = parseRecords!(Reference.Root, selected)(ctxUnbounded, pureInput);
+    // B. Unbounded records: a hierarchical selection may still fall back
+    auto recCandidatePure = parseRecords!(Candidate.Root, selected)(ctxUnbounded, pureInput, size_t
+            .max);
+    auto recReferencePure = parseRecords!(Reference.Root, selected)(ctxUnbounded, pureInput, size_t
+            .max);
     assert(recCandidatePure.status == Status.ok);
     assert(recCandidatePure.status == recReferencePure.status);
     assert(recCandidatePure.nodes.length == recReferencePure.nodes.length);
