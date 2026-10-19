@@ -13,6 +13,9 @@ public import npegged.generator : CandidateGenerator, GeneratorOptions, GenStatu
 import npegged.coverage : Coverage, Attributor, buildTargets, TargetKind;
 import npegged.policy : parsePolicy, applyPolicy, policyMetadata;
 import npegged.learning : Learner, shareDistance, lengthDistance;
+import npegged.fuzz : Mutator, Observation, observe, sameObservation, accepts, shrink, Mismatch,
+    regressionLine, parseRegression, Regression;
+import core.time : MonoTime;
 import npegged.ll : classifyRegions, renderRegions, renderEbnf, RegionClass, firstCertifiedRules;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
@@ -4212,6 +4215,143 @@ HoldoutReport compareToHoldout(alias parser)(string definition, string startRule
     report.lengthDistance = lengthDistance(holdout, generated);
     report.status = Status.ok;
     return report;
+}
+
+/// Options for differential fuzzing (G6). All sources are seeded; a run is a pure function of its options and grammar.
+struct FuzzOptions {
+    ulong seed = 1;
+    size_t iterations = 2000;
+    size_t seedSamples = 24; /// valid seeds (G2) the mutants start from
+    size_t maxLength = 128;
+    size_t stepLimit = 1_000_000;
+    size_t deadlineMillis = 20_000; /// wall-clock budget; 0 disables
+    size_t keepInvalid = 32; /// oracle-verified invalid inputs retained in the report
+}
+
+struct FuzzReport {
+    Status status = Status.invalidInput;
+    Diagnostic diagnostic;
+    size_t iterations; /// inputs compared (seeds, mutants and random bytes)
+    size_t validSeeds, validMutants, invalidMutants, randomInputs; /// labels come from the real parser (parser A)
+    string[] invalidSamples; /// retained inputs the parser rejected
+    Mismatch[] mismatches; /// shrunk disagreements between A and B
+    string[] regressionLines; /// versioned seeds for each mismatch
+    bool deadlineHit;
+}
+
+/// Differential fuzzing of two parsers of the same grammar (for example the combinator and direct backends).
+/// `parserA` labels inputs valid/invalid and is the reference; any disagreement of status, success, end or failEnd with
+/// `parserB` is shrunk (delta debugging) and recorded. `definition`/`startRule` drive seeds and the mutation dictionary.
+FuzzReport fuzzDifferential(alias parserA, alias parserB)(string definition, string startRule,
+        string labelA, string labelB, FuzzOptions options = FuzzOptions.init) nothrow {
+    FuzzReport report;
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        report.diagnostic = frontend.error;
+        return report;
+    }
+    frontend.prepareAnalysis();
+    const rule = frontend.analyzed.ruleIndex(startRule);
+    if (rule == size_t.max) {
+        report.diagnostic = Diagnostic(0, "Unknown start rule");
+        return report;
+    }
+    // Mutation dictionary: literals and one member of each byte class used by the grammar.
+    string[] dictionary;
+    foreach (node; frontend.analyzed.expressions) {
+        string text;
+        if (node.kind == ExpressionKind.terminal && CandidateGenerator.literalBytes(node.source, text) && text
+                .length) {
+            bool known;
+            foreach (entry; dictionary)
+                known = known || entry == text;
+            if (!known && dictionary.length < 64)
+                dictionary ~= text;
+        } else if (node.kind == ExpressionKind.terminal && node.byteTerminal && node.byteWidth == 1 && node
+                .known)
+            foreach (c; 0 .. 256)
+                if (node.alphabet.contains(cast(char)c)) {
+                    dictionary ~= [cast(char)c].idup;
+                    break;
+                }
+    }
+    GeneratorOptions generation;
+    generation.seed = options.seed;
+    auto seeds = generateAccepted!parserA(definition, startRule, options.seedSamples, generation, 5000);
+    auto mutator = Mutator(options.seed ^ 0xA5A5A5A5UL, dictionary);
+    mutator.maxLength = options.maxLength;
+    const started = MonoTime.currTime;
+    string[] seen;
+    size_t step;
+    void compare(string input, size_t iteration) nothrow {
+        ++report.iterations;
+        const a = observe!parserA(input, options.stepLimit);
+        const b = observe!parserB(input, options.stepLimit);
+        if (sameObservation(a, b))
+            return;
+        bool known;
+        foreach (text; seen)
+            known = known || text == input;
+        if (known)
+            return;
+        auto minimal = shrink(input, delegate(string candidate) nothrow{
+            return !sameObservation(observe!parserA(candidate, options.stepLimit),
+                observe!parserB(candidate, options.stepLimit));
+        });
+        seen ~= input;
+        report.mismatches ~= Mismatch(iteration, input, minimal, observe!parserA(minimal,
+                options.stepLimit), observe!parserB(minimal, options.stepLimit));
+        report.regressionLines ~= regressionLine(nameOfGrammar(definition), startRule, options.seed,
+                iteration, labelA, labelB, minimal);
+    }
+
+    foreach (text; seeds.texts) {
+        ++report.validSeeds;
+        compare(text, step++);
+    }
+    foreach (iteration; 0 .. options.iterations) {
+        if (options.deadlineMillis && (MonoTime.currTime - started).total!"msecs" > options
+                .deadlineMillis) {
+            report.deadlineHit = true;
+            break;
+        }
+        string input;
+        if (!seeds.texts.length || iteration % 4 == 3) {
+            input = mutator.randomBytes();
+            ++report.randomInputs;
+        } else {
+            input = mutator.mutate(seeds.texts[mutator.pickIndex(seeds.texts.length)]);
+            const label = accepts(observe!parserA(input, options.stepLimit), input.length);
+            if (label)
+                ++report.validMutants;
+            else {
+                ++report.invalidMutants;
+                if (report.invalidSamples.length < options.keepInvalid)
+                    report.invalidSamples ~= input;
+            }
+        }
+        compare(input, step++);
+    }
+    report.status = Status.ok;
+    return report;
+}
+
+private string nameOfGrammar(string definition) nothrow {
+    size_t end;
+    while (end < definition.length && definition[end] != ':')
+        ++end;
+    return definition[0 .. end];
+}
+
+/// Replay one regression line against two parsers: true when the disagreement it records still exists.
+bool replayStillMismatches(alias parserA, alias parserB)(string line, size_t stepLimit = 1_000_000) nothrow {
+    Regression regression;
+    if (!parseRegression(line, regression))
+        return false;
+    return !sameObservation(observe!parserA(regression.input, stepLimit),
+            observe!parserB(regression.input, stepLimit));
 }
 
 /// Bounded literal-prefix discrimination report for ordered choice alternatives.

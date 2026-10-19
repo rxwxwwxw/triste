@@ -97,3 +97,25 @@ order gives the same text.
 power-of-two length buckets, plus mean lengths. Test (`tests/learning.d`): from a 3000-input corpus with known weights, the learned
 `'a'` share is within ±6 points of 70%, the learned policy's regenerated samples are closer to a held-out corpus than default
 weights (share distance < 60 permille), noise (invalid, unattributable) is ignored with exact counts, and the model is reproducible.
+
+## G6: mutation, differential fuzzing and shrinking (`fuzzDifferential!(A, B)`, `replayStillMismatches!(A, B)`, `src/npegged/fuzz.d`)
+
+Sources: valid seeds (G2), mutants of those seeds (bit flip, dictionary token insert/replace, range delete, slice duplicate, truncation at the
+end-of-input boundary, UTF-8 damage such as cutting inside a multi-byte sequence or stray lead/continuation bytes, stacked mutations), and
+every fourth input uniformly random bytes. The dictionary (delimiters, keywords, one member per byte class) comes from the grammar.
+
+Labels come from the real parser A: a mutant is valid or invalid by acceptance of the whole input, never assumed; valid mutants are counted
+as valid, and invalid ones are retained (oracle-verified) up to `keepInvalid`. Parsers A and B are compared on every input (status,
+success, end, `failEnd`, bounded by a step limit). A disagreement is shrunk by delta debugging to a 1-minimal input and written as a
+versioned regression seed:
+
+```
+fuzz-seed v1 grammar=<g> start=<r> seed=<n> iteration=<k> a=<label> b=<label> input=<hex>
+```
+
+`tests/regression/fuzz-seeds.txt` holds replayed seeds (the real combinator/direct pair must keep agreeing). Runs are pure functions of
+the options (seed, iterations, `maxLength`, `stepLimit`) plus a wall-clock `deadlineMillis` that stops early and reports `deadlineHit`.
+
+Tests (`tests/fuzz_differential.d`): the combinators and direct backends agree over 1500+ inputs; an intentionally mismatching pair is found,
+shrunk to one byte, replayable, and reproducible; valid mutations are not mislabeled; damaged UTF-8 and truncation agree across backends;
+the deadline stops a long run; the on-disk regression seeds replay clean.

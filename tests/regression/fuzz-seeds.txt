@@ -1,0 +1,8 @@
+# Versioned regression seeds for differential fuzzing (G6). One `fuzz-seed v1 ...` line per input; replayed by
+# tests/fuzz_differential.d against the named parser pair, which must still agree. `input` is hex.
+# Format: fuzz-seed v1 grammar=<g> start=<r> seed=<n> iteration=<k> a=<label> b=<label> input=<hex>
+fuzz-seed v1 grammar=Expr start=Root seed=1 iteration=0 a=combinators b=direct input=
+fuzz-seed v1 grammar=Expr start=Root seed=1 iteration=1 a=combinators b=direct input=312b
+fuzz-seed v1 grammar=Expr start=Root seed=1 iteration=2 a=combinators b=direct input=282831292b32
+fuzz-seed v1 grammar=Expr start=Root seed=1 iteration=3 a=combinators b=direct input=ff
+fuzz-seed v1 grammar=Expr start=Root seed=1 iteration=4 a=combinators b=direct input=312d2d32
