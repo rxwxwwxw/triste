@@ -1,0 +1,8 @@
+mixed grammar flags=[] best_ns_per_parse=1096685 sink=6752400
+mixed grammar flags=[-d-version=NPeggedPureIslands] best_ns_per_parse=1095060 sink=6752400
+-- records mode (parseRecords, all rules selected)
+mixed records flags=[] best_ns_per_parse=1148250 sink=8553900
+mixed records flags=[-d-version=NPeggedPureIslands] best_ns_per_parse=1155985 sink=8553900
+-- JSON under an actionful root (pure-dominant), records mode
+json-under-action records flags=[] best_ns_per_parse=3079500 sink=7080900
+json-under-action records flags=[-d-version=NPeggedPureIslands] best_ns_per_parse=3073720 sink=7080900
