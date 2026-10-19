@@ -99,6 +99,34 @@ nothrow:
         return result;
     }
 
+    /// The strings `x y` where `x` has one byte from each class of `pattern` in order and `y` is in `rest`.
+    /// Exceeding the budget yields `unknownLanguage`.
+    static InputLanguage fixedThen(scope const(CharSetMask)[] pattern, const InputLanguage rest,
+            Budget budget = Budget.init) {
+        if (rest.overflow)
+            return unknownLanguage();
+        if (!pattern.length)
+            return cast(InputLanguage)rest;
+        const n = pattern.length, restStates = rest.states();
+        if (n + restStates + 1 > budget.maxStates)
+            return unknownLanguage();
+        const dead = cast(ushort)(n + restStates);
+        InputLanguage result;
+        result.next = new ushort[256][n + restStates + 1];
+        result.accepting = new bool[n + restStates + 1];
+        foreach (i; 0 .. n)
+            foreach (c; 0 .. 256)
+                result.next[i][c] = pattern[i].contains(cast(char)c) ? cast(ushort)(i + 1) : dead;
+        foreach (r; 0 .. restStates) {
+            result.accepting[n + r] = rest.accepting[r];
+            foreach (c; 0 .. 256)
+                result.next[n + r][c] = cast(ushort)(n + rest.next[r][c]);
+        }
+        foreach (c; 0 .. 256)
+            result.next[dead][c] = dead;
+        return result;
+    }
+
     size_t states() const @nogc {
         return next.length;
     }
@@ -274,4 +302,28 @@ nothrow unittest {
     // with the default budget the same query is decided
     assert(acc.intersect(InputLanguage.prefix("aaaaaaaaaaaa").complement()).emptiness() == Proof
             .provenEmpty);
+}
+
+nothrow unittest {
+    // fixed-length prefix followed by a language: "ab" then (not starting with a letter)
+    CharSetMask a, b, letters;
+    a.addChar('a');
+    b.addChar('b');
+    letters.addRange('a', 'z');
+    const pattern = [a, b];
+    const notLetter = InputLanguage.bytePrefix(letters).complement();
+    const keyword = InputLanguage.fixedThen(pattern, notLetter);
+    assert(keyword.contains("ab") && keyword.contains("ab1") && keyword.contains("ab "));
+    assert(!keyword.contains("abc") && !keyword.contains("a") && !keyword.contains("b") && !keyword
+            .contains(""));
+    assert(InputLanguage.fixedThen([], notLetter).contains("1") && !InputLanguage.fixedThen([],
+            notLetter).contains("x"));
+    Budget tiny;
+    tiny.maxStates = 3;
+    assert(InputLanguage.fixedThen(pattern, notLetter, tiny).overflow);
+    assert(InputLanguage.fixedThen(pattern, InputLanguage.unknownLanguage()).overflow);
+    // matches the exact concatenation on probes
+    foreach (probe; ["abz", "ab9", "abab", "xab", "ab"])
+        assert(keyword.contains(probe) == (probe.length >= 2 && probe[0 .. 2] == "ab"
+                && notLetter.contains(probe[2 .. $])));
 }

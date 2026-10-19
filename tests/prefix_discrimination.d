@@ -156,6 +156,17 @@ int main() nothrow {
             .text);
     assert(indexOf(bitesText.report, "improves on FIRST") >= 0 && indexOf(bitesText.report, "Prop. 5") >= 0);
 
+    // B7 (opt-in regular SUCC): a guarded alternative becomes provably disjoint from the sequence it excludes.
+    auto narrow = prefixDiscriminationReport("RS: Root <- !('a' 'b') 'a' / 'ab'");
+    assert(narrow.choices[0].pairs[0].bites == "possible-overlap");
+    auto regular = prefixDiscriminationReport("RS: Root <- !('a' 'b') 'a' / 'ab'", EligibilityFormat
+            .json, true);
+    assert(regular.choices[0].pairs[0].bites == "proven-disjoint" && regular.choices[0].pairs[0]
+            .bitesImprovesFirst);
+    auto regularUnchanged = prefixDiscriminationReport("PC: Root <- ('a' / 'aa') 'b'", EligibilityFormat
+            .json, true);
+    assert(regularUnchanged.choices[0].pairs[0].bites == "possible-overlap");
+
     // Print JSON reports for script verification
     printf("%.*s\n", cast(int)r1.report.length, r1.report.ptr);
     printf("%.*s\n", cast(int)r2.report.length, r2.report.ptr);

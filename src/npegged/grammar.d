@@ -3504,7 +3504,7 @@ struct BitesResult {
     string report;
 }
 
-BitesResult bitesReport(string definition, size_t budgetStates = Budget.init.maxStates) nothrow {
+BitesResult bitesReport(string definition, size_t budgetStates = Budget.init.maxStates, bool regularSucc = false) nothrow {
     BitesResult result;
     size_t position;
     while (position < definition.length) {
@@ -3526,7 +3526,7 @@ BitesResult bitesReport(string definition, size_t budgetStates = Budget.init.max
     frontend.prepareAnalysis();
     Budget budget;
     budget.maxStates = budgetStates;
-    result.report = renderBites(frontend.analyzed, budget);
+    result.report = renderBites(frontend.analyzed, budget, regularSucc);
     result.status = Status.ok;
     return result;
 }
@@ -3606,7 +3606,7 @@ struct PrefixDiscriminationResult {
 }
 
 PrefixDiscriminationResult prefixDiscriminationReport(string definition,
-        EligibilityFormat format = EligibilityFormat.json) nothrow {
+        EligibilityFormat format = EligibilityFormat.json, bool regularSucc = false) nothrow {
     PrefixDiscriminationResult result;
     if (format != EligibilityFormat.json && format != EligibilityFormat.text) {
         result.diagnostic = Diagnostic(0, "Unknown prefix discrimination report format");
@@ -3631,7 +3631,7 @@ PrefixDiscriminationResult prefixDiscriminationReport(string definition,
     result.grammarName = frontend.name;
     frontend.prepareAnalysis();
     result.choices = frontend.analyzed.analyzeAllPrefixDiscriminations();
-    annotateBites(frontend.analyzed, result.choices);
+    annotateBites(frontend.analyzed, result.choices, Budget.init, regularSucc);
     result.report = renderDiscrimination(result.choices, format == EligibilityFormat.json);
     result.status = Status.ok;
     return result;

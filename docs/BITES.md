@@ -126,3 +126,9 @@ stopping retries preserves: `failEnd` and failure diagnostics (alternatives not 
 record/tree rollback behavior, step counts and the depth/memory limits. None of this is checked by the report. Note the theorems
 speak about the paper's PEG semantics; NPegged additions (memoized left recursion, trace/actions, parameters, resource
 limits) are handled by treating them as non-well-formed or unknown, never as proven.
+
+## B7: regular SUCC (opt-in study)
+
+See `performance/milestones/B7/notes.md`. `BitesAnalysis(graph, budget, regularSucc=true)` adds fixed-length and zero-width
+sequence steps and `SUCC(!e) = Σ* \ MAYSUCC(e)`; measured gain on 105 real grammars was +2 certified pairs of 25520 for +60%
+analysis time, so it stays off by default.

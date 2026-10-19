@@ -30,9 +30,15 @@ nothrow:
     private InputLanguage[] succMemo, nullMemo, bitesMemo;
     private bool[] succDone, nullDone, succActive, nullActive, bitesDone, bitesActive;
 
-    this(ref GrammarAnalysis graph, Budget budget = Budget.init) {
+    /// B7 study: sound regular extensions of SUCC (fixed-length sequences, negative lookahead).
+    bool regularSucc;
+    private InputLanguage[] maySuccMemo;
+    private bool[] maySuccDone, maySuccActive;
+
+    this(ref GrammarAnalysis graph, Budget budget = Budget.init, bool regularSucc = false) {
         this.graph = &graph;
         this.budget = budget;
+        this.regularSucc = regularSucc;
         const count = graph.expressions.length;
         succMemo = new InputLanguage[count];
         nullMemo = new InputLanguage[count];
@@ -43,6 +49,9 @@ nothrow:
         bitesMemo = new InputLanguage[count];
         bitesDone = new bool[count];
         bitesActive = new bool[count];
+        maySuccMemo = new InputLanguage[count];
+        maySuccDone = new bool[count];
+        maySuccActive = new bool[count];
     }
 
     /// Lower approximation: an overflowed language is replaced by the empty one.
@@ -113,6 +122,130 @@ nothrow:
         return shape;
     }
 
+    /// Bytes consumed by `index` when it is an exact fixed-length terminal chain (literal / single-byte class).
+    private bool fixedPattern(size_t index, ref CharSetMask[] pattern, size_t depth = 0) {
+        if (index >= graph.expressions.length || depth > 8 || pattern.length > 64)
+            return false;
+        auto node = graph.expressions[index];
+        if (node.kind == ExpressionKind.terminal) {
+            auto shape = terminal(node);
+            if (!shape.exact || shape.zeroWidth || !shape.known)
+                return false;
+            if (auto text = plainLiteral(node.source)) {
+                foreach (c; text) {
+                    CharSetMask one;
+                    one.addChar(c);
+                    pattern ~= one;
+                }
+                return text.length != 0;
+            }
+            if (node.byteTerminal && node.byteWidth == 1) {
+                pattern ~= node.alphabet;
+                return true;
+            }
+            return false;
+        }
+        if (node.kind == ExpressionKind.sequence && node.children.length) {
+            foreach (child; node.children)
+                if (!fixedPattern(child, pattern, depth + 1))
+                    return false;
+            return true;
+        }
+        if (node.kind == ExpressionKind.wrapper && node.combinator != "oneOrMore" && node.children
+                .length)
+            return fixedPattern(node.children[0], pattern, depth + 1);
+        return false;
+    }
+
+    private bool zeroWidth(size_t index) {
+        return index < graph.facts.length && graph.facts[index].neverAdvances
+            && graph.expressions[index].kind != ExpressionKind.unknown;
+    }
+
+    /// Lower approximation of the success of e_i ... e_n, using only zero-width and fixed-length steps.
+    private InputLanguage succSequence(const(size_t)[] c, size_t i) {
+        if (i == c.length)
+            return InputLanguage.universal();
+        if (i + 1 == c.length)
+            return succ(c[i]);
+        if (zeroWidth(c[i]))
+            return lower(succ(c[i]).intersect(succSequence(c, i + 1), budget));
+        CharSetMask[] pattern;
+        if (fixedPattern(c[i], pattern))
+            return lower(InputLanguage.fixedThen(pattern, succSequence(c, i + 1), budget));
+        return InputLanguage.empty(); // a step of unknown length: no lower bound
+    }
+
+    /// Upper approximation of the inputs on which `index` may succeed (the dual of `succ`).
+    InputLanguage maySucc(size_t index) {
+        if (index >= graph.expressions.length)
+            return InputLanguage.universal();
+        if (maySuccDone[index])
+            return maySuccMemo[index];
+        if (maySuccActive[index]) {
+            ++cuts;
+            return InputLanguage.universal();
+        }
+        maySuccActive[index] = true;
+        scope (exit)
+            maySuccActive[index] = false;
+        auto node = graph.expressions[index];
+        InputLanguage result = InputLanguage.universal();
+        final switch (node.kind) {
+        case ExpressionKind.unknown:
+            break;
+        case ExpressionKind.terminal:
+            auto shape = terminal(node);
+            if (shape.exact && shape.known && !shape.zeroWidth)
+                result = shape.succ;
+            else if (shape.exact && shape.known) // eps / eoi / fail
+                result = node.source == "fail" ? InputLanguage.empty() : shape.succ;
+            else if (shape.known && !node.first.empty)
+                result = InputLanguage.bytePrefix(node.first);
+            break;
+        case ExpressionKind.reference:
+            const rule = graph.referenceRule(node);
+            if (rule != size_t.max)
+                result = maySucc(graph.roots[rule]);
+            break;
+        case ExpressionKind.sequence:
+            result = maySuccSequence(node.children, 0);
+            break;
+        case ExpressionKind.choice:
+            result = InputLanguage.empty();
+            foreach (child; node.children)
+                result = upper(result.unionWith(maySucc(child), budget));
+            break;
+        case ExpressionKind.optional:
+        case ExpressionKind.repetition:
+            break; // always succeeds
+        case ExpressionKind.predicate:
+            if (node.combinator == "negLookahead"
+                    || node.combinator == "predictiveNot")
+                result = upper(succ(node.children[0]).complement());
+            else
+                result = maySucc(node.children[0]);
+            break;
+        case ExpressionKind.wrapper:
+            result = maySucc(node.children[0]);
+            break;
+        }
+        maySuccDone[index] = true;
+        maySuccMemo[index] = result;
+        return result;
+    }
+
+    private InputLanguage maySuccSequence(const(size_t)[] c, size_t i) {
+        if (i == c.length)
+            return InputLanguage.universal();
+        if (zeroWidth(c[i]))
+            return upper(maySucc(c[i]).intersect(maySuccSequence(c, i + 1), budget));
+        CharSetMask[] pattern;
+        if (i + 1 < c.length && fixedPattern(c[i], pattern))
+            return upper(InputLanguage.fixedThen(pattern, maySuccSequence(c, i + 1), budget));
+        return maySucc(c[i]); // necessary condition only: the first step must succeed
+    }
+
     /// Lower approximation of the inputs on which `index` succeeds.
     InputLanguage succ(size_t index) {
         if (index >= graph.expressions.length)
@@ -144,7 +277,9 @@ nothrow:
                 result = InputLanguage.universal();
             else if (node.children.length == 1)
                 result = succ(node.children[0]);
-            break; // longer sequences: the paper's SUCC(other) = empty (precision work is B7)
+            else if (regularSucc)
+                result = succSequence(node.children, 0);
+            break; // otherwise the paper's SUCC(other) = empty
         case ExpressionKind.choice:
             foreach (child; node.children)
                 result = lower(result.unionWith(succ(child), budget));
@@ -157,6 +292,8 @@ nothrow:
             // &e succeeds wherever e does; !e has no lower approximation here.
             if (node.combinator == "posLookahead")
                 result = succ(node.children[0]);
+            else if (regularSucc && (node.combinator == "negLookahead" || node.combinator == "predictiveNot"))
+                result = lower(maySucc(node.children[0]).complement()); // fails wherever e cannot succeed
             break;
         case ExpressionKind.wrapper:
             // oneOrMore e succeeds where e succeeds; other wrappers are transparent.
@@ -296,8 +433,8 @@ nothrow:
 /// Disjointness of upper approximations is a proof; an overlap is only "possible" and becomes "unknown"
 /// when either alternative needed a budget cut, a recursive back edge or an unknown/unresolved node.
 /// Proposition 5 (no hiding) is claimed only for proven-disjoint pairs of provably nonnullable alternatives.
-void annotateBites(ref GrammarAnalysis graph, ref ChoiceDiscrimination[] choices, Budget budget = Budget
-        .init) nothrow {
+void annotateBites(ref GrammarAnalysis graph, ref ChoiceDiscrimination[] choices,
+        Budget budget = Budget.init, bool regularSucc = false) nothrow {
     foreach (ref choice; choices) {
         if (choice.expressionIndex >= graph.expressions.length)
             continue;
@@ -305,7 +442,7 @@ void annotateBites(ref GrammarAnalysis graph, ref ChoiceDiscrimination[] choices
         InputLanguage[] languages;
         bool[] exact, nonnullable;
         foreach (child; children) {
-            auto analysis = BitesAnalysis(graph, budget);
+            auto analysis = BitesAnalysis(graph, budget, regularSucc);
             languages ~= analysis.bites(child);
             exact ~= analysis.degradations == 0 && analysis.cuts == 0 && analysis.unknowns == 0;
             nonnullable ~= child < graph.facts.length && graph.facts[child].known
@@ -869,11 +1006,11 @@ private string decimal(size_t value) nothrow {
 
 /// Deterministic report-only serialization: per rule SUCC, NULL and BITES with proof scope.
 /// `exact` is false when a budget or a recursive back edge forced a conservative answer for that rule.
-string renderBites(ref GrammarAnalysis graph, Budget budget = Budget.init) nothrow {
+string renderBites(ref GrammarAnalysis graph, Budget budget = Budget.init, bool regularSucc = false) nothrow {
     string result = "{\"scope\":\"pure byte-level expressions; actions, parameters and recursion degrade conservatively\"," ~ "\"budgetStates\":" ~ decimal(
             budget.maxStates) ~ ",\"rules\":[";
     foreach (rule, root; graph.roots) {
-        auto analysis = BitesAnalysis(graph, budget);
+        auto analysis = BitesAnalysis(graph, budget, regularSucc);
         const succ = analysis.succ(root), nul = analysis.nul(root), bites = analysis.bites(root);
         const exact = analysis.degradations == 0 && analysis.cuts == 0;
         result ~= (rule ? "," : "") ~ "{\"rule\":" ~ quoteWitness(rule < graph.names.length
@@ -1060,6 +1197,14 @@ version (unittest) {
                 return pos == input.length ? cast(ptrdiff_t)pos : -1;
             if (node.source == "fail")
                 return -1;
+            if (node.byteTerminal && node.byteWidth == 1) {
+                if (pos < input.length && node.alphabet.contains(input[pos])) {
+                    if (bit !is null && !probe)
+                        *bit = true;
+                    return cast(ptrdiff_t)(pos + 1);
+                }
+                return -1;
+            }
             const text = BitesAnalysis.plainLiteral(node.source);
             if (pos + text.length <= input.length && input[pos .. pos + text.length] == text) {
                 if (bit !is null && !probe && text.length)
@@ -1105,14 +1250,14 @@ version (unittest) {
         }
     }
 
-    /// Every string over {a,b,c} up to `maxLength`.
+    /// Every string over {a,b,c,1} up to `maxLength`.
     private string[] sampleInputs(size_t maxLength) nothrow {
         string[] all = [""];
         size_t from;
         foreach (length; 0 .. maxLength) {
             const to = all.length;
             foreach (i; from .. to)
-                foreach (c; "abc")
+                foreach (c; "abc1")
                     all ~= all[i] ~ c;
             from = to;
         }
@@ -1363,4 +1508,75 @@ nothrow unittest {
     auto tinyNext = NextBites(graph, tinyBites, tiny);
     assert(tinyNext.nextBites(1, Outcome.succ).emptiness() != Proof.provenNonempty
             || tinyNext.nextBites(1, Outcome.succ).contains(""));
+}
+
+version (unittest) private Expression classAB() {
+    auto e = letters();
+    e.source = "charRange!(97, 98)";
+    e.alphabet = CharSetMask.init;
+    e.alphabet.addRange('a', 'b');
+    e.first = e.alphabet;
+    return e;
+}
+
+nothrow unittest {
+    // B7: regular SUCC. Keyword K = 'ab' ![a-b]; guarded name G = !K [a-b]+; plus fixed chains and unknown steps.
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["R"];
+    graph.expressions = [
+        lit("ab"), // 0
+        classAB(), // 1
+        composite(K.predicate, "negLookahead", [1]), // 2: ![a-b]
+        composite(K.sequence, "and", [0, 2]), // 3: keyword 'ab' ![a-b]
+        composite(K.predicate, "negLookahead", [3]), // 4: !Keyword
+        composite(K.wrapper, "oneOrMore", [1]), // 5: [a-b]+
+        composite(K.sequence, "and", [4, 5]), // 6: !Keyword [a-b]+
+        lit("a"), // 7
+        lit("c"), // 8
+        composite(K.sequence, "and", [7, 1, 8]), // 9: 'a' [a-b] 'c' (fixed chain)
+        composite(K.optional, "option", [7]), // 10
+        composite(K.sequence, "and", [10, 8]), // 11: 'a'? 'c' (unknown length first step)
+        composite(K.predicate, "posLookahead", [0]), // 12: &'ab'
+        composite(K.sequence, "and", [12, 0]), // 13: &'ab' 'ab'
+        composite(K.predicate, "negLookahead", [9]), // 14: !('a' [a-b] 'c')
+        composite(K.sequence, "and", [14, 7, 1]), // 15
+    ];
+    graph.roots = [6];
+    graph.solve();
+    auto plainSucc = BitesAnalysis(graph);
+    auto regular = BitesAnalysis(graph, Budget.init, true);
+    // original SUCC knows nothing about longer sequences; regular SUCC does
+    assert(plainSucc.succ(3).emptiness() == Proof.provenEmpty && plainSucc.succ(9).emptiness() == Proof
+            .provenEmpty);
+    assert(regular.succ(3).contains("ab") && regular.succ(3).contains("ab1") && regular.succ(3)
+            .contains("ab c"));
+    assert(!regular.succ(3).contains("aba") && !regular.succ(3).contains("a"));
+    assert(regular.succ(9).contains("abc") && regular.succ(9).contains("aac1") && !regular.succ(9)
+            .contains("acc"));
+    assert(regular.succ(11).emptiness() == Proof.provenEmpty); // unknown-length step: no lower bound
+    assert(regular.succ(13).contains("abx") && !regular.succ(13).contains("a"));
+    // !Keyword narrows NULL: nullable only where the keyword certainly fails
+    assert(plainSucc.nul(4).contains("ab") && !regular.nul(4).contains("ab") && regular.nul(4)
+            .contains("aba"));
+    // BITES of the guarded name excludes "ab" followed by a non-letter, but keeps "aba..."
+    assert(regular.bites(6).contains("aba") && !regular.bites(6).contains("ab1") && !regular.bites(6)
+            .contains("ab"));
+    assert(plainSucc.bites(6).contains("ab1")); // without regular SUCC the guard is vacuous
+    // soundness by sampling: SUCC never claims a failing input; MAYSUCC never misses a success; NULL/BITES as before
+    foreach (input; sampleInputs(4)) {
+        foreach (index; [0UL, 3, 4, 6, 9, 11, 13, 14, 15]) {
+            const end = matchNode(graph, index, input, 0);
+            if (regular.succ(index).contains(input))
+                assert(end >= 0, "regular SUCC claimed success on a failing input");
+            if (end >= 0)
+                assert(regular.maySucc(index).contains(input), "MAYSUCC missed a success");
+            if (end == 0)
+                assert(regular.nul(index).contains(input), "NULL missed an empty success");
+            bool bit;
+            matchNode(graph, index, input, 0, &bit);
+            if (bit)
+                assert(regular.bites(index).contains(input), "BITES missed a bite");
+        }
+    }
 }
