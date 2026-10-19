@@ -1407,6 +1407,155 @@ struct State(bool CT, int Check = 0) {
 
 }
 
+/// Bounded phrase cache for ordinary (non-left-recursive) rules.
+/// Separated from mandatory recursion state and seed-growth tables.
+struct PhraseCache(size_t Capacity = 1) {
+    static assert(Capacity == 0 || Capacity == 1 || Capacity == 2 || Capacity == 4 || Capacity == 8,
+            "PhraseCache capacity must be 0, 1, 2, 4, or 8");
+
+    static if (Capacity == 0) {
+        ulong lookups, hits, stores, evictions;
+
+        void clear() @nogc nothrow pure {
+        }
+
+        bool lookup(size_t pos, out size_t end, out size_t fail, out bool ok) @nogc nothrow {
+            ++lookups;
+            return false;
+        }
+
+        void store(size_t pos, size_t end, size_t fail, bool ok) @nogc nothrow {
+            ++stores;
+        }
+    } else static if (Capacity == 1) {
+        ulong lookups, hits, stores, evictions;
+        private size_t _pos = size_t.max;
+        private size_t _end;
+        private size_t _fail;
+        private bool _ok;
+        private bool _valid;
+
+        void clear() @nogc nothrow pure {
+            _valid = false;
+            _pos = size_t.max;
+        }
+
+        bool lookup(size_t pos, out size_t end, out size_t fail, out bool ok) @nogc nothrow {
+            ++lookups;
+            if (_valid && _pos == pos) {
+                ++hits;
+                end = _end;
+                fail = _fail;
+                ok = _ok;
+                return true;
+            }
+            return false;
+        }
+
+        void store(size_t pos, size_t end, size_t fail, bool ok) @nogc nothrow {
+            ++stores;
+            if (_valid && _pos != pos)
+                ++evictions;
+            _pos = pos;
+            _end = end;
+            _fail = fail;
+            _ok = ok;
+            _valid = true;
+        }
+    } else {
+        ulong lookups, hits, stores, evictions;
+
+        static struct Entry {
+            size_t pos = size_t.max;
+            size_t end;
+            size_t fail;
+            bool ok;
+            bool valid;
+        }
+
+        private Entry[Capacity] _slots;
+        private size_t _cursor;
+
+        void clear() @nogc nothrow pure {
+            _cursor = 0;
+            foreach (ref e; _slots) {
+                e.valid = false;
+                e.pos = size_t.max;
+            }
+        }
+
+        bool lookup(size_t pos, out size_t end, out size_t fail, out bool ok) @nogc nothrow {
+            ++lookups;
+            foreach (ref e; _slots) {
+                if (e.valid && e.pos == pos) {
+                    ++hits;
+                    end = e.end;
+                    fail = e.fail;
+                    ok = e.ok;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void store(size_t pos, size_t end, size_t fail, bool ok) @nogc nothrow {
+            ++stores;
+            foreach (ref e; _slots) {
+                if (e.valid && e.pos == pos) {
+                    e.end = end;
+                    e.fail = fail;
+                    e.ok = ok;
+                    return;
+                }
+            }
+            size_t target = size_t.max;
+            foreach (i, ref e; _slots) {
+                if (!e.valid) {
+                    target = i;
+                    break;
+                }
+            }
+            if (target == size_t.max) {
+                target = _cursor;
+                _cursor = (_cursor + 1) & (Capacity - 1);
+                ++evictions;
+            }
+            _slots[target].pos = pos;
+            _slots[target].end = end;
+            _slots[target].fail = fail;
+            _slots[target].ok = ok;
+            _slots[target].valid = true;
+        }
+    }
+}
+
+@nogc nothrow unittest {
+    static foreach (C; [0, 1, 2, 4, 8]) {
+        {
+            PhraseCache!C cache;
+            size_t end, fail;
+            bool ok;
+            assert(!cache.lookup(0, end, fail, ok));
+            cache.store(0, 10, 0, true);
+            static if (C > 0) {
+                assert(cache.lookup(0, end, fail, ok));
+                assert(end == 10 && ok);
+                assert(cache.hits == 1);
+                // Miss on different pos
+                assert(!cache.lookup(5, end, fail, ok));
+                // Eviction / replacement test
+                cache.store(C > 1 ? C : 1, 20, 0, true);
+                assert(cache.stores == 2);
+            } else {
+                assert(!cache.lookup(0, end, fail, ok));
+                assert(cache.hits == 0);
+            }
+            cache.clear();
+            assert(!cache.lookup(0, end, fail, ok));
+        }
+    }
+}
+
 @nogc nothrow unittest {
     Arena arena;
     State!false state;
