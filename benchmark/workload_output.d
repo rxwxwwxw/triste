@@ -10,7 +10,9 @@ import benchmark.handwritten.csv : CsvParser;
 import benchmark.json_output : OutputMode, fingerprint;
 import benchmark.measurement : Observation;
 
-version (NPeggedDirect)
+version (NPeggedLL1)
+    private enum backend = ParserBackend.ll1;
+else version (NPeggedDirect)
     private enum backend = ParserBackend.direct;
 else
     private enum backend = ParserBackend.combinators;

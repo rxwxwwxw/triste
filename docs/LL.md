@@ -45,3 +45,10 @@ CFG semantics (all alternatives, all lengths); on every string up to length 6-7 
 parser backends, five certified grammars) the exported CFG accepts exactly the inputs the PEG consumes completely. The same test
 shows the trap `'a'* 'a' eoi`: its naive CFG reading accepts `aa`, the PEG rejects it, and the export refuses the rule.
 Corpus agreement is additional evidence only; the certificate is the L1 proof contract.
+
+# LL(1) backend (L3)
+
+`ParserBackend.ll1` (opt-in; benchmark with `PARSER_BACKEND=ll1`) is `direct` plus FIRST-guarded loop exits in rules accepted by
+the cheap positional LL(1) certifier. It replays the skipped body's work units and recorded failure exactly, so outputs, step
+limits and failure positions equal the combinators (differential-tested). Measured gain over `direct`: none; see
+`performance/milestones/L3-ll1/notes-l3.md`.

@@ -6,3 +6,5 @@ run_id,kind,compiler,commit,workloads,within_target,pct_within_target,p50,p90,p9
 20261019T210601Z-07315cd94,milestone:P6d,ldc2,07315cd94a164d527fe7f9ed507b62770ec46bf9,171,59,34.5029,1.8119,2.8977,3.1443,1.6213,4.0809,handwritten-workloads/PEGGrammar.Permissive/validation
 20261019T213323Z-1fef780eb,milestone:F4,ldc2,1fef780eb2dbe29fd67eb9ebd83eb0561e0b168e,171,60,35.0877,1.8230,2.8726,3.1048,1.6212,4.0809,handwritten-workloads/PEGGrammar.Permissive/validation
 20261019T214333Z-a10ce3497,milestone:P2,ldc2,a10ce349724ff8261af93e0f52f3b9077ca150be,171,60,35.0877,1.8391,2.8881,3.0787,1.6246,3.9577,handwritten-workloads/PEGGrammar.Permissive/validation
+20261019T224526Z-3b4f633bb,milestone:L3-direct,ldc2,3b4f633bbd9d7a8de7225d771b0e1a967003ca49,171,80,46.7836,1.5501,2.5050,2.7626,1.4736,3.4133,handwritten-workloads/Arithmetic.Flat/validation
+20261019T224527Z-3b4f633bb,milestone:L3-ll1,ldc2,3b4f633bbd9d7a8de7225d771b0e1a967003ca49,171,79,46.1988,1.5462,2.5184,2.7725,1.4757,3.4388,handwritten-workloads/Arithmetic.Flat/validation

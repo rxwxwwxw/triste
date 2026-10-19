@@ -430,3 +430,189 @@ string renderEbnf(ref GrammarAnalysis graph, bool json, Budget budget = Budget.i
     }
     return json ? text ~ "]}" : text;
 }
+
+// ---------------------------------------------------------------- cheap certifier for code generation (L3)
+
+/// Rules whose closed region passes the classic positional LL(1) test using FIRST/FOLLOW bitsets only
+/// (no language algebra, so it is cheap enough to run during compile-time evaluation). Sound but weaker than
+/// `classifyRegions`: any certified rule here is `certifiedLL1`-eligible, never the other way round.
+/// Conditions: no predicates, unknown nodes, unresolved references, left recursion or actions; every choice has
+/// pairwise FIRST-disjoint, non-nullable alternatives; every `e?`, `e*`, `e+` has a non-nullable body whose FIRST
+/// misses the bytes that can follow the construct (computed positionally, ending in the rule's FOLLOW).
+bool[] firstCertifiedRules(ref GrammarAnalysis graph) nothrow {
+    const follow = followSets(graph);
+    const effects = graph.ruleEffects();
+    auto local = new bool[graph.roots.length];
+    foreach (rule, root; graph.roots) {
+        bool ok = rule < effects.length && effects[rule].known && !effects[rule].actionful
+            && !(rule < graph.leftRecursive.length && graph.leftRecursive[rule]);
+        const known = rule < follow.known.length && follow.known[rule];
+        CharSetMask top;
+        top.bits[] = ulong.max;
+        auto seen = new bool[graph.expressions.length];
+        bool intersects(const CharSetMask a, const CharSetMask b) nothrow {
+            foreach (w; 0 .. 4)
+                if (a.bits[w] & b.bits[w])
+                    return true;
+            return false;
+        }
+
+        CharSetMask merged(const CharSetMask a, const CharSetMask b) nothrow {
+            CharSetMask result;
+            foreach (w; 0 .. 4)
+                result.bits[w] = a.bits[w] | b.bits[w];
+            return result;
+        }
+
+        bool nonnullable(size_t index) nothrow {
+            return index < graph.facts.length && graph.facts[index].nullable == Nullable.no;
+        }
+
+        void walk(size_t index, CharSetMask cont) nothrow {
+            if (!ok || index >= graph.expressions.length || seen[index])
+                return;
+            seen[index] = true;
+            auto node = graph.expressions[index];
+            if (index >= graph.facts.length || !graph.facts[index].known) {
+                ok = false;
+                return;
+            }
+            final switch (node.kind) {
+            case ExpressionKind.unknown:
+            case ExpressionKind.predicate:
+                ok = false;
+                return;
+            case ExpressionKind.terminal:
+                ok = ok && describableTerminal(node);
+                return;
+            case ExpressionKind.reference:
+                ok = ok && graph.referenceRule(node) != size_t.max;
+                return;
+            case ExpressionKind.wrapper:
+                if (node.combinator == "oneOrMore") {
+                    const 
+                    body = node.children[0];
+                    ok = ok && nonnullable(body) && !intersects(graph.facts[body].first, cont);
+                    walk(body, merged(graph.facts[body].first, cont));
+                } else
+                    walk(node.children[0], cont);
+                return;
+            case ExpressionKind.sequence:
+                CharSetMask running = cont;
+                foreach_reverse (child; node.children) {
+                    walk(child, running);
+                    if (child >= graph.facts.length) {
+                        ok = false;
+                        return;
+                    }
+                    running = graph.facts[child].nullable == Nullable.no ? graph.facts[child].first
+                        : merged(graph.facts[child].first, running);
+                }
+                return;
+            case ExpressionKind.choice:
+                foreach (i, child; node.children) {
+                    ok = ok && nonnullable(child);
+                    foreach (other; node.children[i + 1 .. $])
+                        ok = ok && other < graph.facts.length && child < graph.facts.length
+                            && !intersects(graph.facts[child].first, graph.facts[other].first);
+                    walk(child, cont);
+                }
+                return;
+            case ExpressionKind.optional:
+            case ExpressionKind.repetition:
+                const 
+                body = node.children[0];
+                ok = ok && nonnullable(body) && body < graph.facts.length && !intersects(graph.facts[body]
+                        .first, cont);
+                walk(body, node.kind == ExpressionKind.repetition ? merged(graph.facts[body].first, cont) : cont);
+                return;
+            }
+        }
+
+        walk(root, known ? follow.follow[rule] : top);
+        local[rule] = ok;
+    }
+    // Close over the rules each rule can reach.
+    auto result = new bool[graph.roots.length];
+    foreach (rule; 0 .. graph.roots.length) {
+        auto reached = new bool[graph.roots.length];
+        size_t[] stack = [rule];
+        reached[rule] = true;
+        bool all = true;
+        while (stack.length) {
+            const at = stack[$ - 1];
+            stack.length -= 1;
+            all = all && local[at];
+            auto marks = new bool[graph.expressions.length];
+            void follow2(size_t index) nothrow {
+                if (index >= graph.expressions.length || marks[index])
+                    return;
+                marks[index] = true;
+                auto node = graph.expressions[index];
+                if (node.kind == ExpressionKind.reference) {
+                    const target = graph.referenceRule(node);
+                    if (target != size_t.max && !reached[target]) {
+                        reached[target] = true;
+                        stack ~= target;
+                    }
+                }
+                foreach (child; node.children)
+                    follow2(child);
+            }
+
+            follow2(graph.roots[at]);
+        }
+        result[rule] = all;
+    }
+    return result;
+}
+
+nothrow unittest {
+    // The cheap certifier must be a subset of the full classification on every fixture below.
+    import npegged.language : Budget;
+
+    alias K = ExpressionKind;
+    CharSetMask a, b, c;
+    a.addChar('a');
+    b.addChar('b');
+    c.addChar('c');
+    Expression term(CharSetMask first, string text) {
+        Expression e;
+        e.kind = K.terminal;
+        e.known = true;
+        e.nullable = Nullable.no;
+        e.source = "literal!(\"" ~ text ~ "\")";
+        e.first = first;
+        return e;
+    }
+
+    GrammarAnalysis graph;
+    graph.names = ["Star", "Hide", "Pick", "Dup"];
+    graph.expressions = [
+        term(a, "a"), // 0
+        Expression(K.repetition, [0]), // 1
+        term(b, "b"), // 2
+        Expression(K.sequence, [1, 2]), // 3  Star <- 'a'* 'b'
+        Expression(K.repetition, [0]), // 4
+        term(a, "a"), // 5
+        Expression(K.sequence, [4, 5]), // 6  Hide <- 'a'* 'a'
+        term(a, "a"), // 7
+        term(c, "c"), // 8
+        Expression(K.choice, [7, 8]), // 9  Pick <- 'a' / 'c'
+        term(a, "a"), // 10
+        term(a, "a"), // 11
+        Expression(K.choice, [10, 11]), // 12 Dup <- 'a' / 'a'
+    ];
+    foreach (ref e; graph.expressions)
+        if (e.kind != K.terminal) {
+            e.combinator = e.kind == K.sequence ? "and" : e.kind == K.choice ? "or" : "zeroOrMore";
+        }
+    graph.roots = [3, 6, 9, 12];
+    graph.solve();
+    const cheap = firstCertifiedRules(graph);
+    assert(cheap[0] && !cheap[1] && cheap[2] && !cheap[3]);
+    const full = classifyRegions(graph);
+    foreach (rule; 0 .. 4)
+        if (cheap[rule])
+            assert(full[rule].region == RegionClass.certifiedLL1);
+}

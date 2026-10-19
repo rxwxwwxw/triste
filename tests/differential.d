@@ -17,6 +17,16 @@ private struct Pair(string rules, Memoization policy) {
     }
 }
 
+private struct Ll1Pair(string rules, Memoization policy) {
+    struct Reference {
+        mixin(grammar!(policy, selected)(rules));
+    }
+
+    struct Candidate {
+        mixin(grammar!(policy, selected, ParserBackend.ll1)(rules));
+    }
+}
+
 private struct Event {
     string name;
     size_t position;
@@ -223,6 +233,44 @@ int main() @nogc nothrow {
                     }
                 }
             }
+        }
+    }
+    // L3: the ll1 backend (FIRST-guarded loop exits in certified regions) must match the combinators exactly,
+    // including every small step/depth/memory limit, on certified, uncertified and mixed grammars.
+    static foreach (rules; [
+        `Fixture: Num <- [0-9]+ Expr <- Term (('+' / '-') Term)* Term <- Num / '(' Expr ')' Root <- Expr eoi`,
+        `Fixture: Root <- ('a' 'b')* 'c'`, `Fixture: Root <- 'a'* 'b'`,
+        `Fixture: Root <- ('x' 'y' / 'z' 'w')+ 'q'?`,
+        `Fixture: Root <- Item (',' Item)* eoi Item <- 'x' 'y'? / 'z'`,
+        `Fixture: Root <- ('a'* 'a')? 'b' Tail Tail <- ('c' 'd')* 'e'`,
+        `Fixture: Root <- ((!'x' 'a') 'b')* eoi`
+    ]) {
+        {
+            alias Q = Ll1Pair!(rules, Memoization.selective);
+            enum alphabet = "ab,c1+(";
+            char[4] buffer;
+            foreach (length; 0 .. 5)
+                foreach (code; 0 .. 7 ^^ length) {
+                    size_t digits = code;
+                    foreach (position; 0 .. length) {
+                        buffer[position] = alphabet[digits % 7];
+                        digits /= 7;
+                    }
+                    const input = cast(string)buffer[0 .. length];
+                    assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall)(input);
+                    foreach (limit; 0 .. 40) {
+                        ParseContext context;
+                        context.stepLimit = limit;
+                        assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall)(input,
+                                context);
+                        context = ParseContext.init;
+                        context.depthLimit = limit % 12;
+                        assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall)(input,
+                                context);
+                        assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall)(
+                                input, ParseContext.init, limit);
+                    }
+                }
         }
     }
     char[255] longInput;

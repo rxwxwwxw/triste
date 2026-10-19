@@ -68,6 +68,15 @@ case "${PARSER_BACKEND:-combinators}" in
       flags+=(-version=NPeggedDirect)
     fi
     ;;
+  ll1)
+    if [[ $(basename "$compiler") == gdc ]]; then
+      flags+=(-fversion=NPeggedLL1)
+    elif [[ $(basename "$compiler") == ldc2 ]]; then
+      flags+=(-d-version=NPeggedLL1)
+    else
+      flags+=(-version=NPeggedLL1)
+    fi
+    ;;
   *) echo "Unsupported PARSER_BACKEND: $PARSER_BACKEND" >&2; exit 2;;
 esac
 

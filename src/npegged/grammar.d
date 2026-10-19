@@ -9,7 +9,7 @@ public import npegged.analysis : RuleEligibility, DiscriminationKind, BranchDisc
 import npegged.bites : renderBites, annotateBites, renderNextBites, renderCommitSites,
     unifiedDiagnostics, renderUnified;
 import npegged.language : Budget;
-import npegged.ll : classifyRegions, renderRegions, renderEbnf;
+import npegged.ll : classifyRegions, renderRegions, renderEbnf, RegionClass, firstCertifiedRules;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
 nothrow:
@@ -28,7 +28,9 @@ enum Memoization {
 /// The direct backend lowers recognition control; other modes retain combinators.
 enum ParserBackend {
     combinators,
-    direct
+    direct,
+    /// `direct` plus FIRST-guarded loop exits inside rules whose closed region is certifiedLL1 (L3, opt-in).
+    ll1
 }
 
 /// Serialization for an explicitly requested cold eligibility report.
@@ -103,14 +105,17 @@ private string renderEligibility(scope const ref EligibilityResult value, Eligib
 
     const separator = json ? "," : " ";
     result = (json ? "{" : "") ~ field("grammar", jsonQuoted(value.grammarName)) ~ separator ~ field(
-            "backend", jsonQuoted(value.backend == ParserBackend.direct ? "direct" : "combinators")) ~ separator ~ field(
-            "memoPolicy", jsonQuoted(value.memoPolicy == Memoization.no
-            ? "no" : value.memoPolicy == Memoization.yes ? "yes" : "selective")) ~ separator ~ field(
-            "conservative",
-            booleanText(value.conservative)) ~ separator ~ field("unknownEvidence",
-            jsonStrings(value.unknownEvidence)) ~ separator ~ field("actionRules",
-            jsonStrings(value.actionRules)) ~ separator ~ field(
-            "fallbackModes", "[\"trace\",\"CTFE\",\"full-tree\"]") ~ (json ? ",\"rules\":[" : "\n");
+            "backend", jsonQuoted(value.backend == ParserBackend.direct
+            ? "direct" : value.backend == ParserBackend.ll1 ? "ll1" : "combinators")) ~ separator
+        ~ field("memoPolicy",
+                jsonQuoted(value.memoPolicy == Memoization.no
+                    ? "no" : value.memoPolicy == Memoization.yes ? "yes" : "selective"))
+        ~ separator ~ field("conservative",
+                booleanText(value.conservative)) ~ separator ~ field("unknownEvidence",
+                jsonStrings(value.unknownEvidence)) ~ separator ~ field("actionRules",
+                jsonStrings(value.actionRules)) ~ separator ~ field(
+                "fallbackModes",
+                "[\"trace\",\"CTFE\",\"full-tree\"]") ~ (json ? ",\"rules\":[" : "\n");
     foreach (i, row; value.rules) {
         if (json)
             result ~= i ? ",{" : "{";
@@ -262,6 +267,10 @@ package struct Frontend {
     bool memoize = true;
     bool selective;
     ParserBackend backend;
+    bool llGuards, llActive; // L3: FIRST-guarded loop exits in certified rules
+    size_t llRule;
+    bool[] llCertified;
+    bool llComputed;
     uint[] recordKinds;
     version (NPeggedPureIslands) private bool islandOmitAnonymous;
     bool[] recordLeaves;
@@ -1913,6 +1922,48 @@ package struct Frontend {
         assert(frontend.emitEmpty(graph, oversized, "Large", guard, 1) is null);
     }
 
+    /// L3: is the rule being emitted in a region the cheap FIRST/FOLLOW certifier accepts? Computed once, on first
+    /// need. (The full L1 classification is too slow under CTFE; the cheap test certifies a subset of it.)
+    private bool llRuleCertified() nothrow {
+        if (!llComputed) {
+            llComputed = true;
+            llCertified = firstCertifiedRules(analyzed);
+        }
+        return llRule < llCertified.length && llCertified[llRule];
+    }
+
+    /// L3: work units the direct form of `body` consumes when it fails on its first byte, or 0 when that is not
+    /// statically known. Mirrors `emitDirect`: a sequence ticks once per element, a literal/byte class once, and a
+    /// predictive choice once (its dispatch). Only nonnullable bodies with a known FIRST set qualify.
+    private size_t llGuardTicks(ref GrammarAnalysis graph, size_t body) nothrow {
+        if (body >= graph.facts.length || !graph.facts[body].known
+                || graph.facts[body].nullable != Nullable.no || graph.facts[body].first.empty)
+            return 0;
+        auto node = graph.expressions[body];
+        if (node.combinator != "and" || node.children.length < 2)
+            return 0;
+        auto first = graph.expressions[node.children[0]];
+        if (startsWith(first.source, "literal!(") && decodedLiteral(first.source).length)
+            return 2;
+        if (first.byteTerminal && first.byteWidth == 1 && (first.source == "any"
+                || first.source == "digit" || first.source == "alpha" || first.source == "Alpha"
+                || first.source == "hexDigit" || startsWith(first.source, "charClass!(")
+                || startsWith(first.source, "charRange!(")))
+            return 2;
+        if (first.combinator == "predictiveChoice") {
+            foreach (child; first.children) {
+                const args = graph.expressions[child].arguments;
+                string nullable = args.length == 6 ? args[5] : null;
+                while (nullable.length && (nullable[0] == ' ' || nullable[0] == '\t'))
+                    nullable = nullable[1 .. $];
+                if (nullable == "true")
+                    return 0;
+            }
+            return 2;
+        }
+        return 0;
+    }
+
     /// Lower rule-local recognition control flow without intermediate aggregate results.
     /// Terminals, scanners, predicates and unsupported operators retain their contracts.
     private string emitDirect(ref GrammarAnalysis graph, size_t index, string start, string target,
@@ -2089,8 +2140,33 @@ package struct Frontend {
             code ~= "size_t " ~ count ~ " = 0; while (" ~ (op == "option" ? count ~ " < 1 && " : "") ~ "s.tick()) {\n";
             if (outputMode == 2)
                 code ~= "const size_t " ~ checkpoint ~ " = s.outputCheckpoint();\n";
-            code ~= emitDirect(graph, expression.children[0], target ~ "End", next, serial, depth + 1,
-                    outputMode);
+            const guard = llActive && llGuardTicks(graph, expression.children[0])
+                && llRuleCertified() ? llGuardTicks(graph, expression.children[0]) : 0;
+            if (guard) {
+                // L3: the body provably fails on a byte outside FIRST(body), consuming exactly `guard` work
+                // units and recording one failure at the cursor; replay that without running the body.
+                const 
+                body = "_g" ~ number(serial++);
+                const mask = "_first" ~ number(serial++);
+                const first = graph.facts[expression.children[0]].first;
+                const here = target ~ "End";
+                string ticks = "s.tick()";
+                foreach (_; 1 .. guard)
+                    ticks ~= " && s.tick()";
+                code ~= "size_t " ~ next ~ "End = " ~ here ~ ", " ~ next ~ "Fail = " ~ here ~ "; bool "
+                    ~ next ~ "Ok = false;\nenum ulong[4] " ~ mask ~ " = [" ~ ulongHex(
+                            first.bits[0]) ~ ", " ~ ulongHex(first.bits[1]) ~ ", " ~ ulongHex(
+                            first.bits[2]) ~ ", " ~ ulongHex(first.bits[3]) ~ "];\nif (" ~ here
+                    ~ " >= s.input.length || (" ~ mask ~ "[cast(ubyte)s.input[" ~ here
+                    ~ "] >> 6] & (1UL << (cast(ubyte)s.input["
+                    ~ here ~ "] & 63))) == 0) { if (" ~ ticks ~ ") s.recordFailure(s.node(" ~ here
+                    ~ ", " ~ here ~ ", false)); } else {\n" ~ emitDirect(graph,
+                            expression.children[0], here, body, serial, depth + 1, outputMode)
+                    ~ next ~ "End = " ~ body ~ "End; "
+                    ~ next ~ "Fail = " ~ body ~ "Fail; " ~ next ~ "Ok = " ~ body ~ "Ok; }\n";
+            } else
+                code ~= emitDirect(graph, expression.children[0], target ~ "End", next, serial, depth + 1,
+                        outputMode);
             code ~= "if (!" ~ next ~ "Ok) {\n";
             if (outputMode == 2)
                 code ~= "s.rollbackOutput(" ~ checkpoint ~ ");\n";
@@ -2547,7 +2623,10 @@ package struct Frontend {
                     directDeclarations = null;
                     this.directRule = r;
                     size_t serial;
+                    llActive = llGuards;
+                    llRule = ruleIndex;
                     const cursorBody = emitDirect(directGraph, directRoot, "p", "_result", serial, 0, check);
+                    llActive = false;
                     ruleOut ~= directDeclarations;
                     ruleOut ~= (useDirect || check == 2 && directRecords ? "" : "pragma(inline, true) ") ~ "private static bool _cursor_" ~ r ~ "(ref State!(false, " ~ number(
                             check) ~ ") s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ cursorBody ~ "cursor = _resultEnd; failure = _resultFail; return _resultOk; }\n";
@@ -2896,7 +2975,8 @@ string grammar(Memoization memo = Memoization.yes, alias Selector = void,
     frontend.input = definition;
     frontend.memoize = memo != Memoization.no;
     frontend.selective = memo == Memoization.selective;
-    frontend.backend = backend;
+    frontend.backend = backend == ParserBackend.ll1 ? ParserBackend.direct : backend;
+    frontend.llGuards = backend == ParserBackend.ll1;
     frontend.read();
     if (frontend.error.message.length)
         return "static assert(false, " ~ quoted(
@@ -2913,6 +2993,29 @@ unittest {
     static assert(result.successful && result.matches == ["x", "x", "x"]);
     enum invalid = grammar("Broken: A <- (");
     static assert(invalid.length > 0);
+}
+
+nothrow unittest {
+    // L3: guards appear only for cheap-certified rules and only with the ll1 backend.
+    static bool hasGuard(string source) nothrow {
+        foreach (i; 0 .. source.length - 6)
+            if (source[i .. i + 6] == "_first")
+                return true;
+        return false;
+    }
+
+    enum certified = "G: Num <- [0-9]+ Expr <- Term (('+' / '-') Term)* Term <- Num / '(' Expr ')' Root <- Expr eoi";
+    auto guarded = generate!(Memoization.selective, void, ParserBackend.ll1)(certified);
+    auto direct = generate!(Memoization.selective, void, ParserBackend.direct)(certified);
+    assert(guarded.status == Status.ok && hasGuard(guarded.source) && !hasGuard(direct.source));
+    // A greedy repetition that hides what follows is not certified, so it keeps the plain direct form.
+    auto hidden = generate!(Memoization.selective, void, ParserBackend.ll1)("G: Root <- ('a' 'b')* 'a' 'c'");
+    assert(hidden.status == Status.ok && !hasGuard(hidden.source));
+    // Predicates and actions disable certification.
+    auto predicate = generate!(Memoization.selective, void, ParserBackend.ll1)("G: Root <- (!'x' 'a' 'b')* 'c'");
+    assert(predicate.status == Status.ok && !hasGuard(predicate.source));
+    auto report = eligibilityReport!(Memoization.selective, void, ParserBackend.ll1)(certified);
+    assert(report.status == Status.ok && report.backend == ParserBackend.ll1);
 }
 
 nothrow unittest {
@@ -3432,7 +3535,8 @@ EligibilityResult eligibilityReport(Memoization memo = Memoization.yes, alias Se
     frontend.input = definition;
     frontend.memoize = memo != Memoization.no;
     frontend.selective = memo == Memoization.selective;
-    frontend.backend = backend;
+    frontend.backend = backend == ParserBackend.ll1 ? ParserBackend.direct : backend;
+    frontend.llGuards = backend == ParserBackend.ll1;
     frontend.read();
     if (frontend.error.message.length) {
         result.diagnostic = frontend.error;
@@ -3756,7 +3860,8 @@ GenerationResult generate(Memoization memo = Memoization.yes, alias Selector = v
     frontend.input = definition;
     frontend.memoize = memo != Memoization.no;
     frontend.selective = memo == Memoization.selective;
-    frontend.backend = backend;
+    frontend.backend = backend == ParserBackend.ll1 ? ParserBackend.direct : backend;
+    frontend.llGuards = backend == ParserBackend.ll1;
     frontend.read();
     if (frontend.error.message.length)
         return GenerationResult(Status.invalidInput, null, frontend.error);

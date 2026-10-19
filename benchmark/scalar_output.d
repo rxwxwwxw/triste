@@ -9,7 +9,9 @@ import benchmark.json_output : OutputMode;
 import benchmark.measurement : Observation;
 import benchmark.json_output : fingerprint;
 
-version (NPeggedDirect)
+version (NPeggedLL1)
+    private enum backend = ParserBackend.ll1;
+else version (NPeggedDirect)
     private enum backend = ParserBackend.direct;
 else
     private enum backend = ParserBackend.combinators;

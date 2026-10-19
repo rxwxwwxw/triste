@@ -1,7 +1,9 @@
 module benchmark.json_npegged;
 import npegged.grammar;
 
-version (NPeggedDirect)
+version (NPeggedLL1)
+    private enum backend = ParserBackend.ll1;
+else version (NPeggedDirect)
     private enum backend = ParserBackend.direct;
 else
     private enum backend = ParserBackend.combinators;

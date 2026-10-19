@@ -2,14 +2,14 @@
 
 Generated from `performance/trends.csv`; do not edit by hand.
 
-Latest run: `20261019T214333Z-a10ce3497` (milestone:P2, ldc2, commit a10ce3497)
+Latest run: `20261019T224527Z-3b4f633bb` (milestone:L3-ll1, ldc2, commit 3b4f633bb)
 
-- Workloads within 1.5x: 60/171 (35.1%)
-- Slowdown p50/p90/p95: 1.84 / 2.89 / 3.08
-- Geometric mean: 1.62x
-- Worst: 3.96x (handwritten-workloads/PEGGrammar.Permissive/validation)
+- Workloads within 1.5x: 79/171 (46.2%)
+- Slowdown p50/p90/p95: 1.55 / 2.52 / 2.77
+- Geometric mean: 1.48x
+- Worst: 3.44x (handwritten-workloads/Arithmetic.Flat/validation)
 
-Delta vs previous run `20261019T213323Z-1fef780eb`: within-target +0, p90 +0.02, geomean +0.00
+Delta vs previous run `20261019T224526Z-3b4f633bb`: within-target -1, p90 +0.01, geomean +0.00
 
 ## History
 
@@ -22,6 +22,8 @@ Delta vs previous run `20261019T213323Z-1fef780eb`: within-target +0, p90 +0.02,
 | 20261019T210601Z-07315cd94 | milestone:P6d | ldc2 | 59/171 | 2.90 | 1.62 | 4.08 |
 | 20261019T213323Z-1fef780eb | milestone:F4 | ldc2 | 60/171 | 2.87 | 1.62 | 4.08 |
 | 20261019T214333Z-a10ce3497 | milestone:P2 | ldc2 | 60/171 | 2.89 | 1.62 | 3.96 |
+| 20261019T224526Z-3b4f633bb | milestone:L3-direct | ldc2 | 80/171 | 2.50 | 1.47 | 3.41 |
+| 20261019T224527Z-3b4f633bb | milestone:L3-ll1 | ldc2 | 79/171 | 2.52 | 1.48 | 3.44 |
 
 ## Progress
 
@@ -42,7 +44,9 @@ Last updated 2026-10-19.
 | B1 InputLanguage, B2 SUCC/NULL, B3 BITES, B4 disjointness diagnostics | done, report-only (no codegen change) | `docs/BITES.md`, `src/npegged/{language,bites}.d`, `tests/prefix_discrimination.d` |
 | B5 NEXTBITES + Prop. 10-13 premises, B6 commit-site candidates, B7 regular SUCC (opt-in, +2 pairs/+60% time), B8 unified diagnostics | done, report-only (no codegen change) | `docs/BITES.md`, `tests/{next_bites,diagnostics}.d`, `milestones/B7/` |
 | L1 conversion contract, L2 certified EBNF export (254k-string corpus check) | done, report-only | `docs/LL.md`, `tests/{ll_regions,ll_export}.d` |
-| P3-P5, P7-P8, L3-L6, G*, X* | not started | — |
+| L3 `ll1` backend (opt-in, exact, no gain) | done | `milestones/L3-ll1/notes-l3.md`, differential fixtures |
+| **Finding: `direct` backend beats default combinators** (79/171 vs 60/171 within 1.5x, geomean 1.48 vs 1.62) | recorded | `milestones/L3-direct` |
+| P3-P5, P7-P8, L4-L6, G*, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,
 CSV.Flat/validation -73%. Remaining >5% slowdowns: Numbers.BinaryLong/validation +5.2%,
