@@ -22,9 +22,7 @@ Inspection of the supplied NPegged source archive shows:
 - `npegged/introspection.d` and tester modules: introspection and existing grammar testing machinery.
 - Conditional instrumentation/specializations include `NPeggedMetrics`, `NPeggedScannerMetrics`, `NPeggedPureIslands`, and `NPeggedSharedOutput`.
 
-The submitted archive contains **source modules, not the complete performance harness, workload inputs, or handwritten baselines**. Do not assume unobserved tooling exists. First inspect the actual local checkout, record what is present, and add missing benchmarking infrastructure incrementally. Do not assume the local project uses a particular `src/` layout merely because `AGENTS.md` gives generic examples; adapt its coverage and path rules to the real checkout while preserving their intent.
-
-**User-reported starting point, not an independently reproduced measurement:** approximately 20% of workloads meet 1.5× handwritten; almost all are below 5×. Milestone A1 must replace this provisional statement with machine-generated evidence.
+Do not assume unobserved tooling exists. First inspect the actual local checkout, record what is present, and add missing benchmarking infrastructure incrementally. Do not assume the local project uses a particular `src/` layout merely because `AGENTS.md` gives generic examples; adapt its coverage and path rules to the real checkout while preserving their intent.
 
 ### Non-negotiable behavioral invariants
 

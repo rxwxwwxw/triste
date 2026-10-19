@@ -196,5 +196,3 @@ See [benchmark instructions](benchmark/README.md) for output contracts, commands
 measurement limits.
 
 
-The [performance roadmap](docs/PERFORMANCE_PLAN.md) and [Phase 2 plan](docs/Performance_Plan_Phase2.md)
-track optimization milestones, lane decisions, and acceptance criteria.
