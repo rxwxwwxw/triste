@@ -88,6 +88,36 @@ int main() nothrow {
     auto invalid = prefixDiscriminationReport("Invalid: Root <-");
     assert(invalid.status == Status.invalidInput);
 
+    // F3: FIRST/FIRST and FIRST/FOLLOW diagnostics.
+    assert(r1.choices[0].pairs[0].firstFirstConflict && !r1.choices[0].pairs[0].definite);
+    assert(r1.choices[0].pairs[0].overlapBytes == 1);
+    assert(r2.choices[0].pairs[0].firstFirstConflict && r2.choices[0].pairs[0].definite);
+    assert(!r6.choices[0].pairs[0].firstFirstConflict && r6.choices[0].pairs[0].overlapBytes == 0);
+    assert(r3.choices[0].pairs[0].firstFirstConflict && !r3.choices[0].pairs[0].definite);
+    assert(r6.choices[0].followKnown && !r6.choices[0].firstFollowConflict);
+    assert(r6.choices[0].ruleName == "Root");
+    auto longer = prefixDiscriminationReport("Rev: Root <- 'ab' / 'a'");
+    assert(longer.choices[0].pairs[0].kind != DiscriminationKind.shadowed);
+    assert(longer.choices[0].pairs[0].firstFirstConflict && !longer.choices[0].pairs[0].definite);
+    auto conflict = prefixDiscriminationReport("FF: Root <- Opt 'a' Opt <- 'a' / eps");
+    assert(conflict.status == Status.ok);
+    bool sawConflict;
+    foreach (choice; conflict.choices)
+        if (choice.ruleName == "Opt")
+            sawConflict = choice.followKnown && choice.firstFollowConflict;
+    assert(sawConflict);
+    auto clear = prefixDiscriminationReport("FC: Root <- Opt 'b' Opt <- 'a' / eps");
+    foreach (choice; clear.choices)
+        if (choice.ruleName == "Opt")
+            assert(choice.followKnown && !choice.firstFollowConflict);
+    auto predicateRule = prefixDiscriminationReport("FP: Root <- Opt !'x' 'a' Opt <- 'a' / eps");
+    foreach (choice; predicateRule.choices)
+        if (choice.ruleName == "Opt")
+            assert(!choice.followKnown && !choice.firstFollowConflict);
+    auto text2 = prefixDiscriminationReport("FF: Root <- Opt 'a' Opt <- 'a' / eps", EligibilityFormat
+            .text);
+    assert(text2.report.length && text2.report != conflict.report);
+
     // Print JSON reports for script verification
     printf("%.*s\n", cast(int)r1.report.length, r1.report.ptr);
     printf("%.*s\n", cast(int)r2.report.length, r2.report.ptr);

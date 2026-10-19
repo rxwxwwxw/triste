@@ -29,3 +29,15 @@ every rule they reference is also untrusted: `known=false`, follow = all bytes +
 Limitations: FOLLOW is **not** NEXTBITES. Ordered choice, greedy repetition and predicates mean the next byte after a
 PEG success can differ from CFG continuation; do not use these sets to justify cuts or dispatch. No generated code
 consumes this analysis.
+
+# FIRST conflicts (F3)
+
+`prefixDiscriminationReport` pairs now also carry `overlapBytes`, `firstFirstConflict` and `definite`; choices carry
+`followKnown` and `firstFollowConflict` (all appended to the JSON; earlier keys unchanged). `ruleName` is now the
+owning rule for nested choices too.
+
+- `firstFirstConflict`: FIRST sets intersect (a potential LL(1) conflict, **not** proof of PEG hiding).
+- `definite`: set only for proven unguarded literal-prefix shadowing (`'a' / 'ab'`); `'ab' / 'a'`, guarded, and
+  tail-disjoint overlaps stay "potential".
+- `firstFollowConflict`: some alternative is nullable and another alternative's FIRST meets FOLLOW of the owning rule;
+  only evaluated when FOLLOW is trusted (`followKnown`). Report-only, no code generation changes.

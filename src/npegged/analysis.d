@@ -101,6 +101,11 @@ struct BranchDiscrimination {
     string commonPrefix;
     ubyte discriminatingDepth;
     string detail;
+    /// FIRST/FIRST (LL(1)) view: bytes both alternatives may start with. A conflict is only
+    /// a potential hiding; `definite` is set only for proven literal-prefix shadowing.
+    uint overlapBytes;
+    bool firstFirstConflict;
+    bool definite;
 }
 
 struct ChoiceDiscrimination {
@@ -108,6 +113,11 @@ struct ChoiceDiscrimination {
     string ruleName;
     bool hasOverlap;
     BranchDiscrimination[] pairs;
+    /// FIRST/FOLLOW: a nullable alternative whose continuation (FOLLOW of the owning rule) can start
+    /// with a byte another alternative also starts with. Report-only; needs `followKnown`.
+    size_t ruleIndex = size_t.max;
+    bool followKnown;
+    bool firstFollowConflict;
 }
 
 @nogc nothrow unittest {
@@ -291,9 +301,14 @@ string renderDiscrimination(scope const(ChoiceDiscrimination)[] discriminations,
                         p.kind) ~ "\"" ~ ",\"commonPrefixLength\":" ~ toDec(
                         p.commonPrefixLength) ~ ",\"commonPrefix\":" ~ jsonQuoted(
                         p.commonPrefix) ~ ",\"discriminatingDepth\":" ~ toDec(
-                        p.discriminatingDepth) ~ ",\"detail\":" ~ jsonQuoted(p.detail) ~ "}";
+                        p.discriminatingDepth) ~ ",\"detail\":" ~ jsonQuoted(
+                        p.detail) ~ ",\"overlapBytes\":" ~ toDec(
+                        p.overlapBytes) ~ ",\"firstFirstConflict\":" ~ (p.firstFirstConflict
+                        ? "true" : "false") ~ ",\"definite\":" ~ (p.definite ? "true" : "false") ~ "}";
             }
-            res ~= "]}";
+            res ~= "],\"followKnown\":" ~ (choice.followKnown
+                    ? "true" : "false") ~ ",\"firstFollowConflict\":" ~ (choice.firstFollowConflict
+                    ? "true" : "false") ~ "}";
         }
         return res ~ "]";
     } else {
@@ -302,14 +317,18 @@ string renderDiscrimination(scope const(ChoiceDiscrimination)[] discriminations,
             res ~= "Choice at node " ~ toDec(choice.expressionIndex);
             if (choice.ruleName.length)
                 res ~= " (rule \"" ~ choice.ruleName ~ "\")";
-            res ~= ": overlap=" ~ (choice.hasOverlap ? "yes" : "no") ~ "\n";
+            res ~= ": overlap=" ~ (choice.hasOverlap
+                    ? "yes" : "no") ~ ", first/follow=" ~ (!choice.followKnown
+                    ? "unknown" : choice.firstFollowConflict ? "conflict" : "clear") ~ "\n";
             foreach (ref p; choice.pairs) {
                 res ~= "  [" ~ toDec(p.firstIndex) ~ " vs " ~ toDec(p.secondIndex) ~ "] "
                     ~ discriminationKindName(p.kind);
                 if (p.commonPrefixLength)
                     res ~= " (prefix \"" ~ p.commonPrefix ~ "\", depth " ~ toDec(p
                             .discriminatingDepth) ~ ")";
-                res ~= " - " ~ p.detail ~ "\n";
+                res ~= " - " ~ p.detail ~ (p.firstFirstConflict
+                        ? " [first/first conflict, " ~ (p.definite
+                            ? "definite shadowing" : "potential hiding") ~ "]" : "") ~ "\n";
             }
         }
         return res;
@@ -731,6 +750,34 @@ nothrow:
     }
 
     ChoiceDiscrimination analyzePrefixDiscrimination(size_t exprIndex) nothrow {
+        return analyzePrefixDiscrimination(exprIndex, followSets(this), true);
+    }
+
+    private size_t owningRule(size_t target) nothrow {
+        foreach (r, root; roots) {
+            auto seen = new bool[expressions.length];
+            bool reaches(size_t index) nothrow {
+                if (index == target)
+                    return true;
+                if (seen[index])
+                    return false;
+                seen[index] = true;
+                foreach (child; expressions[index].children)
+                    if (reaches(child))
+                        return true;
+                return false;
+            }
+
+            if (reaches(root))
+                return r;
+        }
+        return size_t.max;
+    }
+
+    private ChoiceDiscrimination analyzePrefixDiscrimination(size_t exprIndex, const FollowResult follow,
+            bool followValid) nothrow {
+        import core.bitop : popcnt;
+
         ChoiceDiscrimination result;
         result.expressionIndex = exprIndex;
         if (exprIndex >= expressions.length)
@@ -739,12 +786,9 @@ nothrow:
         if (node.kind != ExpressionKind.choice)
             return result;
 
-        foreach (i, root; roots) {
-            if (root == exprIndex && i < names.length) {
-                result.ruleName = names[i];
-                break;
-            }
-        }
+        result.ruleIndex = owningRule(exprIndex);
+        if (result.ruleIndex < names.length)
+            result.ruleName = names[result.ruleIndex];
 
         const branches = node.children;
         foreach (i; 0 .. branches.length) {
@@ -752,7 +796,29 @@ nothrow:
                 auto pair = compareBranches(branches[i], branches[j], i, j);
                 if (pair.kind != DiscriminationKind.disjointFirst)
                     result.hasOverlap = true;
+                if (branches[i] < facts.length && branches[j] < facts.length) {
+                    foreach (w; 0 .. 4)
+                        pair.overlapBytes += popcnt(facts[branches[i]].first.bits[w] & facts[branches[j]]
+                                .first.bits[w]);
+                    pair.firstFirstConflict = pair.overlapBytes != 0;
+                }
+                pair.definite = pair.kind == DiscriminationKind.shadowed;
                 result.pairs ~= pair;
+            }
+        }
+        // FIRST/FOLLOW: only meaningful when FOLLOW of the owning rule is trusted.
+        if (followValid && result.ruleIndex < follow.known.length && follow.known[result.ruleIndex]) {
+            result.followKnown = true;
+            foreach (i, nullableBranch; branches) {
+                if (nullableBranch >= facts.length || facts[nullableBranch].nullable == Nullable.no)
+                    continue;
+                foreach (j, other; branches) {
+                    if (i == j || other >= facts.length)
+                        continue;
+                    foreach (w; 0 .. 4)
+                        if (facts[other].first.bits[w] & follow.follow[result.ruleIndex].bits[w])
+                            result.firstFollowConflict = true;
+                }
             }
         }
         return result;
@@ -760,9 +826,10 @@ nothrow:
 
     ChoiceDiscrimination[] analyzeAllPrefixDiscriminations() nothrow {
         ChoiceDiscrimination[] results;
+        const follow = followSets(this);
         foreach (i, const ref expr; expressions) {
             if (expr.kind == ExpressionKind.choice)
-                results ~= analyzePrefixDiscrimination(i);
+                results ~= analyzePrefixDiscrimination(i, follow, true);
         }
         return results;
     }
