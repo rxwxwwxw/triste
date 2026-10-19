@@ -43,6 +43,10 @@ struct FirstFacts {
     Nullable nullable = Nullable.unknown;
     bool known;
     bool eofOnly; // Any empty success requires end of input.
+    /// One-sided proofs: false means "possibly", never "provably not".
+    /// Both are least fixed points started from false, so recursion only loses precision.
+    bool neverFails; // Every evaluation succeeds (ignoring resource limits).
+    bool neverAdvances; // Every success consumes no input.
 }
 
 /// An ordered escape pair followed by an ordinary byte alternative.
@@ -1709,16 +1713,22 @@ nothrow:
         case ExpressionKind.unknown:
             return result;
         case ExpressionKind.terminal:
-            return FirstFacts(expression.first, expression.nullable,
+            result = FirstFacts(expression.first, expression.nullable,
                     expression.known, expression.source == "eoi" || expression.source == "endOfInput");
+            result.neverAdvances = expression.known && expression.nullable == Nullable.yes;
+            result.neverFails = result.neverAdvances && !result.eofOnly;
+            return result;
         case ExpressionKind.reference:
             auto rule = referenceRule(expression);
             return rule == size_t.max ? result : facts[roots[rule]];
         case ExpressionKind.sequence:
             result.known = true;
             result.nullable = Nullable.yes;
+            result.neverFails = result.neverAdvances = true;
             bool prefix = true;
             foreach (child; expression.children) {
+                result.neverFails = result.neverFails && facts[child].neverFails;
+                result.neverAdvances = result.neverAdvances && facts[child].neverAdvances;
                 const cNull = facts[child].nullable;
                 const cKnown = facts[child].known;
                 result.eofOnly = result.eofOnly || facts[child].eofOnly;
@@ -1740,8 +1750,11 @@ nothrow:
         case ExpressionKind.choice:
             result.known = true;
             result.nullable = Nullable.no;
+            result.neverAdvances = true;
             bool onlyEnd = true;
             foreach (child; expression.children) {
+                result.neverFails = result.neverFails || facts[child].neverFails;
+                result.neverAdvances = result.neverAdvances && facts[child].neverAdvances;
                 const cNull = facts[child].nullable;
                 result.first.bits[0] |= facts[child].first.bits[0];
                 result.first.bits[1] |= facts[child].first.bits[1];
@@ -1762,11 +1775,13 @@ nothrow:
             result = facts[expression.children[0]];
             result.nullable = Nullable.yes;
             result.eofOnly = false;
+            result.neverFails = true; // `e?` and `e*` succeed on every input.
             return result;
         case ExpressionKind.predicate:
             result.nullable = Nullable.yes;
             // Unknown children can contain actions; skipping them changes effects.
             result.known = facts[expression.children[0]].known;
+            result.neverAdvances = true; // Predicates restore the position.
             return result;
         case ExpressionKind.wrapper:
             return facts[expression.children[0]];
@@ -2050,4 +2065,45 @@ unittest {
     graph.roots[0] = 7;
     assert(!graph.selectedLeaves([0U, uint.max, uint.max, uint.max])[0]);
     assert(graph.selectedSubtrees([0U, uint.max, uint.max, uint.max])[0]);
+}
+
+unittest {
+    alias K = ExpressionKind;
+    alias N = Nullable;
+    CharSetMask a;
+    a.addChar('a');
+    GrammarAnalysis graph;
+    graph.names = ["Loop", "Safe", "Pick", "Chain"];
+    graph.expressions = [
+        Expression(K.reference, null, "Loop"), // 0
+        Expression(K.terminal, null, null, a, N.no, true,
+                "a"), // 1
+        Expression(K.terminal, null, null, CharSetMask.init, N.yes, true, "eps"), // 2
+        Expression(
+                K.terminal, null, null, CharSetMask.init, N.yes, true, "eoi"), // 3
+        Expression(K.sequence, [0, 1]), // 4: Loop <- Loop 'a'
+        Expression(K.repetition, [1]), // 5: Safe <- 'a'*
+        Expression(K.choice, [1, 2]), // 6: Pick <- 'a' / eps
+        Expression(K.predicate, [1]), // 7
+        Expression(K.sequence, [7, 5]), // 8: Chain <- &'a' 'a'*
+        Expression(K.unknown), // 9
+        Expression(K.optional, [9]), // 10
+        Expression(K.choice, [1, 3]), // 11
+        Expression(K.sequence), // 12
+        Expression(K.choice), // 13
+    ];
+    graph.roots = [4, 5, 6, 8];
+    graph.solve();
+    assert(!graph.facts[1].neverFails && !graph.facts[1].neverAdvances);
+    assert(graph.facts[2].neverFails && graph.facts[2].neverAdvances);
+    assert(!graph.facts[3].neverFails && graph.facts[3].neverAdvances); // eoi may fail
+    assert(!graph.facts[4].neverFails && !graph.facts[4].neverAdvances); // left recursion: pessimistic
+    assert(graph.facts[5].neverFails && !graph.facts[5].neverAdvances);
+    assert(graph.facts[6].neverFails && !graph.facts[6].neverAdvances); // eps arm rescues the choice
+    assert(!graph.facts[7].neverFails && graph.facts[7].neverAdvances);
+    assert(!graph.facts[8].neverFails && !graph.facts[8].neverAdvances);
+    assert(graph.facts[10].neverFails && !graph.facts[10].neverAdvances); // unknown never proves "no advance"
+    assert(!graph.facts[11].neverFails && !graph.facts[11].neverAdvances);
+    assert(graph.facts[12].neverFails && graph.facts[12].neverAdvances); // empty sequence
+    assert(!graph.facts[13].neverFails && graph.facts[13].neverAdvances); // empty choice always fails
 }
