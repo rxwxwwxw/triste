@@ -860,6 +860,177 @@ struct State(bool CT, int Check = 0) {
         return candidate;
     }
 
+    /// Prototype recursive ascent for action-free direct left recursion: E <- E Suffix / Base
+    Node directLeftAscent(alias Base, alias Suffix, string name)(size_t pos) nothrow {
+        if (!tick())
+            return node(pos, pos, false);
+        if (depth >= context.depthLimit) {
+            status = Status.resourceLimit;
+            return node(pos, pos, false);
+        }
+        ++depth;
+        scope (exit)
+            --depth;
+
+        auto current = Base(this, pos);
+        if (!current.successful) {
+            recordFailure(current);
+            return current;
+        }
+
+        static if (!Check) {
+            auto acc = node(pos, current.end, true);
+            acc.name = name;
+            acc.children = current.children.length ? current.children : single(current);
+            acc.matches = current.matches;
+            acc.failEnd = current.failEnd;
+        } else {
+            auto acc = current;
+        }
+
+        while (acc.end < input.length) {
+            if (!tick())
+                break;
+            const stepPos = acc.end;
+            auto tail = Suffix(this, stepPos);
+            if (!tail.successful) {
+                recordFailure(tail);
+                if (tail.failEnd > acc.failEnd)
+                    acc.failEnd = tail.failEnd;
+                break;
+            }
+            if (tail.end <= stepPos)
+                break;
+            static if (!Check) {
+                auto nextAcc = node(pos, tail.end, true);
+                nextAcc.name = name;
+                ParseTree[] stepChildren;
+                if (tail.name.length)
+                    stepChildren = append(single(acc), single(tail));
+                else if (tail.children.length)
+                    stepChildren = append(single(acc), tail.children);
+                else
+                    stepChildren = single(acc);
+                nextAcc.children = stepChildren;
+                nextAcc.matches = append(acc.matches, tail.matches);
+                nextAcc.failEnd = tail.failEnd;
+                acc = nextAcc;
+            } else {
+                acc.end = tail.end;
+                acc.successful = true;
+                acc.failEnd = tail.failEnd;
+            }
+        }
+
+        return acc;
+    }
+
+    @nogc nothrow unittest {
+        static if (!CT && !Check) {
+            Arena owner;
+            State state;
+            state.arena = &owner;
+
+            // 1. Successful ascent with anonymous literals
+            state.input = "1+1+1";
+            alias baseRule = literal!"1";
+            alias suffixRule = and!(literal!"+", literal!"1");
+            auto res = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(res.successful && res.end == 5);
+            assert(res.children.length == 1);
+            assert(res.children[0].name == "Expr");
+            assert(res.matches == ["1", "+", "1", "+", "1"]);
+
+            // 2. Base with existing children
+            alias baseWithChild = defined!(literal!"1", "Num");
+            state.input = "1+1";
+            auto resChildBase = state.directLeftAscent!(baseWithChild, suffixRule, "Expr")(0);
+            assert(resChildBase.successful && resChildBase.end == 3);
+
+            // 3. Suffix with named rule
+            state.input = "1+1";
+            alias namedSuffix = defined!(and!(literal!"+", literal!"1"), "Step");
+            auto resNamed = state.directLeftAscent!(baseRule, namedSuffix, "Expr")(0);
+            assert(resNamed.successful && resNamed.end == 3);
+            assert(resNamed.children.length == 2);
+            assert(resNamed.children[1].name == "Step");
+
+            // 4. Suffix with children array without top-level name
+            alias nestedSuffix = and!(literal!"+", defined!(literal!"1", "Item"));
+            auto resNested = state.directLeftAscent!(baseRule, nestedSuffix, "Expr")(0);
+            assert(resNested.successful && resNested.end == 3);
+
+            // 5. Base failure
+            state.input = "+1";
+            auto resBaseFail = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(!resBaseFail.successful && resBaseFail.end == 0);
+
+            // 6. Suffix partial failure with higher failEnd
+            state.input = "1+";
+            auto resSuffixFail = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(resSuffixFail.successful && resSuffixFail.end == 1 && resSuffixFail.failEnd == 2);
+
+            // 7. Suffix partial failure with tail.failEnd <= acc.failEnd
+            state.input = "1x";
+            auto resSuffFailLow = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(resSuffFailLow.successful && resSuffFailLow.end == 1 && resSuffFailLow.failEnd == 1);
+
+            // 8. Zero-width suffix guard with remaining input
+            state.input = "1remaining";
+            alias zeroSuffix = eps;
+            auto resZero = state.directLeftAscent!(baseRule, zeroSuffix, "Expr")(0);
+            assert(resZero.successful && resZero.end == 1);
+
+            // 9. Depth limit
+            state.context.depthLimit = 0;
+            auto resDepth = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(!resDepth.successful && state.status == Status.resourceLimit);
+
+            // 10. Step limit
+            state.context.depthLimit = size_t.max;
+            state.status = Status.ok;
+            state.context.stepLimit = 0;
+            auto resStep = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(!resStep.successful && state.status == Status.resourceLimit);
+
+            // 11. Step limit during loop
+            state.status = Status.ok;
+            state.context.stepLimit = 2;
+            state.steps = 0;
+            state.input = "1+1+1";
+            auto resStepLoop = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(resStepLoop.successful && resStepLoop.end < 5);
+        } else static if (!CT && Check == 1) {
+            State state;
+            state.input = "1+1+1";
+            alias baseRule = literal!"1";
+            alias suffixRule = and!(literal!"+", literal!"1");
+            auto res = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(res.successful && res.end == 5);
+
+            // Base fail in recognition
+            state.input = "+1";
+            auto resFail = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(!resFail.successful);
+
+            // Suffix fail in recognition (higher failEnd)
+            state.input = "1+";
+            auto resSuffFail = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(resSuffFail.successful && resSuffFail.end == 1);
+
+            // Suffix fail in recognition (low failEnd)
+            state.input = "1x";
+            auto resSuffFailLow = state.directLeftAscent!(baseRule, suffixRule, "Expr")(0);
+            assert(resSuffFailLow.successful && resSuffFailLow.end == 1);
+
+            // Zero-width suffix in recognition with remaining input
+            state.input = "1remaining";
+            alias zeroSuffix = eps;
+            auto resZero = state.directLeftAscent!(baseRule, zeroSuffix, "Expr")(0);
+            assert(resZero.successful && resZero.end == 1);
+        }
+    }
+
     static if (Check == 1 || Check == 2) {
         /// A value checkpoint for recognition predicates; no output or ownership escapes.
         struct FailureCheckpoint {
@@ -3163,6 +3334,24 @@ template wrapAround(alias before, alias target, alias after) {
     assert(result.end == 3 && result.matches == ["a"]);
     auto bad = parse!(wrapAround!(literal!"(", literal!"a", literal!")"))(context, "(a");
     assert(!bad.successful);
+}
+
+/// Combinator for action-free direct left recursion: E <- E Suffix / Base
+template directAscent(alias Base, alias Suffix, string name) {
+    State!(CT, Check).Node directAscent(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t pos) nothrow {
+        return s.directLeftAscent!(Base, Suffix, name)(pos);
+    }
+}
+
+@nogc nothrow unittest {
+    ParseContext context;
+    alias baseRule = literal!"1";
+    alias suffixRule = and!(literal!"+", literal!"1");
+    auto result = parse!(directAscent!(baseRule, suffixRule, "Expr"))(context, "1+1+1");
+    assert(result.successful && result.end == 5);
+    assert(result.children.length == 1);
+    assert(result.children[0].name == "Expr");
+    assert(result.matches == ["1", "+", "1", "+", "1"]);
 }
 
 alias digit = charRange!('0', '9');

@@ -42,6 +42,7 @@ if [[ "$MODE" == "full" ]]; then
   COMPILERS="dmd ldc2" bash scripts/rule-effects-check.sh
   COMPILERS="dmd ldc2" bash scripts/prefix-discrimination-check.sh
   COMPILERS="dmd ldc2" bash scripts/phrase-cache-check.sh
+  COMPILERS="dmd ldc2" bash scripts/recursive-ascent-check.sh
   bash scripts/pure-islands-check.sh
   bash scripts/empty-scanner-check.sh
   bash scripts/scanner-report-check.sh
@@ -65,6 +66,7 @@ else
   COMPILERS=ldc2 bash scripts/rule-effects-check.sh
   COMPILERS=ldc2 bash scripts/prefix-discrimination-check.sh
   COMPILERS=ldc2 bash scripts/phrase-cache-check.sh
+  COMPILERS=ldc2 bash scripts/recursive-ascent-check.sh
   COMPILERS=ldc2 MEMOS=selective PROJECTIONS=all bash scripts/pure-islands-check.sh
   COMPILERS=ldc2 bash scripts/empty-scanner-check.sh
   COMPILERS=ldc2 bash scripts/scanner-report-check.sh
