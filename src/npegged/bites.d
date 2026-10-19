@@ -25,8 +25,10 @@ struct BitesAnalysis {
 nothrow:
     GrammarAnalysis* graph;
     Budget budget;
-    private InputLanguage[] succMemo, nullMemo;
-    private bool[] succDone, nullDone, succActive, nullActive;
+    /// Times a budget overflow or a recursive back edge forced a conservative answer.
+    size_t degradations, cuts;
+    private InputLanguage[] succMemo, nullMemo, bitesMemo;
+    private bool[] succDone, nullDone, succActive, nullActive, bitesDone, bitesActive;
 
     this(ref GrammarAnalysis graph, Budget budget = Budget.init) {
         this.graph = &graph;
@@ -38,15 +40,20 @@ nothrow:
         nullDone = new bool[count];
         succActive = new bool[count];
         nullActive = new bool[count];
+        bitesMemo = new InputLanguage[count];
+        bitesDone = new bool[count];
+        bitesActive = new bool[count];
     }
 
     /// Lower approximation: an overflowed language is replaced by the empty one.
     private InputLanguage lower(InputLanguage value) {
+        degradations += value.overflow;
         return value.overflow ? InputLanguage.empty() : value;
     }
 
     /// Upper approximation: an overflowed language is replaced by the universal one.
     private InputLanguage upper(InputLanguage value) {
+        degradations += value.overflow;
         return value.overflow ? InputLanguage.universal() : value;
     }
 
@@ -112,8 +119,10 @@ nothrow:
             return InputLanguage.empty();
         if (succDone[index])
             return succMemo[index];
-        if (succActive[index])
+        if (succActive[index]) {
+            ++cuts;
             return InputLanguage.empty(); // recursion: sound bottom
+        }
         succActive[index] = true;
         scope (exit)
             succActive[index] = false;
@@ -165,8 +174,10 @@ nothrow:
             return InputLanguage.universal();
         if (nullDone[index])
             return nullMemo[index];
-        if (nullActive[index])
+        if (nullActive[index]) {
+            ++cuts;
             return InputLanguage.universal(); // recursion: sound top
+        }
         nullActive[index] = true;
         scope (exit)
             nullActive[index] = false;
@@ -214,6 +225,171 @@ nothrow:
         nullMemo[index] = result;
         return result;
     }
+
+    /// Upper approximation of the inputs on which `index` may consume input outside a predicate.
+    /// Lookahead has no bite; its NULL restriction constrains what follows it in a sequence.
+    InputLanguage bites(size_t index) {
+        if (index >= graph.expressions.length)
+            return InputLanguage.universal();
+        if (bitesDone[index])
+            return bitesMemo[index];
+        if (bitesActive[index]) {
+            ++cuts;
+            return InputLanguage.universal(); // recursion: sound top
+        }
+        bitesActive[index] = true;
+        scope (exit)
+            bitesActive[index] = false;
+        auto node = graph.expressions[index];
+        InputLanguage result = InputLanguage.universal();
+        final switch (node.kind) {
+        case ExpressionKind.unknown:
+            break;
+        case ExpressionKind.terminal:
+            auto shape = terminal(node);
+            if (shape.zeroWidth)
+                result = InputLanguage.empty();
+            else if (shape.exact && shape.known)
+                result = shape.succ; // L(t) Σ* for a consuming terminal
+            else if (shape.known && !node.first.empty)
+                result = InputLanguage.bytePrefix(node.first);
+            break;
+        case ExpressionKind.reference:
+            const rule = graph.referenceRule(node);
+            if (rule != size_t.max)
+                result = bites(graph.roots[rule]);
+            break;
+        case ExpressionKind.sequence:
+            result = InputLanguage.empty();
+            InputLanguage prefixNull = InputLanguage.universal();
+            foreach (child; node.children) {
+                result = upper(result.unionWith(upper(prefixNull.intersect(bites(child), budget)), budget));
+                prefixNull = upper(prefixNull.intersect(nul(child), budget));
+                if (prefixNull.emptiness() == Proof.provenEmpty)
+                    break; // nothing after a non-nullable prefix can bite
+            }
+            break;
+        case ExpressionKind.choice:
+            result = InputLanguage.empty();
+            foreach (child; node.children)
+                result = upper(result.unionWith(bites(child), budget));
+            break;
+        case ExpressionKind.optional:
+        case ExpressionKind.repetition:
+        case ExpressionKind.wrapper:
+            result = bites(node.children[0]);
+            break;
+        case ExpressionKind.predicate:
+            result = InputLanguage.empty();
+            break;
+        }
+        bitesDone[index] = true;
+        bitesMemo[index] = result;
+        return result;
+    }
+}
+
+/// How a language relates to the extremes, for reports.
+string languageStatus(const InputLanguage value) nothrow {
+    if (value.emptiness() == Proof.provenEmpty)
+        return "empty";
+    if (value.complement().emptiness() == Proof.provenEmpty)
+        return "universal";
+    return "restricted";
+}
+
+private string quoteWitness(string text) nothrow {
+    string result = "\"";
+    foreach (c; text) {
+        if (c == '"' || c == '\\') {
+            result ~= '\\';
+            result ~= c;
+        } else if (c >= 0x20 && c < 0x7f)
+            result ~= c;
+        else {
+            enum digits = "0123456789abcdef";
+            result ~= "\\u00";
+            result ~= digits[(cast(ubyte)c) >> 4];
+            result ~= digits[(cast(ubyte)c) & 15];
+        }
+    }
+    return result ~ "\"";
+}
+
+private string languageJson(const InputLanguage value) nothrow {
+    string witness;
+    const present = value.shortestWitness(witness);
+    return "{\"status\":\"" ~ languageStatus(value) ~ "\",\"states\":" ~ decimal(value.states()) ~ (
+            present ? ",\"witness\":" ~ quoteWitness(witness) : "") ~ "}";
+}
+
+private string decimal(size_t value) nothrow {
+    char[20] digits;
+    size_t count;
+    do {
+        digits[count++] = cast(char)('0' + value % 10);
+        value /= 10;
+    }
+    while (value);
+    string result;
+    while (count)
+        result ~= digits[--count];
+    return result;
+}
+
+/// Deterministic report-only serialization: per rule SUCC, NULL and BITES with proof scope.
+/// `exact` is false when a budget or a recursive back edge forced a conservative answer for that rule.
+string renderBites(ref GrammarAnalysis graph, Budget budget = Budget.init) nothrow {
+    string result = "{\"scope\":\"pure byte-level expressions; actions, parameters and recursion degrade conservatively\"," ~ "\"budgetStates\":" ~ decimal(
+            budget.maxStates) ~ ",\"rules\":[";
+    foreach (rule, root; graph.roots) {
+        auto analysis = BitesAnalysis(graph, budget);
+        const succ = analysis.succ(root), nul = analysis.nul(root), bites = analysis.bites(root);
+        const exact = analysis.degradations == 0 && analysis.cuts == 0;
+        result ~= (rule ? "," : "") ~ "{\"rule\":" ~ quoteWitness(rule < graph.names.length
+                ? graph.names[rule] : "") ~ ",\"exact\":" ~ (exact
+                ? "true" : "false") ~ ",\"succ\":" ~ languageJson(
+                succ) ~ ",\"null\":" ~ languageJson(nul) ~ ",\"bites\":" ~ languageJson(bites) ~ "}";
+    }
+    return result ~ "]}";
+}
+
+nothrow unittest {
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["Plain", "Guarded"];
+    graph.expressions = [
+        lit("abc"), letters(), composite(K.repetition, "zeroOrMore", [1]),
+        composite(K.sequence, "and", [0, 2]), composite(K.predicate, "negLookahead", [0]),
+        composite(K.sequence, "and", [4, 2])
+    ];
+    graph.roots = [3, 5];
+    graph.solve();
+    const report = renderBites(graph);
+    assert(report == renderBites(graph)); // deterministic
+    assert(containsText(report, "\"rule\":\"Plain\",\"exact\":true"));
+    assert(containsText(report, "\"bites\":{\"status\":\"restricted\""));
+    assert(containsText(report, "\"witness\":\"abc\""));
+    // recursion marks the rule inexact
+    GrammarAnalysis loop;
+    loop.names = ["L"];
+    loop.expressions = [
+        composite(K.reference, "", []), lit("a"), composite(K.sequence, "and", [0, 1]),
+        plain("eps", Nullable.yes), composite(K.choice, "or", [2, 3])
+    ];
+    loop.expressions[0].reference = "L";
+    loop.roots = [4];
+    loop.solve();
+    assert(containsText(renderBites(loop), "\"exact\":false"));
+}
+
+private bool containsText(string input, string needle) nothrow {
+    if (needle.length > input.length)
+        return false;
+    foreach (i; 0 .. input.length - needle.length + 1)
+        if (input[i .. i + needle.length] == needle)
+            return true;
+    return false;
 }
 
 version (unittest) {
@@ -341,7 +517,8 @@ nothrow unittest {
 
 version (unittest) {
     /// Reference PEG matcher over the expression graph (test oracle): end offset or -1.
-    private ptrdiff_t matchNode(ref GrammarAnalysis graph, size_t index, string input, size_t pos) nothrow {
+    private ptrdiff_t matchNode(ref GrammarAnalysis graph, size_t index, string input, size_t pos,
+            bool* bit = null, bool probe = false) nothrow {
         auto node = graph.expressions[index];
         final switch (node.kind) {
         case ExpressionKind.unknown:
@@ -354,42 +531,47 @@ version (unittest) {
             if (node.source == "fail")
                 return -1;
             const text = BitesAnalysis.plainLiteral(node.source);
-            return pos + text.length <= input.length && input[pos .. pos + text.length] == text
-                ? cast(ptrdiff_t)(pos + text.length) : -1;
+            if (pos + text.length <= input.length && input[pos .. pos + text.length] == text) {
+                if (bit !is null && !probe && text.length)
+                    *bit = true; // a terminal consumed input outside a predicate: a bite
+                return cast(ptrdiff_t)(pos + text.length);
+            }
+            return -1;
         case ExpressionKind.reference:
-            return matchNode(graph, graph.roots[graph.referenceRule(node)], input, pos);
+            return matchNode(graph,
+                    graph.roots[graph.referenceRule(node)], input, pos, bit, probe);
         case ExpressionKind.sequence:
             ptrdiff_t at = pos;
             foreach (child; node.children) {
-                at = matchNode(graph, child, input, at);
+                at = matchNode(graph, child, input, at, bit, probe);
                 if (at < 0)
                     return -1;
             }
             return at;
         case ExpressionKind.choice:
             foreach (child; node.children) {
-                const end = matchNode(graph, child, input, pos);
+                const end = matchNode(graph, child, input, pos, bit, probe);
                 if (end >= 0)
                     return end;
             }
             return -1;
         case ExpressionKind.optional:
-            const end = matchNode(graph, node.children[0], input, pos);
+            const end = matchNode(graph, node.children[0], input, pos, bit, probe);
             return end >= 0 ? end : cast(ptrdiff_t)pos;
         case ExpressionKind.repetition:
             ptrdiff_t at = pos;
             while (true) {
-                const end = matchNode(graph, node.children[0], input, at);
+                const end = matchNode(graph, node.children[0], input, at, bit, probe);
                 if (end < 0 || end == at)
                     return at;
                 at = end;
             }
         case ExpressionKind.predicate:
-            const hit = matchNode(graph, node.children[0], input, pos) >= 0;
+            const hit = matchNode(graph, node.children[0], input, pos, bit, true) >= 0;
             const wanted = node.combinator == "posLookahead";
             return hit == wanted ? cast(ptrdiff_t)pos : -1;
         case ExpressionKind.wrapper:
-            return matchNode(graph, node.children[0], input, pos);
+            return matchNode(graph, node.children[0], input, pos, bit, probe);
         }
     }
 
@@ -420,6 +602,10 @@ nothrow unittest {
                     assert(end >= 0, "SUCC claimed success on a failing input");
                 if (end == 0)
                     assert(bites.nul(index).contains(input), "NULL missed an empty success");
+                bool bit;
+                matchNode(graph, index, input, 0, &bit);
+                if (bit)
+                    assert(bites.bites(index).contains(input), "BITES missed a bite");
             }
         }
     }
@@ -450,4 +636,110 @@ nothrow unittest {
     graph.roots = [5];
     graph.solve();
     check(graph, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+}
+
+version (unittest) private Expression letters() {
+    Expression e;
+    e.kind = ExpressionKind.terminal;
+    e.known = true;
+    e.nullable = Nullable.no;
+    e.byteTerminal = true;
+    e.byteWidth = 1;
+    e.source = "charRange!(97, 122)";
+    e.alphabet.addRange('a', 'z');
+    e.first = e.alphabet;
+    return e;
+}
+
+nothrow unittest {
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["R"];
+    graph.expressions = [
+        lit("abc"), // 0
+        letters(), // 1
+        composite(K.repetition, "zeroOrMore", [1]), // 2: letter*
+        composite(K.sequence, "and", [0, 2]), // 3: "abc" letter*
+        composite(K.predicate, "negLookahead", [0]), // 4: !"abc"
+        composite(K.sequence, "and", [4, 2]), // 5: (!"abc") letter*
+        composite(K.predicate, "negLookahead", [4]), // 6: !!"abc"
+        composite(K.sequence, "and", [6, 6]), // 7: pure lookahead only
+        composite(K.optional, "option", [0]), // 8: "abc"?
+        composite(K.sequence, "and", [8, 1]), // 9: "abc"? letter (nullable prefix, consuming suffix)
+        lit("x"), // 10
+        composite(K.choice, "or", [0, 10]), // 11
+        Expression(K.unknown), // 12
+        composite(K.sequence, "and", [12, 1]), // 13: unknown prefix
+        plain("eoi", Nullable.yes), // 14
+        composite(K.sequence, "and", [14, 1]), // 15: eoi letter
+        Expression(), // 16: a malformed-UTF-8 style single byte class below
+    ];
+    graph.expressions[16] = letters();
+    graph.expressions[16].alphabet = CharSetMask.init;
+    graph.expressions[16].alphabet.addRange(0x80, 0xff);
+    graph.expressions[16].first = graph.expressions[16].alphabet;
+    graph.roots = [3];
+    graph.solve();
+    auto bites = BitesAnalysis(graph);
+    // BITES("abc" letter*) = "abc" Σ*
+    const abcAny = InputLanguage.prefix("abc");
+    foreach (probe; ["abc", "abcd", "abd", "", "x"])
+        assert(bites.bites(3).contains(probe) == abcAny.contains(probe));
+    // BITES((!"abc") letter*) = (Σ* \ "abc" Σ*) ∩ letter Σ*: FIRST bytes overlap, BITES are disjoint
+    assert(bites.bites(5).contains("abd") && bites.bites(5).contains("x") && !bites.bites(5).contains(
+            "abcd"));
+    assert(!bites.bites(5).contains("") && !bites.bites(5).contains("1"));
+    assert(bites.bites(3).intersect(bites.bites(5)).emptiness() == Proof.provenEmpty);
+    // pure lookahead has no bite
+    assert(bites.bites(7).emptiness() == Proof.provenEmpty && bites.bites(4).emptiness() == Proof
+            .provenEmpty);
+    // nullable prefix then consuming suffix: prefix bites on "abc..." and letter bites on any letter start
+    assert(bites.bites(9).contains("abcz") && bites.bites(9).contains("q") && !bites.bites(9)
+            .contains("1"));
+    // union of choices, optional, repetition
+    assert(bites.bites(11).contains("xyz") && bites.bites(11).contains("abc") && !bites.bites(11)
+            .contains("q"));
+    assert(bites.bites(8).contains("abc") && bites.bites(2).contains("q"));
+    // unknown prefix: the sequence cannot be restricted, so BITES is universal
+    assert(bites.bites(13).contains("1") && bites.bites(12).contains(""));
+    // EOF in prefix position: NULL(eoi) = {""} cannot be followed by a letter, so the sequence never bites
+    assert(bites.bites(15).emptiness() == Proof.provenEmpty);
+    // malformed UTF-8 byte class
+    assert(bites.bites(16).contains("\xff") && bites.bites(16).contains("\x80z") && !bites.bites(16)
+            .contains("a"));
+}
+
+nothrow unittest {
+    // Recursive rule degrades to universal at the back edge; parameterized/unresolved reference is top.
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["A"];
+    graph.expressions = [
+        composite(K.reference, "", []), // 0 -> A
+        lit("a"), // 1
+        composite(K.sequence, "and", [1, 0]), // 2: 'a' A
+        plain("eps", Nullable.yes), // 3
+        composite(K.choice, "or", [2, 3]), // 4
+        composite(K.reference, "", []), // 5 -> unresolved
+    ];
+    graph.expressions[0].reference = "A";
+    graph.expressions[5].reference = "Missing";
+    graph.roots = [4];
+    graph.solve();
+    auto bites = BitesAnalysis(graph);
+    // The nonnullable 'a' prefix stops the walk before the back edge, so the answer is exact.
+    assert(bites.bites(4).contains("a") && !bites.bites(4).contains("zz"));
+    assert(bites.bites(5).contains("anything") && bites.bites(5).contains(""));
+    // Left recursion reaches the back edge first: universal (sound top).
+    GrammarAnalysis left;
+    left.names = ["L"];
+    left.expressions = [
+        composite(K.reference, "", []), lit("a"), composite(K.sequence, "and", [0, 1]),
+        plain("eps", Nullable.yes), composite(K.choice, "or", [2, 3])
+    ];
+    left.expressions[0].reference = "L";
+    left.roots = [4];
+    left.solve();
+    auto topped = BitesAnalysis(left);
+    assert(topped.bites(4).contains("zz") && topped.bites(4).contains(""));
 }

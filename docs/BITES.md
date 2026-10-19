@@ -40,3 +40,21 @@ Budget overflow: SUCC -> ∅, NULL -> Σ*. Rules whose bodies contain actions or
 Tests: per-node cases, recursion/budget degradation, and an exhaustive sampling check (all strings over {a,b,c}, length ≤ 4)
 against a reference PEG matcher: SUCC never contains a failing input, NULL never misses an empty success. Sampling is
 supplementary; soundness rests on the table above.
+
+## B3: BITES (`BitesAnalysis.bites`, `renderBites`, `bitesReport(definition)`)
+
+`BITES(e)` is an upper approximation of the inputs on which `e` may consume input outside a predicate:
+
+- consuming terminal (literal, single-byte class): L(t) Σ*; other known consuming terminal: FIRST-byte class Σ*;
+  zero-width (`eps`, `eoi`, empty literal): ∅. Unknown: Σ*.
+- sequence: BITES(e1) ∪ ⋃ (NULL(e1..e(i-1)) ∩ BITES(ei)); evaluation stops once the prefix NULL is provably empty.
+- choice: union. `e?`, `e*`, `e+` and transparent wrappers: BITES(e). Predicates: ∅ (their effect is the NULL restriction).
+- reference: the rule's BITES; a recursive back edge degrades to Σ* (and the rule is reported `exact:false`).
+
+Examples (tests): BITES("abc" [a-z]*) = "abc" Σ*; BITES((!"abc") [a-z]*) = (Σ* \ "abc" Σ*) ∩ [a-z] Σ* — FIRST overlaps but the
+two BITES are provably disjoint. `eoi [a-z]` can never bite (NULL(eoi) = {""}).
+
+`renderBites` / `bitesReport` serialize SUCC, NULL and BITES per rule (`status` empty|restricted|universal, state count, shortest
+`witness`, and `exact`, false when a budget or recursion forced a conservative answer). No FIRST sets or generated code change.
+Tests include an exhaustive sampling check (strings over {a,b,c} up to length 4) that BITES contains every input on which a
+reference matcher consumed input outside a predicate.

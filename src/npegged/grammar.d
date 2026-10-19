@@ -6,6 +6,8 @@ public import npegged.dfa;
 import npegged.io;
 public import npegged.analysis : RuleEligibility, DiscriminationKind, BranchDiscrimination,
     ChoiceDiscrimination, renderDiscrimination;
+import npegged.bites : renderBites;
+import npegged.language : Budget;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
 nothrow:
@@ -3492,6 +3494,50 @@ nothrow unittest {
     assert(invalid.status == Status.invalidInput && invalid.diagnostic.message.length);
     auto badFormat = eligibilityReport("Valid: Root <- 'a'", cast(EligibilityFormat)99);
     assert(badFormat.status == Status.invalidInput && badFormat.diagnostic.message.length);
+}
+
+/// Report-only BITES/SUCC/NULL languages per rule (B3); see docs/BITES.md. Never affects generated code.
+struct BitesResult {
+    Status status = Status.invalidInput;
+    Diagnostic diagnostic;
+    string grammarName;
+    string report;
+}
+
+BitesResult bitesReport(string definition, size_t budgetStates = Budget.init.maxStates) nothrow {
+    BitesResult result;
+    size_t position;
+    while (position < definition.length) {
+        const begin = position;
+        dchar scalar;
+        if (!decode(definition, position, scalar)) {
+            result.diagnostic = Diagnostic(begin, "BITES report input is not UTF-8");
+            return result;
+        }
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    result.grammarName = frontend.name;
+    frontend.prepareAnalysis();
+    Budget budget;
+    budget.maxStates = budgetStates;
+    result.report = renderBites(frontend.analyzed, budget);
+    result.status = Status.ok;
+    return result;
+}
+
+nothrow unittest {
+    auto both = bitesReport("B: Guard <- !'abc' [a-z]* Plain <- 'abc' [a-z]*");
+    assert(both.status == Status.ok && both.grammarName == "B");
+    assert(both.report == bitesReport("B: Guard <- !'abc' [a-z]* Plain <- 'abc' [a-z]*").report);
+    assert(startsWith(both.report, "{\"scope\""));
+    assert(bitesReport("Bad: Root <- 'a' #\x80").status == Status.invalidInput);
+    assert(bitesReport("Broken:").status == Status.invalidInput);
 }
 
 /// Bounded literal-prefix discrimination report for ordered choice alternatives.
