@@ -4,7 +4,8 @@ Last updated 2026-10-19.
 |---|---|---|
 | A1 harness + LDC baseline | done | `baselines/20261019T204823Z-9bba1f268` |
 | P6 (state-code DFA scanner, <=48 states) | done, enabled by default | `milestones/P6{a,b,c,d}`; P6d is the final form |
-| A2–A5, F*, B*, other P*, L*, G*, X* | not started | — |
+| F1 (neverFails/neverAdvances proofs), F2 (FOLLOW), F3 (conflict diagnostics) | done, report-only (no codegen change) | `docs/ANALYSIS_FACTS.md`, analysis.d/tests/prefix_discrimination.d |
+| A2–A5, F4, B*, other P*, L*, G*, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,
 CSV.Flat/validation -73%. Remaining >5% slowdowns: Numbers.BinaryLong/validation +5.2%,
