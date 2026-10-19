@@ -2,14 +2,14 @@
 
 Generated from `performance/trends.csv`; do not edit by hand.
 
-Latest run: `20261019T210601Z-07315cd94` (milestone:P6d, ldc2, commit 07315cd94)
+Latest run: `20261019T213323Z-1fef780eb` (milestone:F4, ldc2, commit 1fef780eb)
 
-- Workloads within 1.5x: 59/171 (34.5%)
-- Slowdown p50/p90/p95: 1.81 / 2.90 / 3.14
+- Workloads within 1.5x: 60/171 (35.1%)
+- Slowdown p50/p90/p95: 1.82 / 2.87 / 3.10
 - Geometric mean: 1.62x
 - Worst: 4.08x (handwritten-workloads/PEGGrammar.Permissive/validation)
 
-Delta vs previous run `20261019T210324Z-07315cd94`: within-target +1, p90 +0.03, geomean -0.02
+Delta vs previous run `20261019T210601Z-07315cd94`: within-target +1, p90 -0.03, geomean -0.00
 
 ## History
 
@@ -20,6 +20,7 @@ Delta vs previous run `20261019T210324Z-07315cd94`: within-target +1, p90 +0.03,
 | 20261019T210109Z-07315cd94 | milestone:P6b | ldc2 | 58/171 | 2.88 | 1.60 | 4.08 |
 | 20261019T210324Z-07315cd94 | milestone:P6c | ldc2 | 58/171 | 2.87 | 1.64 | 4.04 |
 | 20261019T210601Z-07315cd94 | milestone:P6d | ldc2 | 59/171 | 2.90 | 1.62 | 4.08 |
+| 20261019T213323Z-1fef780eb | milestone:F4 | ldc2 | 60/171 | 2.87 | 1.62 | 4.08 |
 
 ## Progress
 
@@ -30,7 +31,12 @@ Last updated 2026-10-19.
 | A1 harness + LDC baseline | done | `baselines/20261019T204823Z-9bba1f268` |
 | P6 (state-code DFA scanner, <=48 states) | done, enabled by default | `milestones/P6{a,b,c,d}`; P6d is the final form |
 | F1 (neverFails/neverAdvances proofs), F2 (FOLLOW), F3 (conflict diagnostics) | done, report-only (no codegen change) | `docs/ANALYSIS_FACTS.md`, analysis.d/tests/prefix_discrimination.d |
-| A2–A5, F4, B*, other P*, L*, G*, X* | not started | — |
+| A2 per-rule counters (instrumented build) | done | `tests/rule_metrics.d`, `milestones/A2/` |
+| A3 strategy fields in eligibility report | done | `tests/eligibility_report.d`, grammar.d unittest |
+| A4 differential gate (portable script, DFA string fixtures, `performance/scripts/run.sh`) | done | `scripts/differential.sh` |
+| A5 size/compile accounting | done | `performance/size/` |
+| F4 literalChoice2 (opt-in `NPeggedFirst2`) | done, **off by default** (1.75x faster on one case, 14% slower on another) | `milestones/F4/` |
+| B*, P1-P5, P7-P8, L*, G*, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,
 CSV.Flat/validation -73%. Remaining >5% slowdowns: Numbers.BinaryLong/validation +5.2%,

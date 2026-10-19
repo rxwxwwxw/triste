@@ -2651,6 +2651,114 @@ template or(rules...) {
     assert(result.successful);
 }
 
+/// Ordered choice of 1-2 byte literals with overlapping FIRST bytes (F4, opt-in via NPeggedFirst2).
+/// The winner of an ordered choice is a function of the first two input bytes, so a table picks it.
+/// Success reproduces `choice!(false, literal!...)` exactly, including the step count; failure,
+/// tree mode, compile-time evaluation and an insufficient step budget all take the original choice.
+struct literalChoice2(texts...) {
+    import npegged.meta : AliasSeq;
+
+    private template Rules(size_t i = 0) {
+        static if (i == texts.length)
+            alias Rules = AliasSeq!();
+        else
+            alias Rules = AliasSeq!(literal!(texts[i]), Rules!(i + 1));
+    }
+
+    alias Slow = choice!(false, Rules!());
+    enum slots = computeSlots();
+    static assert(texts.length >= 2 && texts.length < ubyte.max, "literalChoice2 needs 2..254 alternatives");
+    static assert(slots <= 16, "literalChoice2 is limited to 16 distinct first bytes");
+
+    private static size_t computeSlots() {
+        bool[256] seen;
+        size_t count;
+        static foreach (text; texts) {
+            static assert(text.length == 1 || text.length == 2, "literalChoice2 takes 1-2 byte literals");
+            if (!seen[cast(ubyte)text[0]]) {
+                seen[cast(ubyte)text[0]] = true;
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    private struct Plan {
+        ubyte[256] slot; // first byte -> 1-based row, 0 = no alternative starts with it
+        ubyte[257][slots] winner; // [row][second byte, 256 = end of input] -> 1-based alternative
+    }
+
+    private static Plan computePlan() {
+        Plan plan;
+        size_t rows;
+        static foreach (text; texts)
+            if (!plan.slot[cast(ubyte)text[0]])
+                plan.slot[cast(ubyte)text[0]] = cast(ubyte)++rows;
+        foreach (first; 0 .. 256) {
+            if (!plan.slot[first])
+                continue;
+            foreach (second; 0 .. 257) {
+                static foreach (i, text; texts)
+                    if (!plan.winner[plan.slot[first] - 1][second] && cast(ubyte)text[0] == first
+                            && (text.length == 1 || (second != 256 && cast(ubyte)text[1] == second)))
+                        plan.winner[plan.slot[first] - 1][second] = cast(ubyte)(i + 1);
+            }
+        }
+        return plan;
+    }
+
+    static immutable Plan plan = computePlan();
+
+    static State!(CT, Check).Node opCall(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t pos) nothrow {
+        static if (CT || Check == 0)
+            return Slow(s, pos);
+        else {
+            if (s.status == Status.ok && pos < s.input.length) {
+                const row = plan.slot[cast(ubyte)s.input[pos]];
+                if (row) {
+                    const second = pos + 1 < s.input.length ? cast(ubyte)s.input[pos + 1] : 256;
+                    const winner = plan.winner[row - 1][second];
+                    // n ticks (earlier alternatives + the winner) must all fit the step budget.
+                    if (winner && s.steps + winner <= s.context.stepLimit) {
+                        s.steps += winner;
+                        static foreach (i, text; texts)
+                            if (winner == i + 1)
+                                return s.node(pos, pos + text.length);
+                    }
+                }
+            }
+            return Slow(s, pos);
+        }
+    }
+}
+
+@nogc nothrow unittest {
+    alias ordered = literalChoice2!("==", "=", "<=", "<");
+    alias reference = choice!(false, literal!"==", literal!"=", literal!"<=", literal!"<");
+    static immutable inputs = ["==", "=", "=x", "<=", "<", "<x", "", "x", "<<", "=<", "==="];
+    foreach (input; inputs) {
+        foreach (limit; [0UL, 1, 2, 3, 4, 100]) {
+            ParseContext a, b;
+            a.stepLimit = b.stepLimit = limit;
+            auto fast = check!ordered(a, input);
+            auto slow = check!reference(b, input);
+            assert(fast.status == slow.status && fast.successful == slow.successful);
+            assert(fast.end == slow.end && fast.failEnd == slow.failEnd);
+            ParseContext c, d;
+            c.stepLimit = d.stepLimit = limit;
+            auto fastRecords = parseRecords!(ordered, omitRecord)(c, input, size_t.max);
+            auto slowRecords = parseRecords!(reference, omitRecord)(d, input, size_t.max);
+            assert(fastRecords.status == slowRecords.status && fastRecords.successful == slowRecords
+                    .successful);
+            assert(fastRecords.end == slowRecords.end && fastRecords.failEnd == slowRecords.failEnd);
+        }
+    }
+    // Earlier shorter literal wins over a later longer one, as in ordered choice.
+    alias shadowing = literalChoice2!("<", "<=");
+    ParseContext c;
+    assert(check!shadowing(c, "<=").end == 1);
+}
+
 template branch(alias Rule, ulong b0, ulong b1, ulong b2, ulong b3, bool Nullable = false) {
     alias rule = Rule;
     enum CharSetMask mask = CharSetMask([b0, b1, b2, b3]);

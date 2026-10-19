@@ -1254,7 +1254,35 @@ package struct Frontend {
             auto root = expressionNode(query, choice);
             values ~= query.appendFacts(root);
         }
-        return dispatchChoice(choices, values);
+        auto plan = dispatchChoice(choices, values);
+        version (NPeggedFirst2) {
+            if (plan is null)
+                plan = firstTwoChoice(choices);
+        }
+        return plan;
+    }
+
+    /// F4 (opt-in): ordered choice of 1-2 byte literals with overlapping FIRST bytes. Anything else,
+    /// including empty literals, parameters or more than 16 distinct first bytes, returns null.
+    string firstTwoChoice(string[] choices) nothrow {
+        if (choices.length < 2 || choices.length >= ubyte.max)
+            return null;
+        bool[256] seen;
+        size_t firsts;
+        string result = "literalChoice2!(";
+        foreach (i, choice; choices) {
+            if (!startsWith(choice, "literal!(") || choice[$ - 1] != ')')
+                return null;
+            const text = decodedLiteral(choice);
+            if (text.length < 1 || text.length > 2)
+                return null;
+            if (!seen[cast(ubyte)text[0]]) {
+                seen[cast(ubyte)text[0]] = true;
+                ++firsts;
+            }
+            result ~= (i ? ", " : "") ~ quoted(text);
+        }
+        return firsts <= 16 ? result ~ ")" : null;
     }
 
     private string emitExpression(ref GrammarAnalysis graph, size_t index) nothrow {
@@ -1316,6 +1344,10 @@ package struct Frontend {
             foreach (child; node.children)
                 values ~= graph.facts[child];
             auto predicted = dispatchChoice(args, values);
+            version (NPeggedFirst2) {
+                if (!predicted.length)
+                    predicted = firstTwoChoice(args);
+            }
             if (predicted.length)
                 return predicted;
         }
@@ -2702,6 +2734,11 @@ nothrow unittest {
     assert(args.length == 3);
 
     // Test optimizeChoice
+    assert(parser.firstTwoChoice(["literal!(\"==\")", "literal!(\"=\")"]) == "literalChoice2!(\"==\", \"=\")");
+    assert(parser.firstTwoChoice(["literal!(\"abc\")", "literal!(\"a\")"]) is null);
+    assert(parser.firstTwoChoice(["literal!(\"\")", "literal!(\"a\")"]) is null);
+    assert(parser.firstTwoChoice(["literal!(\"a\")", "charRange!(48, 57)"]) is null);
+    assert(parser.firstTwoChoice(["literal!(\"a\")"]) is null);
     assert(parser.optimizeChoice(["A"]) is null); // less than 2
     assert(parser.optimizeChoice(["unknown1", "unknown2"]) is null);
 

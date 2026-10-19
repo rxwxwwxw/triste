@@ -71,6 +71,9 @@ case "${PARSER_BACKEND:-combinators}" in
   *) echo "Unsupported PARSER_BACKEND: $PARSER_BACKEND" >&2; exit 2;;
 esac
 
+# Optional extra compiler flags (e.g. -d-version=NPeggedFirst2), whitespace separated.
+if [[ -n "${EXTRA_D_FLAGS:-}" ]]; then read -r -a extra_flags <<< "$EXTRA_D_FLAGS"; flags+=("${extra_flags[@]}"); fi
+
 echo "Building benchmark runner with $compiler..." >&2
 "$compiler" --version >&2
 printf 'Build flags: %s\n' "${flags[*]}" >&2

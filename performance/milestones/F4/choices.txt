@@ -1,0 +1,12 @@
+pos flags=[] best_ns_per_parse=218575 (33333 byte input, LDC -O3)
+pos flags=[-d-version=NPeggedFirst2] best_ns_per_parse=249360 (33333 byte input, LDC -O3)
+neg flags=[] best_ns_per_parse=233795 (33333 byte input, LDC -O3)
+neg flags=[-d-version=NPeggedFirst2] best_ns_per_parse=233735 (33333 byte input, LDC -O3)
+plain(no Chk, DFA-eligible rule) flags=[] best_ns_per_parse=175960
+plain(no Chk, DFA-eligible rule) flags=[-d-version=NPeggedFirst2] best_ns_per_parse=100475
+pos rerun flags=[] best_ns_per_parse=218585
+pos rerun flags=[-d-version=NPeggedFirst2] best_ns_per_parse=249285
+
+Reading: with NPeggedFirst2 the plain operator grammar (rule otherwise DFA-scanned) is 1.75x faster; when the choice is
+followed by a lookahead rule the flagged build is ~14% slower; a choice containing a 3-byte literal is not eligible and is
+unchanged. Existing 171 workloads: no change >5% vs P6d (none contain eligible choices).

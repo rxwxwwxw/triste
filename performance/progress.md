@@ -9,7 +9,8 @@ Last updated 2026-10-19.
 | A3 strategy fields in eligibility report | done | `tests/eligibility_report.d`, grammar.d unittest |
 | A4 differential gate (portable script, DFA string fixtures, `performance/scripts/run.sh`) | done | `scripts/differential.sh` |
 | A5 size/compile accounting | done | `performance/size/` |
-| F4, B*, other P*, L*, G*, X* | not started | — |
+| F4 literalChoice2 (opt-in `NPeggedFirst2`) | done, **off by default** (1.75x faster on one case, 14% slower on another) | `milestones/F4/` |
+| B*, P1-P5, P7-P8, L*, G*, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,
 CSV.Flat/validation -73%. Remaining >5% slowdowns: Numbers.BinaryLong/validation +5.2%,

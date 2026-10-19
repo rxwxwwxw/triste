@@ -171,6 +171,12 @@ private enum strings = `Fixture:
     Plain <~ (!(doublequote / backslash) .)+
 `;
 
+// Overlapping FIRST bytes among 1-2 byte literals: exercised by the opt-in NPeggedFirst2 dispatch.
+private enum operators = `Fixture:
+    Root <- Op* eoi
+    Op <- '==' / '=' / '<=' / '<' / '<<'
+`;
+
 int main() @nogc nothrow {
     static foreach (policy; [Memoization.yes, Memoization.selective]) {
         {
@@ -186,14 +192,15 @@ int main() @nogc nothrow {
                     assertSameParse!(P.Reference.Fixture.opCall, P.Candidate.Fixture.opCall)(
                             cast(string)bytes[0 .. length]);
                 }
-            static foreach (rules; [control, left, indirect, nullable, actions, strings]) {
+            static foreach (rules; [control, left, indirect, nullable, actions, strings, operators]) {
                 {
                     alias Q = Pair!(rules, policy);
                     foreach (input; [
                         "", "a", "ab", "aba", "(ab)", "(ab", "z", "\x00", "é", "\x80", "1",
                         "1+2+3", "1+", "1+x", "aaab", "aaaa", "\"a\"", "\"a\\\"b\"", "\"a\\",
-                        "\"abc",
-                        "\"\\n\\t\"", "\"\"", "\"\xc3\xa9\"", "\"\xc3\"", "\"\\x\"", "\"a\"b"
+                        "\"abc", "\"\\n\\t\"",
+                        "\"\"", "\"\xc3\xa9\"", "\"\xc3\"", "\"\\x\"", "\"a\"b", "==", "=<=",
+                        "<=<", "<<", "===", "=", "<"
                     ]) {
                         assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall)(input);
                         foreach (limit; [0, 1, 4, 16, 64]) {
