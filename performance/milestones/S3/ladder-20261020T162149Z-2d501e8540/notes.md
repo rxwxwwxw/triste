@@ -1,0 +1,1 @@
+Q1 ladder extension over the original grammar, DFA and rule chain. Exact bridge and lean bridge differ only by the public-entry protocol; generator eligibility is verified separately by the actual generated-parser tests. Original IDs are retained in this first run; a subsequent run uses q1-ladder.* to distinguish this contract from entry.*. All samples retained.

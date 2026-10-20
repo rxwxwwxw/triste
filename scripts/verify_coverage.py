@@ -47,11 +47,18 @@ for report in args.lines.rglob('*.lst'):
 cfg_files = list(args.branches.rglob('*.profile'))
 if not cfg_files: errors.append('Missing GDC control-flow dump; cannot distinguish invariant checks')
 cfg_by_dir = {p.parent: read_cfg([p]) for p in cfg_files}
-global_cfg = read_cfg(cfg_files)
+global_cfg = None
 branches = {}
 branch_times = {}
 for report in args.branches.rglob('*.gcov.json.gz'):
-    cfg = cfg_by_dir.get(report.parent, global_cfg)
+    if report.parent in cfg_by_dir:
+        cfg = cfg_by_dir[report.parent]
+    else:
+        # Most reports have their own CFG. Avoid reparsing gigabytes of dumps
+        # merely to construct a fallback that those reports never use.
+        if global_cfg is None:
+            global_cfg = read_cfg(cfg_files)
+        cfg = global_cfg
     with gzip.open(report, 'rt') as stream:
         data = json.load(stream)
     for source in data.get('files', []):

@@ -1,0 +1,5 @@
+grammar,grammar_bytes,generated_source_bytes,generated_source_lines,generation_seconds,compile_seconds,object_bytes,peak_rss_kib,dfa_regions,deterministic,compiler
+tiny,27,4816,45,0.0031,0.58,170120,159168,1,true,ldc2
+arithmetic,336,64659,776,0.0037,4.44,734576,236388,3,true,ldc2
+json,718,106045,1220,0.0043,9.30,1345328,327112,4,true,ldc2
+synthetic-large,6128,1775133,22095,0.0260,FAILED,N/A,N/A,200,true,ldc2

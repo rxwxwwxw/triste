@@ -25,6 +25,23 @@ bool sameObservation(const Observation a, const Observation b) @nogc pure {
         .failEnd;
 }
 
+@nogc pure nothrow unittest {
+    const original = Observation(Status.ok, true, 3, 4);
+    assert(sameObservation(original, original));
+    Observation changed = original;
+    changed.status = Status.mismatch;
+    assert(!sameObservation(original, changed));
+    changed = original;
+    changed.successful = false;
+    assert(!sameObservation(original, changed));
+    changed = original;
+    changed.end = 2;
+    assert(!sameObservation(original, changed));
+    changed = original;
+    changed.failEnd = 5;
+    assert(!sameObservation(original, changed));
+}
+
 /// Observable result of the real parser on `input` with bounded work.
 Observation observe(alias parser)(string input, size_t stepLimit = 1_000_000) {
     ParseContext context;
@@ -36,6 +53,13 @@ Observation observe(alias parser)(string input, size_t stepLimit = 1_000_000) {
 /// Whole-input acceptance, the oracle for labelling.
 bool accepts(const Observation observation, size_t length) @nogc pure {
     return observation.status == Status.ok && observation.successful && observation.end == length;
+}
+
+@nogc pure nothrow unittest {
+    assert(accepts(Observation(Status.ok, true, 0, 0), 0));
+    assert(!accepts(Observation(Status.mismatch, true, 0, 0), 0));
+    assert(!accepts(Observation(Status.ok, false, 0, 0), 0));
+    assert(!accepts(Observation(Status.ok, true, 1, 1), 2));
 }
 
 private ulong splitmix(ref ulong state) @nogc pure {
@@ -83,8 +107,13 @@ nothrow:
         string result;
         switch (operation) {
         case 0: // flip one bit
-            if (text.length)
-                text[pick(text.length)] ^= cast(char)(1 << pick(8));
+            if (text.length) {
+                // Compound-assignment operands are evaluated in different orders
+                // by the supported toolchains. Keep the recorded PRNG stream portable.
+                const index = pick(text.length);
+                const bit = pick(8);
+                text[index] ^= cast(char)(1 << bit);
+            }
             result = cast(string)text;
             break;
         case 1: // insert a token
@@ -138,6 +167,39 @@ nothrow:
     }
 }
 
+nothrow unittest {
+    auto mutator = Mutator(29, [""]);
+    const before = mutator.state;
+    assert(mutator.pickIndex(0) == 0 && mutator.state == before);
+    foreach (limit; [0UL, 1UL, 4UL]) {
+        mutator.maxLength = limit;
+        foreach (seed; ["", "a", "é"]) {
+            foreach (_; 0 .. 512)
+                assert(mutator.mutate(seed).length <= limit);
+        }
+    }
+}
+
+nothrow unittest {
+    enum input = "abcd";
+    size_t checked;
+    foreach (seed; 0 .. 256) {
+        auto stream = Mutator(seed, []);
+        const operation = stream.pickIndex(9);
+        cast(void)stream.pickIndex(input.length + 1);
+        if (operation != 0)
+            continue;
+        const index = stream.pickIndex(input.length);
+        const bit = stream.pickIndex(8);
+        auto expected = input.dup;
+        expected[index] ^= cast(char)(1 << bit);
+        auto actual = Mutator(seed, []);
+        assert(actual.mutate(input) == expected && actual.state == stream.state);
+        ++checked;
+    }
+    assert(checked > 0);
+}
+
 /// Delta debugging: remove chunks (halves, quarters, ... single bytes) while `fails` still holds, repeating each
 /// size until it removes nothing; the result is 1-minimal (no single byte can be dropped).
 string shrink(string input, bool delegate(string) nothrow fails) {
@@ -162,6 +224,12 @@ string shrink(string input, bool delegate(string) nothrow fails) {
         chunk /= 2;
     }
     return current;
+}
+
+nothrow unittest {
+    assert(shrink("abc", (string) nothrow => true).length == 0);
+    assert(shrink("abc", (string) nothrow => false) == "abc");
+    assert(shrink("", (string) nothrow => true).length == 0);
 }
 
 /// One shrunk disagreement.
@@ -195,6 +263,14 @@ private bool unhex(string text, out string bytes) nothrow {
         bytes ~= cast(char)(hi * 16 + lo);
     }
     return true;
+}
+
+nothrow unittest {
+    string decoded;
+    assert(unhex("", decoded) && decoded.length == 0);
+    assert(unhex("00ff61", decoded) && decoded == "\0\xffa");
+    foreach (invalid; ["0", "g0", "0g", "A0", "-1"])
+        assert(!unhex(invalid, decoded));
 }
 
 private string decimal(size_t value) nothrow {
@@ -237,7 +313,7 @@ bool parseRegression(string line, out Regression result) nothrow {
     if (parts.length != 9 || parts[0] != "fuzz-seed" || parts[1] != "v1")
         return false;
     string value(string part, string key) nothrow {
-        return part.length > key.length + 1 && part[0 .. key.length] == key && part[key.length] == '='
+        return part.length >= key.length + 1 && part[0 .. key.length] == key && part[key.length] == '='
             ? part[key.length + 1 .. $] : null;
     }
 
@@ -256,11 +332,38 @@ bool parseRegression(string line, out Regression result) nothrow {
     foreach (c; iteration)
         if (c < '0' || c > '9')
             return false;
-    foreach (c; seed)
-        result.seed = result.seed * 10 + (c - '0');
-    foreach (c; iteration)
-        result.iteration = result.iteration * 10 + (c - '0');
+    foreach (c; seed) {
+        const digit = cast(size_t)(c - '0');
+        if (result.seed > (size_t.max - digit) / 10)
+            return false;
+        result.seed = result.seed * 10 + digit;
+    }
+    foreach (c; iteration) {
+        const digit = cast(size_t)(c - '0');
+        if (result.iteration > (size_t.max - digit) / 10)
+            return false;
+        result.iteration = result.iteration * 10 + digit;
+    }
     return unhex(input, result.input);
+}
+
+nothrow unittest {
+    Regression parsed;
+    auto empty = regressionLine("G", "Root", size_t.max, size_t.max, "reference", "direct", "");
+    assert(parseRegression(empty, parsed) && parsed.input.length == 0);
+    assert(parsed.seed == size_t.max && parsed.iteration == size_t.max);
+    const prefix = "fuzz-seed v1 grammar=G start=Root seed=";
+    const suffix = " a=reference b=direct input=00";
+    foreach (bad; [
+        "fuzz-seed v1 grammar= start=Root seed=1 iteration=1" ~ suffix,
+        "fuzz-seed v1 grammar=G start= seed=1 iteration=1" ~ suffix,
+        prefix ~ "1 iteration=1 a= b=direct input=00",
+        prefix ~ "1 iteration=1 a=reference b= input=00",
+        prefix ~ "1 iteration=1 a=reference b=direct wrong=00", prefix ~ "x iteration=1" ~ suffix,
+        prefix ~ "1 iteration=x" ~ suffix, prefix ~ decimal(size_t.max) ~ "0 iteration=1" ~ suffix,
+        prefix ~ "1 iteration=" ~ decimal(size_t.max) ~ "0" ~ suffix
+    ])
+        assert(!parseRegression(bad, parsed));
 }
 
 nothrow unittest {

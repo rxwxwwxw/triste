@@ -80,6 +80,14 @@ private bool parseCount(string text, out ulong value) @nogc {
     return true;
 }
 
+@nogc nothrow unittest {
+    ulong value;
+    assert(parseCount("0", value) && value == 0);
+    assert(parseCount("999999999999999", value) && value == 999999999999999UL);
+    foreach (text; ["", "1000000000000000", "-1", "1x"])
+        assert(!parseCount(text, value));
+}
+
 /// Decimal in [0, 1] with at most three fraction digits, as thousandths.
 private bool parseUnit(string text, out ulong thousandths) @nogc {
     if (!text.length)
@@ -107,6 +115,17 @@ private bool parseUnit(string text, out ulong thousandths) @nogc {
     return thousandths <= 1000;
 }
 
+@nogc nothrow unittest {
+    ulong value;
+    foreach (text; ["", ".1", "0.", "0.1234", "0.x", "2", "1.001"])
+        assert(!parseUnit(text, value));
+    assert(parseUnit("0", value) && value == 0);
+    assert(parseUnit("1.000", value) && value == 1000);
+    assert(parseUnit("0.5", value) && value == 500);
+    assert(parseUnit("0.05", value) && value == 50);
+    assert(parseUnit("0.005", value) && value == 5);
+}
+
 private string[] words(string line) {
     string[] result;
     size_t start = size_t.max;
@@ -121,6 +140,11 @@ private string[] words(string line) {
     if (start != size_t.max)
         result ~= line[start .. $];
     return result;
+}
+
+nothrow unittest {
+    assert(words(" \tRoot\r \t0 ") == ["Root", "0"]);
+    assert(words(" \t\r").length == 0);
 }
 
 PolicyResult parsePolicy(string text) nothrow {
@@ -243,6 +267,20 @@ PolicyResult parsePolicy(string text) nothrow {
     return result;
 }
 
+nothrow unittest {
+    foreach (text; [
+        "attenuation", "attenuation 0", "attenuation 1 2", "zero-weights", "zero-weights maybe",
+        "zero-weights allow extra", "choice R x weights 1", "optional R 0 probability 0.5 extra",
+        "optional R 0 wrong 0.5", "optional R 0 probability 0.x", "repeat R 0 wrong 0:1",
+        "repeat R 0 histogram :1", "repeat R 0 histogram 0:", "repeat R 0 histogram 4097:1"
+    ]) {
+        auto invalid = parsePolicy(text);
+        assert(!invalid.ok && invalid.errors.length);
+    }
+    auto repeated = parsePolicy("repeat R 0 histogram 0:1 0:2");
+    assert(repeated.ok && repeated.policy.repeats[0].histogram == [3]);
+}
+
 /// Bind the policy to a grammar's generator. Returns problems (unknown rule or ordinal, wrong weight count);
 /// a policy with problems must not be used silently.
 string[] applyPolicy(ref CandidateGenerator generator, ref GrammarAnalysis graph, const Policy policy) nothrow {
@@ -306,6 +344,34 @@ string[] applyPolicy(ref CandidateGenerator generator, ref GrammarAnalysis graph
     return problems;
 }
 
+nothrow unittest {
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["Root"];
+    Expression terminal;
+    terminal.kind = K.terminal;
+    terminal.source = "literal!(\"a\")";
+    terminal.known = true;
+    terminal.nullable = Nullable.no;
+    auto one = Expression(K.wrapper, [0]);
+    one.combinator = "oneOrMore";
+    auto keep = Expression(K.wrapper, [0]);
+    keep.combinator = "keep";
+    graph.expressions = [
+        terminal, Expression(K.optional, [0]), Expression(K.repetition, [0]), one, keep,
+        Expression(K.sequence, [1, 1, 2, 3, 4])
+    ];
+    graph.roots = [5];
+    graph.solve();
+    auto generator = CandidateGenerator(graph, 0);
+    auto valid = parsePolicy("optional Root 0 probability 1\nrepeat Root 1 histogram 1:1");
+    assert(valid.ok && applyPolicy(generator, graph, valid.policy).length == 0);
+    auto missing = parsePolicy("optional Root 99 probability 1\nrepeat Root 99 histogram 1:1");
+    assert(missing.ok && applyPolicy(generator, graph, missing.policy).length == 2);
+    graph.roots[0] = graph.expressions.length;
+    assert(applyPolicy(generator, graph, missing.policy).length == 2);
+}
+
 /// Observable policy metadata: the normalized policy as JSON, so a generated corpus records how it was made.
 string policyMetadata(const Policy policy) nothrow {
     string quote(string value) nothrow {
@@ -346,6 +412,15 @@ string policyMetadata(const Policy policy) nothrow {
         json ~= (i ? "," : "") ~ "{\"rule\":" ~ quote(item.rule) ~ ",\"k\":" ~ decimal(
                 item.ordinal) ~ ",\"histogram\":" ~ list(item.histogram) ~ "}";
     return json ~ "]}";
+}
+
+nothrow unittest {
+    Policy policy;
+    policy.allowZero = false;
+    policy.choices = [ChoicePolicy("R\"\\", 0, [1, 1], 1), ChoicePolicy("Other", 1, [0, 0], 2)];
+    policy.optionals = [OptionalPolicy("R", 0, 0, 3), OptionalPolicy("R", 1, 1000, 4)];
+    policy.repeats = [RepeatPolicy("R", 0, [1], 5), RepeatPolicy("R", 1, [0, 2], 6)];
+    assert(policyMetadata(policy) == `{"attenuationPermille":1000,"zeroWeights":"deny","choices":[{"rule":"R\"\\","k":0,"weights":[1,1],"sharePermille":[500,500]},{"rule":"Other","k":1,"weights":[0,0],"sharePermille":[0,0]}],"optionals":[{"rule":"R","k":0,"permille":0},{"rule":"R","k":1,"permille":1000}],"repeats":[{"rule":"R","k":0,"histogram":[1]},{"rule":"R","k":1,"histogram":[0,2]}]}`);
 }
 
 nothrow unittest {

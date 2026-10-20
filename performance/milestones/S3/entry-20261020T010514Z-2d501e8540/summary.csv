@@ -1,0 +1,13 @@
+run_id,workload_id,implementation,compiler,mode,n_samples,median_ns,p95_ns,bytes_per_second,handwritten_median_ns,slowdown_ratio,correctness_ok,exact_median_ns,entry_vs_exact
+entry-20261020T010514Z-2d501e8540,entry.empty,entry,ldc2,validation,21,1.1169,1.1645,0.0,N/A,N/A,True,1.9848,0.5627267230955261
+entry-20261020T010514Z-2d501e8540,entry.empty,exact,ldc2,validation,21,1.9848,2.1248,0.0,N/A,N/A,True,1.9848,1.0
+entry-20261020T010514Z-2d501e8540,entry.one,entry,ldc2,validation,21,1.5079,1.5148,663173950.5272232,N/A,N/A,True,2.5124,0.6001830918643528
+entry-20261020T010514Z-2d501e8540,entry.one,exact,ldc2,validation,21,2.5124,2.531,398025792.07132626,N/A,N/A,True,2.5124,1.0
+entry-20261020T010514Z-2d501e8540,entry.eight,entry,ldc2,validation,21,3.2638,3.3265,2451130583.9818616,N/A,N/A,True,4.2711,0.7641591159186158
+entry-20261020T010514Z-2d501e8540,entry.eight,exact,ldc2,validation,21,4.2711,4.9162,1873053780.05666,N/A,N/A,True,4.2711,1.0
+entry-20261020T010514Z-2d501e8540,entry.invalid,entry,ldc2,validation,21,1.5143,1.5175,660371128.5742587,N/A,N/A,True,2.2671,0.6679458338846985
+entry-20261020T010514Z-2d501e8540,entry.invalid,exact,ldc2,validation,21,2.2671,2.276,441092144.14891267,N/A,N/A,True,2.2671,1.0
+entry-20261020T010514Z-2d501e8540,entry.trailing,entry,ldc2,validation,21,2.6038,2.7601,1536216299.254935,N/A,N/A,True,3.3889,0.7683319071085013
+entry-20261020T010514Z-2d501e8540,entry.trailing,exact,ldc2,validation,21,3.3889,3.4862,1180323998.9377084,N/A,N/A,True,3.3889,1.0
+entry-20261020T010514Z-2d501e8540,entry.utf8_invalid,entry,ldc2,validation,21,1.4802,1.4954,675584380.4891231,N/A,N/A,True,2.219,0.6670572329878324
+entry-20261020T010514Z-2d501e8540,entry.utf8_invalid,exact,ldc2,validation,21,2.219,2.2348,450653447.4988734,N/A,N/A,True,2.219,1.0

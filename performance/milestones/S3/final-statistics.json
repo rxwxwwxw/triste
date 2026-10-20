@@ -1,0 +1,58 @@
+{
+  "opt_before": {
+    "path": "performance/baselines/20261020T151538Z-302680467-2d501e854",
+    "statistics": {
+      "workloads": 171,
+      "within_target": 87,
+      "pct_within_target": 50.87719298245614,
+      "p50": 1.4906,
+      "p90": 2.3789,
+      "p95": 2.5429,
+      "geomean": 1.4987941331378396,
+      "worst": 3.2873,
+      "worst_workload": "handwritten-workloads/PEGGrammar.Permissive/validation"
+    }
+  },
+  "opt_after": {
+    "path": "performance/milestones/S3/20261020T151538Z-427156981-2d501e854",
+    "statistics": {
+      "workloads": 171,
+      "within_target": 89,
+      "pct_within_target": 52.046783625730995,
+      "p50": 1.4645,
+      "p90": 2.4379,
+      "p95": 2.78605,
+      "geomean": 1.516440270882217,
+      "worst": 3.6126,
+      "worst_workload": "handwritten-workloads/CSV.LongQuoted/validation"
+    }
+  },
+  "default_before": {
+    "path": "performance/baselines/20261020T162736Z-932177896-2d501e854",
+    "statistics": {
+      "workloads": 171,
+      "within_target": 88,
+      "pct_within_target": 51.461988304093566,
+      "p50": 1.4887,
+      "p90": 2.428,
+      "p95": 2.6286,
+      "geomean": 1.502759294756857,
+      "worst": 3.235,
+      "worst_workload": "handwritten-workloads/CSV.MultiLine/spans"
+    }
+  },
+  "default_after": {
+    "path": "performance/milestones/S3/20261020T162737Z-073837506-2d501e854",
+    "statistics": {
+      "workloads": 171,
+      "within_target": 88,
+      "pct_within_target": 51.461988304093566,
+      "p50": 1.4816,
+      "p90": 2.4332,
+      "p95": 2.6894,
+      "geomean": 1.503668802545733,
+      "worst": 3.2035,
+      "worst_workload": "handwritten-workloads/PEGGrammar.Permissive/validation"
+    }
+  }
+}

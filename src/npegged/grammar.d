@@ -390,6 +390,20 @@ package struct Frontend {
         return result;
     }
 
+    nothrow unittest {
+        foreach (text; [`R(T = ')') <- 'a'`, `R(T = "a\"(") <- 'a'`, `R(T = (X)) <- 'a'`]) {
+            Frontend parser;
+            parser.input = text;
+            assert(parser.definitionAhead() && parser.pos == 0);
+            assert(!parser.error.message.length);
+        }
+        foreach (text; ["", "9bad", `R(T = "unterminated`, `R(T = "trailing\`]) {
+            Frontend parser;
+            parser.input = text;
+            assert(!parser.definitionAhead() && parser.pos == 0);
+        }
+    }
+
     string expression() nothrow {
         skip();
         char kind = 0;
@@ -693,6 +707,31 @@ package struct Frontend {
         }
     }
 
+    nothrow unittest {
+        foreach (literalMode; [false, true]) {
+            Frontend parser;
+            parser.input = `\377`;
+            assert(parser.character(literalMode) == (literalMode ? 255 : 31));
+            assert(parser.pos == (literalMode ? 4 : 3));
+            parser = Frontend.init;
+            parser.input = `\277`;
+            assert(parser.character(literalMode) == 191 && parser.pos == 4);
+            parser = Frontend.init;
+            parser.input = `\78`;
+            assert(parser.character(literalMode) == 7 && parser.pos == 2);
+        }
+        foreach (text; ["", `\`, `\x0`, `\x0g`, `\uD800`, `\U00110000`]) {
+            Frontend parser;
+            parser.input = text;
+            parser.character();
+            assert(parser.error.message.length != 0);
+        }
+        Frontend parameters;
+        parameters.input = "(T = ,)";
+        parameters.parameters();
+        assert(parameters.error.message.length != 0);
+    }
+
     string actions(string result) nothrow {
         size_t start = pos, depth;
         char quote = 0;
@@ -763,6 +802,26 @@ package struct Frontend {
         }
         problem("Unterminated semantic action");
         return result;
+    }
+
+    nothrow unittest {
+        foreach (text; [
+            `handler("a\"{", ')')}`, `handler(/* ignored */ /+ outer /+ inner +/ tail +/)}`,
+            "handler(`\\{`)}"
+        ]) {
+            Frontend parser;
+            parser.input = text;
+            assert(parser.actions("body") == "action!(body, " ~ text[0 .. $ - 1] ~ ")");
+            assert(parser.pos == text.length && !parser.error.message.length);
+        }
+        foreach (text; [
+            "/*x", "/+ outer /+ inner +/", `handler("unterminated`, `handler("trailing\`
+        ]) {
+            Frontend parser;
+            parser.input = text;
+            parser.actions("body");
+            assert(parser.error.message.length != 0);
+        }
     }
 
     void read() nothrow {
@@ -997,6 +1056,25 @@ package struct Frontend {
         }
 
         return res;
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        auto literal = frontend.primitiveFirstSet("  literal!(\"a\")  ");
+        assert(literal.known && !literal.canBeEmpty && literal.mask.contains('a'));
+        assert(frontend.primitiveFirstSet("literal!\"b\"").mask.contains('b'));
+        auto range = frontend.primitiveFirstSet("charRange!( 97, 98 )");
+        assert(range.known && range.mask.contains('a') && range.mask.contains('b'));
+        assert(!range.mask.contains('c'));
+        foreach (expression; [
+            "charRange!(98,97)", "charRange!(128,129)", "charRange!(97)", "charClass!(1,2)",
+            "literal!(123)", "unknownTerminal"
+        ])
+            assert(!frontend.primitiveFirstSet(expression).known);
+        auto hex = frontend.primitiveFirstSet("charClass!( 0x1UL, 0X2UL, 0xaFUL, 0xAFUL )");
+        assert(hex.known && hex.mask.bits == [1UL, 2UL, 175UL, 175UL]);
+        auto decimal = frontend.primitiveFirstSet("charClass!( 1, 2, 3, 4 )");
+        assert(decimal.known && decimal.mask.bits == [1UL, 2UL, 3UL, 4UL]);
     }
 
     private string decodedLiteral(string source) const nothrow {
@@ -1303,6 +1381,24 @@ package struct Frontend {
             result ~= (i ? ", " : "") ~ quoted(text);
         }
         return firsts <= 16 ? result ~ ")" : null;
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        assert(frontend.firstTwoChoice([`literal!("ab")`, `literal!("ac")`]) == `literalChoice2!("ab", "ac")`);
+        assert(!frontend.firstTwoChoice([]).length);
+        assert(!frontend.firstTwoChoice([`literal!("a")`]).length);
+        auto excessive = new string[ubyte.max];
+        excessive[] = `literal!("a")`;
+        assert(!frontend.firstTwoChoice(excessive).length);
+        foreach (unsupported; ["identifier", `literal!("a"`, `literal!("")`, `literal!("abc")`])
+            assert(!frontend.firstTwoChoice([`literal!("a")`, unsupported]).length);
+        string[] choices;
+        foreach (c; "abcdefghijklmnopq")
+            choices ~= "literal!(\"" ~ c ~ "\")";
+        assert(!frontend.firstTwoChoice(choices).length);
+        choices.length = 16;
+        assert(frontend.firstTwoChoice(choices).length != 0);
     }
 
     private string emitExpression(ref GrammarAnalysis graph, size_t index) nothrow {
@@ -2691,6 +2787,19 @@ package struct Frontend {
                             cursorBody)) ~ "cursor = _resultEnd; failure = _resultFail; return _resultOk; }\n";
                 }
                 ruleOut ~= "pragma(inline, true) private static State!(CT, Check).Node _direct_" ~ r ~ "(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; " ~ "const successful = _cursor_" ~ r ~ "(s, end, failure); " ~ "auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }\n";
+                // S3: reference-free DFA success needs neither State nor finish replay.
+                version (NPeggedLeanEntry)
+                    if (!cache && op == "dfaToken") {
+                        const args = directGraph.expressions[directRoot].arguments;
+                        string entryDepth = args.length == 4 ? args[2] : "";
+                        while (entryDepth.length && (entryDepth[0] == ' ' || entryDepth[0] == '\t'))
+                            entryDepth = entryDepth[1 .. $];
+                        if (args.length == 4 && entryDepth == "0") {
+                            const names = "Entry == " ~ quoted(r) ~ (ruleIndex == 0 ? " || Entry == \"opCall\"" : "");
+                            ruleOut ~= "pragma(inline, true) static bool npeggedTryCheck(string Entry)(ref ParseContext context, scope string input, ref CheckResult result) @nogc nothrow if (" ~ names ~ ") { return _cursor_" ~ r ~ "(context, input, result); }\n";
+                            ruleOut ~= "pragma(inline, true) private static bool _cursor_" ~ r ~ "(ref ParseContext context, scope string input, ref CheckResult result) @nogc nothrow { return tryDFAEntry!(" ~ args[0] ~ ", " ~ args[1] ~ ")(context, input, result); }\n";
+                        }
+                    }
             }
             ruleOut ~= "private static State!(CT, Check).Node _" ~ r
                 ~ "(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow { ";
@@ -2815,6 +2924,27 @@ package struct Frontend {
         }
         result ~= "}\n";
         return result;
+    }
+}
+
+nothrow unittest {
+    auto eligible = generate!(Memoization.selective, void, ParserBackend.direct)("Entry: Root <- [a-z]* eoi");
+    assert(eligible.status == Status.ok);
+    version (NPeggedLeanEntry) {
+        assert(Frontend.countOf(eligible.source, "npeggedTryCheck") != 0);
+        assert(Frontend.countOf(eligible.source, "private static bool _cursor_Root(ref ParseContext") != 0);
+    } else
+        assert(Frontend.countOf(eligible.source, "npeggedTryCheck") == 0);
+    auto reference = generate!(Memoization.selective)("Entry: Root <- [a-z]* eoi");
+    assert(reference.status == Status.ok && Frontend.countOf(reference.source, "npeggedTryCheck") == 0);
+    auto memoized = generate!(Memoization.yes, void, ParserBackend.direct)("Entry: Root <- [a-z]* eoi");
+    assert(memoized.status == Status.ok && Frontend.countOf(memoized.source, "npeggedTryCheck") == 0);
+    foreach (definition; [
+        "Entry: Root <- Leaf+ eoi Leaf <- [a-z]", "Entry: Root <- 'a' eoi",
+        "Entry: Root <- Root 'a' / 'a'", "Entry(T=identifier): Root <- T* eoi"
+    ]) {
+        auto fallback = generate!(Memoization.selective, void, ParserBackend.direct)(definition);
+        assert(fallback.status == Status.ok && Frontend.countOf(fallback.source, "npeggedTryCheck") == 0);
     }
 }
 

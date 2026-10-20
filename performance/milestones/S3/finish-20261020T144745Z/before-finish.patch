@@ -1,0 +1,13 @@
+--- a/src/npegged/peg.d
++++ b/src/npegged/peg.d
+@@ -778,9 +778,7 @@
+     pragma(inline, true) Node finish(Node tree) nothrow {
+         if (tree.end > tree.failEnd)
+             tree.failEnd = tree.end;
+-        if (!hasFailure)
+-            return tree;
+-        if (furthestFailure.failEnd >= tree.failEnd && (!tree.successful || furthestFailure.failEnd > tree
++        if (hasFailure && furthestFailure.failEnd >= tree.failEnd && (!tree.successful || furthestFailure.failEnd > tree
+                 .end)) {
+             tree.failEnd = furthestFailure.failEnd;
+             static if (!Check)

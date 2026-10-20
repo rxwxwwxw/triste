@@ -1,15 +1,38 @@
 #!/usr/bin/env python3
 """Performance gate must reject unequal work and incomplete measurements."""
 import copy
+import json
 from pathlib import Path
 import sys
 import unittest
+import tempfile
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from performance_gate import paired_ratios
+from performance_gate import paired_ratios, verify_snapshot
 
 
 class PerformanceGateTests(unittest.TestCase):
+    def test_changed_snapshot_retains_invalid_measurements(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'run.json'
+            reports = [{'run': 1, 'report': {'samples': [1, 2, 3]}}]
+            with patch('performance_gate.source_hashes', return_value={'src/a.d': 'new', 'src/b.d': 'added'}):
+                with self.assertRaisesRegex(ValueError, 'Sources changed'):
+                    verify_snapshot({'src/a.d': 'old', 'src/c.d': 'removed'}, reports, output)
+            invalid = json.loads(output.with_suffix('.invalid.json').read_text())
+            self.assertFalse(invalid['sourceSnapshotUnchanged'])
+            self.assertEqual(invalid['changed'], ['src/a.d', 'src/b.d', 'src/c.d'])
+            self.assertEqual(invalid['measurements'], reports)
+            self.assertFalse(output.exists())
+
+    def test_unchanged_snapshot_emits_no_invalid_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'run.json'
+            with patch('performance_gate.source_hashes', return_value={'src/a.d': 'same'}):
+                verify_snapshot({'src/a.d': 'same'}, [], output)
+            self.assertFalse(output.with_suffix('.invalid.json').exists())
+
     def setUp(self):
         row = dict(name='Case', output='validation', inputBytes=10, iterations=100,
                    samples=7, expectedAccepted=True, outputHash=12, outputNodes=0, meanMs=2)

@@ -67,9 +67,40 @@ class RecordTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     record.record(rep, Path(tmp) / 'b', 'r1', 'baseline', '')
                 self.assertEqual(len((Path(tmp) / 'trends.csv').read_text().splitlines()), 3)
-                self.assertIn('Delta vs previous', (Path(tmp) / 'latest.md').read_text())
+                self.assertIn('No comparable prior run', (Path(tmp) / 'latest.md').read_text())
             finally:
                 record.PERF = old[0]
+
+
+class ComparisonProvenance(unittest.TestCase):
+    def setUp(self):
+        self.metadata = dict(host='machine', architecture='x86_64', cpu='CPU', os='Linux',
+                             compiler='ldc2', ldc='1.43', flags='-O3', backend='direct',
+                             workloads_revision='revision', corpus_checksums={'case': 'digest'},
+                             cpu_pinning='none', iterations_per_sample=2000, warmups=1,
+                             sanitizers='none')
+
+    def test_same_environment_is_comparable(self):
+        self.assertTrue(record.comparable(self.metadata, dict(self.metadata)))
+
+    def test_cross_host_backend_build_and_corpus_deltas_are_rejected(self):
+        for key in self.metadata:
+            other = dict(self.metadata)
+            other[key] = {'case': 'different'} if key == 'corpus_checksums' else 'different'
+            self.assertFalse(record.comparable(self.metadata, other), key)
+
+    def test_unknown_flags_or_toolchain_are_not_proof(self):
+        for key in ('flags', 'ldc'):
+            other = dict(self.metadata, **{key: 'unknown'})
+            self.assertFalse(record.comparable(other, dict(other)))
+
+    def test_missing_historical_provenance_is_not_a_comparison(self):
+        self.assertFalse(record.comparable({}, {}))
+        for key in self.metadata:
+            other = dict(self.metadata)
+            del other[key]
+            self.assertFalse(record.comparable(self.metadata, other), key)
+
 
 
 if __name__ == '__main__':

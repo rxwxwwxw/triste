@@ -48,6 +48,14 @@ string className(RegionClass value) nothrow {
     }
 }
 
+nothrow unittest {
+    assert(className(RegionClass.certifiedLL1) == "certifiedLL1");
+    assert(className(RegionClass.boundedLookaheadCandidate) == "boundedLookaheadCandidate");
+    assert(className(RegionClass.cfgCandidateUnproven) == "CFGCandidateUnproven");
+    assert(className(RegionClass.pegOnly) == "PEGOnly");
+    assert(className(RegionClass.unknown) == "unknown");
+}
+
 /// One finding: the class it forces, a reason, and the graph node it was found at.
 struct Finding {
     RegionClass forced;
@@ -78,6 +86,27 @@ bool describableTerminal(ref Expression node) nothrow {
     if (BitesAnalysis.plainLiteral(source).length)
         return true;
     return node.byteTerminal && node.byteWidth == 1 && node.nullable == Nullable.no;
+}
+
+nothrow unittest {
+    Expression node;
+    node.source = "eps";
+    assert(!describableTerminal(node));
+    node.known = true;
+    foreach (source; ["eps", "eoi", "endOfInput", "literal!(\"a\")"]) {
+        node.source = source;
+        assert(describableTerminal(node));
+    }
+    node.source = "customTerminal";
+    assert(!describableTerminal(node));
+    node.byteTerminal = true;
+    assert(!describableTerminal(node));
+    node.byteWidth = 1;
+    assert(!describableTerminal(node));
+    node.nullable = Nullable.no;
+    assert(describableTerminal(node));
+    node.byteWidth = 2;
+    assert(!describableTerminal(node));
 }
 
 RuleRegion[] classifyRegions(ref GrammarAnalysis graph, Budget budget = Budget.init) nothrow {
@@ -264,6 +293,11 @@ private string quoted(string text) nothrow {
     return result ~ "\"";
 }
 
+nothrow unittest {
+    assert(quoted("") == "\"\"");
+    assert(quoted("a\"\\\x00\x1f\x7f\xff") == "\"a\\\"\\\\\\u0000\\u001f\\u007f\\u00ff\"");
+}
+
 private string number(size_t value) nothrow {
     char[20] digits;
     size_t count;
@@ -276,6 +310,15 @@ private string number(size_t value) nothrow {
     while (count)
         result ~= digits[--count];
     return result;
+}
+
+nothrow unittest {
+    assert(number(0) == "0");
+    assert(number(1204) == "1204");
+    static if (size_t.sizeof == 8)
+        assert(number(size_t.max) == "18446744073709551615");
+    else
+        assert(number(size_t.max) == "4294967295");
 }
 
 string renderRegions(const RuleRegion[] regions, bool json) nothrow {
@@ -312,6 +355,26 @@ string renderRegions(const RuleRegion[] regions, bool json) nothrow {
     return result ~ "]}";
 }
 
+nothrow unittest {
+    assert(renderRegions([], false) == "");
+    auto empty = renderRegions([], true);
+    assert(empty[$ - 3 .. $] == "[]}");
+    RuleRegion first;
+    first.rule = "A";
+    first.local = RegionClass.certifiedLL1;
+    first.region = RegionClass.unknown;
+    first.reachable = ["B", "C"];
+    first.findings = [
+        Finding(RegionClass.unknown, "missing"), Finding(RegionClass.pegOnly, "predicate", 12)
+    ];
+    RuleRegion second;
+    second.rule = "B";
+    auto text = renderRegions([first, second], false);
+    assert(text == "rule A: unknown (local certifiedLL1)\n  - unknown: missing\n  - PEGOnly: predicate\n  reaches: B C\nrule B: certifiedLL1 (local certifiedLL1)\n");
+    auto json = renderRegions([first, second], true);
+    assert(json == empty[0 .. $ - 2] ~ "{\"rule\":\"A\",\"class\":\"unknown\",\"local\":\"certifiedLL1\",\"reaches\":[\"B\",\"C\"],\"findings\":[{\"class\":\"unknown\",\"reason\":\"missing\",\"node\":null},{\"class\":\"PEGOnly\",\"reason\":\"predicate\",\"node\":12}]},{\"rule\":\"B\",\"class\":\"certifiedLL1\",\"local\":\"certifiedLL1\",\"reaches\":[],\"findings\":[]}]}");
+}
+
 // ---------------------------------------------------------------- L2: certified EBNF export
 
 private string hex2(ubyte value) nothrow {
@@ -336,6 +399,11 @@ private string ebnfLiteral(string text) nothrow {
     return result ~ "\"";
 }
 
+nothrow unittest {
+    assert(ebnfLiteral("") == "\"\"");
+    assert(ebnfLiteral("a\"\\\x00\x1f\x7f\xff") == "\"a\\\"\\\\\\x00\\x1f\\x7f\\xff\"");
+}
+
 private string ebnfClass(const CharSetMask mask) nothrow {
     string result = "[";
     size_t c;
@@ -353,6 +421,16 @@ private string ebnfClass(const CharSetMask mask) nothrow {
         c = last + 1;
     }
     return result ~ "]";
+}
+
+nothrow unittest {
+    CharSetMask mask;
+    assert(ebnfClass(mask) == "[]");
+    mask.addChar('\0');
+    mask.addChar('a');
+    mask.addChar('b');
+    mask.addChar(cast(char)255);
+    assert(ebnfClass(mask) == "[\\x00\\x61-\\x62\\xff]");
 }
 
 /// EBNF for one expression of a certified region. `level`: 0 choice context, 1 sequence element, 2 postfix operand.
@@ -399,6 +477,43 @@ private string ebnfExpression(ref GrammarAnalysis graph, size_t index, int level
     }
 }
 
+nothrow unittest {
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.expressions = [
+        Expression(K.unknown), Expression(K.predicate), Expression(K.terminal),
+        Expression(K.reference), Expression(K.wrapper, [2]), Expression(K.optional, [2]),
+        Expression(K.repetition, [2]), Expression(K.sequence), Expression(K.sequence, [2, 3]),
+        Expression(K.choice, [2, 3])
+    ];
+    graph.expressions[2].source = "eps";
+    graph.expressions[3].reference = "Leaf";
+    assert(ebnfExpression(graph, 0, 0) == "(* unexportable *)");
+    assert(ebnfExpression(graph, 1, 0) == "(* unexportable *)");
+    assert(ebnfExpression(graph, 2, 0) == "eps");
+    assert(ebnfExpression(graph, 3, 0) == "Leaf");
+    assert(ebnfExpression(graph, 4, 0) == "eps");
+    graph.expressions[4].combinator = "oneOrMore";
+    assert(ebnfExpression(graph, 4, 0) == "eps+");
+    assert(ebnfExpression(graph, 5, 0) == "eps?");
+    assert(ebnfExpression(graph, 6, 0) == "eps*");
+    assert(ebnfExpression(graph, 7, 0) == "eps");
+    assert(ebnfExpression(graph, 8, 0) == "eps Leaf");
+    assert(ebnfExpression(graph, 8, 2) == "( eps Leaf )");
+    assert(ebnfExpression(graph, 9, 0) == "eps | Leaf");
+    assert(ebnfExpression(graph, 9, 1) == "( eps | Leaf )");
+    foreach (source; ["eoi", "endOfInput"]) {
+        graph.expressions[2].source = source;
+        assert(ebnfExpression(graph, 2, 0) == "EOF");
+    }
+    graph.expressions[2].source = "literal!(\"a\")";
+    assert(ebnfExpression(graph, 2, 0) == "\"a\"");
+    graph.expressions[2].source = "charRange!('a', 'b')";
+    graph.expressions[2].alphabet.addChar('a');
+    graph.expressions[2].alphabet.addChar('b');
+    assert(ebnfExpression(graph, 2, 0) == "[\\x61-\\x62]");
+}
+
 /// Export converted rules as EBNF (text) or JSON with proof metadata. Only `certifiedLL1` regions are converted;
 /// every other rule gets a separate `not-convertible` (PEG-specific or unproven) or `unknown` entry with its reasons.
 string renderEbnf(ref GrammarAnalysis graph, bool json, Budget budget = Budget.init) nothrow {
@@ -429,6 +544,35 @@ string renderEbnf(ref GrammarAnalysis graph, bool json, Budget budget = Budget.i
                     reasons.length ? ": " ~ reasons : "") ~ " *)\n";
     }
     return json ? text ~ "]}" : text;
+}
+
+nothrow unittest {
+    // A closed conversion region must retain every reachable rule in its proof.
+    alias K = ExpressionKind;
+    Expression leaf;
+    leaf.kind = K.terminal;
+    leaf.source = "literal!(\"a\")";
+    leaf.known = true;
+    leaf.nullable = Nullable.no;
+    leaf.first.addChar('a');
+    GrammarAnalysis graph;
+    graph.names = ["Root", "Mid", "Leaf"];
+    graph.expressions = [
+        leaf, Expression(K.reference), Expression(K.reference), Expression(K.sequence, [2, 2])
+    ];
+    graph.expressions[1].reference = "Leaf";
+    graph.expressions[2].reference = "Mid";
+    graph.expressions[3].combinator = "and";
+    graph.roots = [3, 1, 0];
+    graph.solve();
+    assert(renderEbnf(graph, false) == "Root ::= Mid Mid ;\nMid ::= Leaf ;\nLeaf ::= \"a\" ;\n");
+    const json = renderEbnf(graph, true);
+    enum proof = "\"closedRegion\":[\"Mid\",\"Leaf\"]";
+    bool found;
+    foreach (i; 0 .. json.length - proof.length + 1)
+        found = found || json[i .. i + proof.length] == proof;
+    assert(found);
+    assert(firstCertifiedRules(graph) == [true, true, true]);
 }
 
 // ---------------------------------------------------------------- cheap certifier for code generation (L3)
@@ -565,6 +709,43 @@ bool[] firstCertifiedRules(ref GrammarAnalysis graph) nothrow {
         result[rule] = all;
     }
     return result;
+}
+
+nothrow unittest {
+    alias K = ExpressionKind;
+    Expression a;
+    a.kind = K.terminal;
+    a.source = `literal!("a")`;
+    a.known = true;
+    a.nullable = Nullable.no;
+    a.first.addChar('a');
+    Expression b = a;
+    b.source = `literal!("b")`;
+    b.first = CharSetMask.init;
+    b.first.addChar('b');
+    GrammarAnalysis graph;
+    graph.names = ["Root"];
+    graph.expressions = [a, b, Expression(K.optional, [0]), Expression(K.sequence, [2, 1])];
+    graph.expressions[3].combinator = "and";
+    graph.roots = [3];
+    foreach (kind; [K.optional, K.repetition, K.wrapper]) {
+        graph.expressions[2].kind = kind;
+        graph.expressions[2].combinator = kind == K.optional ? "option" : kind == K.repetition
+            ? "zeroOrMore" : "oneOrMore";
+        graph.expressions[0] = a;
+        graph.solve();
+        assert(firstCertifiedRules(graph) == [true]);
+        graph.expressions[0].source = "eps";
+        graph.expressions[0].nullable = Nullable.yes;
+        graph.expressions[0].first = CharSetMask.init;
+        graph.solve();
+        assert(firstCertifiedRules(graph) == [false]);
+        assert(classifyRegions(graph)[0].region == RegionClass.pegOnly);
+    }
+    graph.expressions[0] = a;
+    graph.solve();
+    graph.facts[0].known = false;
+    assert(firstCertifiedRules(graph) == [false]);
 }
 
 nothrow unittest {

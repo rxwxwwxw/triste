@@ -1,0 +1,40 @@
+{
+  "measurement_snapshot": "measurement-input-sources.json",
+  "verified": true,
+  "only_changes_since_measurement": "new unittest blocks/statements and an explicit bounded standalone A4 main invocation; no production declaration or body changed",
+  "changed_sources": [
+    "scripts/differential.sh",
+    "src/npegged/bites.d",
+    "src/npegged/grammar.d",
+    "src/npegged/ll.d",
+    "src/npegged/peg.d"
+  ],
+  "modules": {
+    "src/npegged/grammar.d": {
+      "measurement_sha256": "bfe82ac04c6588d3f06b3e61a3812a5f13d615ed47f0007f6dfcebf4121207db",
+      "reconstructed_measurement_sha256": "bfe82ac04c6588d3f06b3e61a3812a5f13d615ed47f0007f6dfcebf4121207db",
+      "current_sha256": "3d2a30cd52b8f272b46207020644bb3ccb4ce19c457583dbdc03b0d5c8995cba"
+    },
+    "src/npegged/ll.d": {
+      "measurement_sha256": "91168f51a8b53482bf78c3a92a672c7e1a9f874094db16ae056de095533e3992",
+      "reconstructed_measurement_sha256": "91168f51a8b53482bf78c3a92a672c7e1a9f874094db16ae056de095533e3992",
+      "current_sha256": "7179a857030459fd2967ab18a1c30111090d4a18dc4fe6793f99c558a042bf2b"
+    },
+    "src/npegged/peg.d": {
+      "measurement_sha256": "578667fb5bcefdae078448a62f578211a4467dfaed47315d1551710c270b8e6f",
+      "reconstructed_measurement_sha256": "578667fb5bcefdae078448a62f578211a4467dfaed47315d1551710c270b8e6f",
+      "current_sha256": "bc97fdb4cc3b47d70156fcc872d8e1d77f0dddffcde58109d19caa9ce419fee7"
+    },
+    "src/npegged/bites.d": {
+      "measurement_sha256": "c2b1f958c8bb30489ed6fb61264f1a402d78d98e2b4852046eec72e8c5111340",
+      "reconstructed_measurement_sha256": "c2b1f958c8bb30489ed6fb61264f1a402d78d98e2b4852046eec72e8c5111340",
+      "current_sha256": "7f39062bba82cda9c8ab7da4f7e09587f9f648f07a261786da28826f3510c094"
+    },
+    "scripts/differential.sh": {
+      "measurement_sha256": "87ad3874702dc0892400b91396c94d1d35b0b43fc106f3697d84074978ae85a7",
+      "reconstructed_measurement_sha256": "87ad3874702dc0892400b91396c94d1d35b0b43fc106f3697d84074978ae85a7",
+      "current_sha256": "4c60dcf161418a755f4883f022b67d2932917d2a53fb2bf6b0e6e2aa70104e8e"
+    }
+  },
+  "method": "Remove explicitly identified added test blocks; whole-file SHA256 must match the original measurement snapshot exactly. The performance build has no unittest version enabled."
+}

@@ -1,0 +1,5 @@
+{
+  "semantic_equivalence": false,
+  "observed_validation_parity": true,
+  "reason": "Intentionally ignores trace/depth/step guards. Valid empty/one-byte fixtures only; no diagnostics proof."
+}

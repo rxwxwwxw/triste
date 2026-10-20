@@ -1,0 +1,233 @@
+{
+  "command": "bash scripts/coverage.sh",
+  "exit_code": 0,
+  "threshold_strictly_greater_than": 90,
+  "source_hashes_verified_current": true,
+  "modules": {
+    "src/npegged/formatting.d": {
+      "source_sha256": "283d0967311dfcd1b74a96de75f8407e644c1f5608fde607609f89771e008078",
+      "line_hit": 112,
+      "line_total": 112,
+      "line_percent": 100.0,
+      "branch_hit": 31,
+      "branch_total": 32,
+      "branch_percent": 96.875
+    },
+    "src/npegged/unicode.d": {
+      "source_sha256": "d87bfacec181f02ed439ec244942359457ab5de28693bf044f3f2f008a00bebd",
+      "line_hit": 26,
+      "line_total": 26,
+      "line_percent": 100.0,
+      "branch_hit": 14,
+      "branch_total": 14,
+      "branch_percent": 100.0
+    },
+    "src/npegged/io.d": {
+      "source_sha256": "0a01d47fc1eed72ddbcb0b52dfce28e4d345ac53bc869193e9041d203483f0e2",
+      "line_hit": 52,
+      "line_total": 54,
+      "line_percent": 96.29629629629629,
+      "branch_hit": 26,
+      "branch_total": 28,
+      "branch_percent": 92.85714285714286
+    },
+    "src/npegged/tohtml.d": {
+      "source_sha256": "f0fb840a186b77948c122cfe5c7637be1e5d753eb14422ceef7196fada84fa9c",
+      "line_hit": 100,
+      "line_total": 102,
+      "line_percent": 98.03921568627452,
+      "branch_hit": 36,
+      "branch_total": 39,
+      "branch_percent": 92.3076923076923
+    },
+    "src/npegged/conversion.d": {
+      "source_sha256": "56574a0dd8a74bd3b4ba28afd2163907194dbd8950f2dbb4204d8dd95e6921e4",
+      "line_hit": 35,
+      "line_total": 35,
+      "line_percent": 100.0,
+      "branch_hit": 28,
+      "branch_total": 30,
+      "branch_percent": 93.33333333333333
+    },
+    "src/npegged/definition.d": {
+      "source_sha256": "bd4f31d355b30d17b6146d407554942b60a2032e30c01574979a1af21d5edcc4",
+      "line_hit": 0,
+      "line_total": 0,
+      "line_percent": 100,
+      "branch_hit": 0,
+      "branch_total": 0,
+      "branch_percent": null
+    },
+    "src/npegged/introspection.d": {
+      "source_sha256": "56595354469328ef5ab0d912806b3ef0637eb2d7abb804b02d3eaca439b039cb",
+      "line_hit": 302,
+      "line_total": 311,
+      "line_percent": 97.10610932475885,
+      "branch_hit": 204,
+      "branch_total": 223,
+      "branch_percent": 91.4798206278027
+    },
+    "src/npegged/meta.d": {
+      "source_sha256": "a89d3799c3201bc1ad7b73c4d1814032922c95670ee684f64c1e39bd8b98e6f2",
+      "line_hit": 0,
+      "line_total": 0,
+      "line_percent": 100,
+      "branch_hit": 0,
+      "branch_total": 0,
+      "branch_percent": 100
+    },
+    "src/npegged/parser.d": {
+      "source_sha256": "d1a5509c68fdcba5ba72b2759022e62d9d501d27af340e4d93e06c8882073a1a",
+      "line_hit": 526,
+      "line_total": 529,
+      "line_percent": 99.43289224952741,
+      "branch_hit": 18,
+      "branch_total": 18,
+      "branch_percent": 100.0
+    },
+    "src/npegged/storage.d": {
+      "source_sha256": "65c7282acae4e6f8b79681fcccb6e99c6e76026f60d8c7434acace9bda9601f6",
+      "line_hit": 150,
+      "line_total": 150,
+      "line_percent": 100.0,
+      "branch_hit": 39,
+      "branch_total": 40,
+      "branch_percent": 97.5
+    },
+    "src/npegged/records.d": {
+      "source_sha256": "9604a081d1be48b0c866bf48bef6d4faa38533421a5dda730650de467a0b91de",
+      "line_hit": 351,
+      "line_total": 354,
+      "line_percent": 99.15254237288136,
+      "branch_hit": 113,
+      "branch_total": 114,
+      "branch_percent": 99.12280701754386
+    },
+    "src/npegged/analysis.d": {
+      "source_sha256": "cca620e094201fa94008b35488afa4fa1caf77ab8b8bacddb5a9dc17180f1b73",
+      "line_hit": 1541,
+      "line_total": 1569,
+      "line_percent": 98.21542383683875,
+      "branch_hit": 955,
+      "branch_total": 1042,
+      "branch_percent": 91.65067178502879
+    },
+    "src/npegged/bites.d": {
+      "source_sha256": "7f39062bba82cda9c8ab7da4f7e09587f9f648f07a261786da28826f3510c094",
+      "line_hit": 1251,
+      "line_total": 1268,
+      "line_percent": 98.65930599369085,
+      "branch_hit": 791,
+      "branch_total": 866,
+      "branch_percent": 91.33949191685913
+    },
+    "src/npegged/coverage.d": {
+      "source_sha256": "2811256f9a64ca6b47a6cae340689c8db02f6870c8ffd800204b4c8bc7888651",
+      "line_hit": 314,
+      "line_total": 314,
+      "line_percent": 100.0,
+      "branch_hit": 190,
+      "branch_total": 196,
+      "branch_percent": 96.93877551020408
+    },
+    "src/npegged/fuzz.d": {
+      "source_sha256": "c32f68a54c5e9b4698ca5ec796d38ea52cbdba69cad8c11a2253b991f935d7aa",
+      "line_hit": 233,
+      "line_total": 233,
+      "line_percent": 100.0,
+      "branch_hit": 134,
+      "branch_total": 141,
+      "branch_percent": 95.0354609929078
+    },
+    "src/npegged/generator.d": {
+      "source_sha256": "bb248c3455c736e5e4bfbfd25a4433ff62656eea35ed9d808f704d35f1e73776",
+      "line_hit": 443,
+      "line_total": 448,
+      "line_percent": 98.88392857142857,
+      "branch_hit": 277,
+      "branch_total": 297,
+      "branch_percent": 93.26599326599326
+    },
+    "src/npegged/grammar.d": {
+      "source_sha256": "3d2a30cd52b8f272b46207020644bb3ccb4ce19c457583dbdc03b0d5c8995cba",
+      "line_hit": 2821,
+      "line_total": 2889,
+      "line_percent": 97.64624437521634,
+      "branch_hit": 2423,
+      "branch_total": 2691,
+      "branch_percent": 90.04087699739873
+    },
+    "src/npegged/language.d": {
+      "source_sha256": "ca765df7802c81c4ca2d50509c0e722342206052b696aaffce58d37fa70f6285",
+      "line_hit": 190,
+      "line_total": 190,
+      "line_percent": 100.0,
+      "branch_hit": 69,
+      "branch_total": 70,
+      "branch_percent": 98.57142857142858
+    },
+    "src/npegged/learning.d": {
+      "source_sha256": "2882c61180ca9ed888fcf099299fece90d16adbfea65187093462708e5789158",
+      "line_hit": 157,
+      "line_total": 157,
+      "line_percent": 100.0,
+      "branch_hit": 82,
+      "branch_total": 82,
+      "branch_percent": 100.0
+    },
+    "src/npegged/ll.d": {
+      "source_sha256": "7179a857030459fd2967ab18a1c30111090d4a18dc4fe6793f99c558a042bf2b",
+      "line_hit": 513,
+      "line_total": 521,
+      "line_percent": 98.46449136276391,
+      "branch_hit": 331,
+      "branch_total": 364,
+      "branch_percent": 90.93406593406593
+    },
+    "src/npegged/peg.d": {
+      "source_sha256": "bc97fdb4cc3b47d70156fcc872d8e1d77f0dddffcde58109d19caa9ce419fee7",
+      "line_hit": 1642,
+      "line_total": 1718,
+      "line_percent": 95.57625145518044,
+      "branch_hit": 560,
+      "branch_total": 615,
+      "branch_percent": 91.05691056910568
+    },
+    "src/npegged/policy.d": {
+      "source_sha256": "6723f6fc1a8da6eed9a2019d11f90efb1e464e27bfb8c8fb76dfcef53a1639bf",
+      "line_hit": 270,
+      "line_total": 271,
+      "line_percent": 99.6309963099631,
+      "branch_hit": 220,
+      "branch_total": 220,
+      "branch_percent": 100.0
+    },
+    "src/npegged/dfa.d": {
+      "source_sha256": "13cf19a3258ddb6f5df30a5a602c19dca636b5678b35cc11210b1cf295836881",
+      "line_hit": 553,
+      "line_total": 560,
+      "line_percent": 98.75,
+      "branch_hit": 8049,
+      "branch_total": 8512,
+      "branch_percent": 94.56062030075188
+    },
+    "src/npegged/tester/grammartester.d": {
+      "source_sha256": "4d5fd75ca6d648a8bfb873ca6706220397784b8a14e0fda14f5f411c44c20200",
+      "line_hit": 115,
+      "line_total": 116,
+      "line_percent": 99.13793103448276,
+      "branch_hit": 71,
+      "branch_total": 76,
+      "branch_percent": 93.42105263157895
+    },
+    "src/npegged/tester/testerparser.d": {
+      "source_sha256": "fc3e6d735a45885f89b7ed0955d481cd376b9a262f7db975445afcbc77e32bd6",
+      "line_hit": 13,
+      "line_total": 13,
+      "line_percent": 100.0,
+      "branch_hit": 2,
+      "branch_total": 2,
+      "branch_percent": 100.0
+    }
+  }
+}

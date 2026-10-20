@@ -2,7 +2,7 @@
     Callers must establish equivalence between PEG and regular-language semantics. */
 module npegged.dfa;
 
-import npegged.peg : CharSetMask, State, Status;
+import npegged.peg : CharSetMask, State, Status, ParseContext, CheckResult;
 
 version (NPeggedScannerMetrics) import npegged.peg : ScannerEvent, ScannerReason;
 
@@ -403,6 +403,14 @@ private struct DfaStorage(alias Table) {
         return masks;
     }();
     static immutable automaton = compiled;
+    version (NPeggedDFAEdgeCoverage) unittest {
+        import tests.dfa_edges : exercise;
+
+        static if (compiled.valid)
+            assert(exercise!Table() > 0);
+        else
+            assert(exercise!Table() == 0);
+    }
 }
 
 /// Largest DFA lowered to straight-line state code; bigger tables use the generic loop.
@@ -423,7 +431,7 @@ private string unsignedText(size_t value) pure nothrow @safe {
 }
 
 @safe pure nothrow unittest {
-    static assert(unsignedText(0) == "0" && unsignedText(7) == "7" && unsignedText(1204) == "1204");
+    assert(unsignedText(0) == "0" && unsignedText(7) == "7" && unsignedText(1204) == "1204");
 }
 
 private string hexText(ulong value) pure nothrow @safe {
@@ -434,7 +442,7 @@ private string hexText(ulong value) pure nothrow @safe {
 }
 
 @safe pure nothrow unittest {
-    static assert(hexText(0) == "0000000000000000" && hexText(0x1f2a) == "0000000000001f2a");
+    assert(hexText(0) == "0000000000000000" && hexText(0x1f2a) == "0000000000001f2a");
 }
 
 /// `case` labels (ranges for consecutive bytes) of every byte `state` sends to `target`.
@@ -453,6 +461,18 @@ private string emitRuns(const Automaton automaton, size_t state, ubyte target) p
         c = last + 1;
     }
     return labels;
+}
+
+@safe pure nothrow unittest {
+    Automaton table;
+    table.transitions.length = 1;
+    foreach (ref target; table.transitions[0])
+        target = ubyte.max;
+    assert(emitRuns(table, 0, 0).length == 0);
+    table.transitions[0][0] = 0;
+    table.transitions[0][1] = 0;
+    table.transitions[0][255] = 0;
+    assert(emitRuns(table, 0, 0) == "case 0: .. case 1:\ncase 255:\n");
 }
 
 /// CTFE source for a scanner that keeps the DFA state in the program counter.
@@ -509,6 +529,33 @@ private string codeScannerSource(const Automaton automaton) pure nothrow @safe {
     }
     code ~= "dfaFinish:;\n";
     return code;
+}
+
+@safe pure nothrow unittest {
+    Automaton table;
+    table.transitions.length = 1;
+    table.accepting = [true];
+    table.eofAccepting = [true];
+    foreach (ref target; table.transitions[0])
+        target = ubyte.max;
+    auto withoutLoops = codeScannerSource(table);
+    assert(withoutLoops.length && withoutLoops != codeScannerSource(Automaton.init));
+    table.transitions[0][0] = 0;
+    table.transitions[0][1] = 0;
+    auto rangeLoop = codeScannerSource(table);
+    assert(rangeLoop != withoutLoops);
+    table.transitions[0][255] = 0;
+    auto maskLoop = codeScannerSource(table);
+    assert(maskLoop != rangeLoop);
+    table.accepting[0] = false;
+    table.eofAccepting = null;
+    assert(codeScannerSource(table) != maskLoop);
+    table.transitions.length = 2;
+    foreach (ref target; table.transitions[1])
+        target = ubyte.max;
+    table.transitions[0]['b'] = 1;
+    table.accepting ~= true;
+    assert(codeScannerSource(table).length > maskLoop.length);
 }
 
 /// Hoist a state's self-loop byte class out of its inner scanner loop.
@@ -1314,4 +1361,124 @@ version (NPeggedScannerMetrics) @nogc nothrow unittest {
     foreach (row; report.rows[0 .. report.length])
         sumCalls += row.calls;
     assert(sumCalls == report.total.calls);
+}
+
+/// Whole-DFA entry with the exact rule/scanner budget. False requests exact replay.
+/// The caller proves a non-memoized, reference-free rule and supplies a fresh result.
+pragma(inline, true) bool tryDFAEntry(alias Original, alias Table)(ref ParseContext context,
+        scope string input, ref CheckResult result) @nogc nothrow {
+    version (NPeggedMetrics)
+        return false;
+    else version (NPeggedRuleMetrics)
+        return false;
+    else version (NPeggedScannerMetrics)
+        return false;
+    else version (NPeggedDependencyTrace)
+        return false;
+    else static if (!Table.valid)
+        return false;
+    else {
+        // Entry savings target bounded tiny inputs. Keep throughput scanners on
+        // the established path: the broad clone regressed long-input codegen.
+        if (input.length > 8 || context.trace !is null || context.depthLimit == 0 || context
+                .stepLimit < 2)
+            return false;
+        // One rule tick, then the scanner's examined-bytes-plus-one charge.
+        const remaining = context.stepLimit - 2;
+        const limit = remaining < input.length ? remaining : input.length;
+        size_t examined, lastEofEnd;
+        const end = scanDFA!Table(input[0 .. limit], 0, examined, lastEofEnd);
+        result.arena.limit = context.memoryLimit;
+        if (examined < limit || limit == input.length) {
+            if (end != size_t.max) {
+                result.status = Status.ok;
+                result.successful = true;
+                result.end = end;
+                result.failEnd = examined > end ? examined : end;
+                return true;
+            }
+            static if (!Table.requireEnd) {
+                result.status = Status.mismatch;
+                result.end = result.failEnd = examined;
+                return true;
+            } else if (lastEofEnd != size_t.max) {
+                result.status = Status.mismatch;
+                result.end = lastEofEnd;
+                result.failEnd = examined > lastEofEnd ? examined : lastEofEnd;
+                return true;
+            }
+        }
+        // Match dfaToken's exact replay without scanning a second time.
+        State!(false, 1) state;
+        state.arena = &result.arena;
+        state.input = input;
+        state.context = context;
+        state.steps = 1;
+        state.depth = 1;
+        auto node = state.finish(Original(state, 0));
+        result.status = state.status != Status.ok ? state.status : node.successful ? Status.ok : Status
+            .mismatch;
+        result.successful = result.status == Status.ok;
+        result.end = node.end;
+        result.failEnd = node.failEnd;
+        return true;
+    }
+}
+
+@nogc nothrow unittest {
+    import npegged.peg : oneOrMore, literal, and, eoi, check;
+
+    enum plain = () {
+        CharSetMask mask;
+        mask.addChar('a');
+        return compileDFA([
+            RegularExpression(RegularKind.bytes, mask),
+            RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+            RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1])
+        ], 2);
+    }();
+    enum anchored = () {
+        CharSetMask mask;
+        mask.addChar('a');
+        return compileDFA([
+            RegularExpression(RegularKind.bytes, mask),
+            RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+            RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1])
+        ], 2, true);
+    }();
+    static void verify(alias Original, alias Table)(string input) @nogc nothrow {
+        static State!(false, 1).Node reference(ref State!(false, 1) state, size_t pos) @nogc nothrow {
+            return state.rule!(dfaToken!(Original, Table), "Entry", false)(pos);
+        }
+
+        foreach (limit; 0 .. 16) {
+            ParseContext context;
+            context.stepLimit = limit;
+            context.memoryLimit = 0;
+            auto expected = check!reference(context, input);
+            CheckResult actual;
+            if (tryDFAEntry!(Original, Table)(context, input, actual)) {
+                assert(actual.status == expected.status && actual.successful == expected.successful);
+                assert(actual.end == expected.end && actual.failEnd == expected.failEnd);
+                assert(actual.arena.allocationCalls == expected.arena.allocationCalls);
+            } else {
+                assert(actual.status == Status.invalidInput && !actual.successful);
+                assert(actual.arena.allocationCalls == 0);
+            }
+        }
+    }
+
+    foreach (input; ["", "a", "aaa", "aaaaaaaa", "aaaaaaaaa", "!", "a!", "a\0", "\xFF"]) {
+        verify!(oneOrMore!(literal!"a"), plain)(input);
+        verify!(and!(oneOrMore!(literal!"a"), eoi), anchored)(input);
+    }
+    ParseContext context;
+    CheckResult result;
+    enum invalid = Automaton.init;
+    assert(!tryDFAEntry!(literal!"a", invalid)(context, "a", result));
+    context.depthLimit = 0;
+    assert(!tryDFAEntry!(oneOrMore!(literal!"a"), plain)(context, "a", result));
+    context.depthLimit = 1;
+    context.trace = (string, size_t, bool, void*) @nogc nothrow{};
+    assert(!tryDFAEntry!(oneOrMore!(literal!"a"), plain)(context, "a", result));
 }

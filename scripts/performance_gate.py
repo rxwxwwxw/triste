@@ -57,8 +57,25 @@ def source_hashes():
             if path.is_file() and path.suffix in ('.d', '.py', '.sh', '.rs', '.toml', '.lock')}
 
 
+def verify_snapshot(before, reports, output):
+    after = source_hashes()
+    if after == before:
+        return
+    changed = sorted(name for name in before.keys() | after.keys()
+                     if before.get(name) != after.get(name))
+    invalid = output.with_suffix('.invalid.json')
+    invalid.parent.mkdir(parents=True, exist_ok=True)
+    invalid.write_text(json.dumps({'sourceSnapshotUnchanged': False,
+        'before': before, 'after': after, 'changed': changed,
+        'measurements': reports}, indent=2) + '\n')
+    raise ValueError(f'Sources changed during measurement; discard this run: {changed}; '
+                     f'invalid raw measurements retained in {invalid}')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--build-timeout', type=positive, default=300,
+                        help='Build timeout in seconds (large grammar builds may need more)')
     parser.add_argument('--iterations', type=positive, default=2000)
     parser.add_argument('--samples', type=positive, default=7)
     parser.add_argument('--runs', type=positive, default=3)
@@ -71,10 +88,13 @@ def main():
     if args.samples < 7 or args.runs < 3 or len(set(args.modes)) != len(args.modes):
         parser.error('require at least seven samples, three runs, and unique modes')
     before = source_hashes()
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.with_suffix('.sources.json').write_text(json.dumps(before, indent=2) + '\n')
     environment = os.environ.copy()
     compiler = Path(environment.get('DC', 'ldc2')).name
     build_started = time.monotonic()
-    build = run(['bash', 'scripts/benchmark.sh', '--export-corpus'], env=environment)
+    build = run(['bash', 'scripts/benchmark.sh', '--export-corpus'], env=environment,
+                timeout=args.build_timeout)
     build_seconds = time.monotonic() - build_started
     corpus = json.loads(build.stdout)
     names = [case['name'] for case in corpus if case['timed']]
@@ -116,8 +136,7 @@ def main():
             reports.append({'run': repeat + 1, 'suite': suite, 'output': mode, 'report': measured})
             print(f'Run {repeat + 1}/{args.runs} {suite}/{mode}: worst ratio '
                   f"{max(row['ratio'] for row in paired):.3f}x", file=sys.stderr)
-    if source_hashes() != before:
-        raise ValueError('Sources changed during measurement; discard this run')
+    verify_snapshot(before, reports, args.output)
     cpu = platform.processor()
     if Path('/proc/cpuinfo').is_file():
         cpu = next((line.split(':', 1)[1].strip()

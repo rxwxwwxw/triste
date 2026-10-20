@@ -1,0 +1,229 @@
+{
+  "baseline_commit": "2d501e854",
+  "threshold_strictly_greater_than": 90,
+  "initial_gate_passed": false,
+  "baseline_sources": {
+    "src/npegged/unicode.d": "d87bfacec181f02ed439ec244942359457ab5de28693bf044f3f2f008a00bebd",
+    "src/npegged/tohtml.d": "f0fb840a186b77948c122cfe5c7637be1e5d753eb14422ceef7196fada84fa9c",
+    "src/npegged/storage.d": "65c7282acae4e6f8b79681fcccb6e99c6e76026f60d8c7434acace9bda9601f6",
+    "src/npegged/records.d": "9604a081d1be48b0c866bf48bef6d4faa38533421a5dda730650de467a0b91de",
+    "src/npegged/policy.d": "e76bf5fa2b57c58265baec1dc4c63703badf4f7cc3ebaafdd5729a244e6fe426",
+    "src/npegged/peg.d": "0deabacab824539389b5d4b4ed64c0c48de5f6cf785ff253c263882168a73080",
+    "src/npegged/parser.d": "d1a5509c68fdcba5ba72b2759022e62d9d501d27af340e4d93e06c8882073a1a",
+    "src/npegged/meta.d": "a89d3799c3201bc1ad7b73c4d1814032922c95670ee684f64c1e39bd8b98e6f2",
+    "src/npegged/ll.d": "97a98a2126cec91b01a22947f64051c6b2da0135cfff98c780627731f59c57a9",
+    "src/npegged/learning.d": "14cf397a9786bd41d29b6488a97d2a56daae56e02ada4d42f1819298698f4fec",
+    "src/npegged/language.d": "ca765df7802c81c4ca2d50509c0e722342206052b696aaffce58d37fa70f6285",
+    "src/npegged/io.d": "0a01d47fc1eed72ddbcb0b52dfce28e4d345ac53bc869193e9041d203483f0e2",
+    "src/npegged/introspection.d": "56595354469328ef5ab0d912806b3ef0637eb2d7abb804b02d3eaca439b039cb",
+    "src/npegged/grammar.d": "5e03c6439c01f66b0c6b058bb2266c460c7c0f217849117c3ab05c3b87095137",
+    "src/npegged/generator.d": "03f20290ce121c50169702934590fd96c54b5c29f87a2ca28a83a6d3bcf32724",
+    "src/npegged/fuzz.d": "78f86deb506e641cacc1113a8e911fd608e8b765a89f8bf1ca5c1684a014abd4",
+    "src/npegged/formatting.d": "283d0967311dfcd1b74a96de75f8407e644c1f5608fde607609f89771e008078",
+    "src/npegged/dfa.d": "b516a00caff6a6a1aed71f5bad4406ab8618d05acc142b06d1f8e7b2415cf78a",
+    "src/npegged/definition.d": "bd4f31d355b30d17b6146d407554942b60a2032e30c01574979a1af21d5edcc4",
+    "src/npegged/coverage.d": "7cf0285cee7739c339d9994b99e3e1bc8c74558e9a19410fcb44105c6283ffd6",
+    "src/npegged/conversion.d": "56574a0dd8a74bd3b4ba28afd2163907194dbd8950f2dbb4204d8dd95e6921e4",
+    "src/npegged/bites.d": "5d5b3ce572dfb3568a273d72b5fef005f588c74c6ec369b4e77a77bba259d957",
+    "src/npegged/analysis.d": "cca620e094201fa94008b35488afa4fa1caf77ab8b8bacddb5a9dc17180f1b73",
+    "src/npegged/tester/testerparser.d": "fc3e6d735a45885f89b7ed0955d481cd376b9a262f7db975445afcbc77e32bd6",
+    "src/npegged/tester/grammartester.d": "4d5fd75ca6d648a8bfb873ca6706220397784b8a14e0fda14f5f411c44c20200"
+  },
+  "s3_sources": {
+    "src/npegged/formatting.d": "283d0967311dfcd1b74a96de75f8407e644c1f5608fde607609f89771e008078",
+    "src/npegged/unicode.d": "d87bfacec181f02ed439ec244942359457ab5de28693bf044f3f2f008a00bebd",
+    "src/npegged/io.d": "0a01d47fc1eed72ddbcb0b52dfce28e4d345ac53bc869193e9041d203483f0e2",
+    "src/npegged/tohtml.d": "f0fb840a186b77948c122cfe5c7637be1e5d753eb14422ceef7196fada84fa9c",
+    "src/npegged/conversion.d": "56574a0dd8a74bd3b4ba28afd2163907194dbd8950f2dbb4204d8dd95e6921e4",
+    "src/npegged/definition.d": "bd4f31d355b30d17b6146d407554942b60a2032e30c01574979a1af21d5edcc4",
+    "src/npegged/introspection.d": "56595354469328ef5ab0d912806b3ef0637eb2d7abb804b02d3eaca439b039cb",
+    "src/npegged/meta.d": "a89d3799c3201bc1ad7b73c4d1814032922c95670ee684f64c1e39bd8b98e6f2",
+    "src/npegged/parser.d": "d1a5509c68fdcba5ba72b2759022e62d9d501d27af340e4d93e06c8882073a1a",
+    "src/npegged/storage.d": "65c7282acae4e6f8b79681fcccb6e99c6e76026f60d8c7434acace9bda9601f6",
+    "src/npegged/records.d": "9604a081d1be48b0c866bf48bef6d4faa38533421a5dda730650de467a0b91de",
+    "src/npegged/analysis.d": "cca620e094201fa94008b35488afa4fa1caf77ab8b8bacddb5a9dc17180f1b73",
+    "src/npegged/bites.d": "5d5b3ce572dfb3568a273d72b5fef005f588c74c6ec369b4e77a77bba259d957",
+    "src/npegged/coverage.d": "7cf0285cee7739c339d9994b99e3e1bc8c74558e9a19410fcb44105c6283ffd6",
+    "src/npegged/dfa.d": "ead5a6dc90bcc99e8385eb16c448e174e5cac45b0c7f5f4fb8d728a2d0b2e9d6",
+    "src/npegged/fuzz.d": "78f86deb506e641cacc1113a8e911fd608e8b765a89f8bf1ca5c1684a014abd4",
+    "src/npegged/generator.d": "03f20290ce121c50169702934590fd96c54b5c29f87a2ca28a83a6d3bcf32724",
+    "src/npegged/grammar.d": "8864f9b96d8c519a8f569494fc7f3d8dbd35028f6dedbf8a11fb4eeb84a2fc4d",
+    "src/npegged/language.d": "ca765df7802c81c4ca2d50509c0e722342206052b696aaffce58d37fa70f6285",
+    "src/npegged/learning.d": "14cf397a9786bd41d29b6488a97d2a56daae56e02ada4d42f1819298698f4fec",
+    "src/npegged/ll.d": "97a98a2126cec91b01a22947f64051c6b2da0135cfff98c780627731f59c57a9",
+    "src/npegged/peg.d": "991ea354fb73239f882d76086abfea550ebfe5134b3b6ee57870dd79881fac8f",
+    "src/npegged/policy.d": "e76bf5fa2b57c58265baec1dc4c63703badf4f7cc3ebaafdd5729a244e6fe426",
+    "src/npegged/tester/grammartester.d": "4d5fd75ca6d648a8bfb873ca6706220397784b8a14e0fda14f5f411c44c20200",
+    "src/npegged/tester/testerparser.d": "fc3e6d735a45885f89b7ed0955d481cd376b9a262f7db975445afcbc77e32bd6"
+  },
+  "modules": {
+    "src/npegged/unicode.d": {
+      "baseline_branch": 100.0,
+      "s3_branch": 100.0,
+      "baseline_line": 100.0,
+      "s3_line": 100.0,
+      "line_with_workflows": 100.0
+    },
+    "src/npegged/tohtml.d": {
+      "baseline_branch": 92.3076923076923,
+      "s3_branch": 92.3076923076923,
+      "baseline_line": 98.03921568627452,
+      "s3_line": 98.03921568627452,
+      "line_with_workflows": 98.03921568627452
+    },
+    "src/npegged/tester/testerparser.d": {
+      "baseline_branch": 100.0,
+      "s3_branch": 100.0,
+      "baseline_line": 100.0,
+      "s3_line": 100.0,
+      "line_with_workflows": 100.0
+    },
+    "src/npegged/tester/grammartester.d": {
+      "baseline_branch": 93.42105263157895,
+      "s3_branch": 93.42105263157895,
+      "baseline_line": 99.13793103448276,
+      "s3_line": 99.13793103448276,
+      "line_with_workflows": 99.13793103448276
+    },
+    "src/npegged/storage.d": {
+      "baseline_branch": 97.5,
+      "s3_branch": 97.5,
+      "baseline_line": 100.0,
+      "s3_line": 100.0,
+      "line_with_workflows": 100.0
+    },
+    "src/npegged/records.d": {
+      "baseline_branch": 99.12280701754386,
+      "s3_branch": 99.12280701754386,
+      "baseline_line": 99.15254237288136,
+      "s3_line": 99.15254237288136,
+      "line_with_workflows": 99.15254237288136
+    },
+    "src/npegged/policy.d": {
+      "baseline_branch": 70.45454545454545,
+      "s3_branch": 70.45454545454545,
+      "baseline_line": 79.91071428571429,
+      "s3_line": 79.91071428571429,
+      "line_with_workflows": 96.42857142857143
+    },
+    "src/npegged/peg.d": {
+      "baseline_branch": 87.8688524590164,
+      "s3_branch": 87.90849673202614,
+      "baseline_line": 94.29250891795482,
+      "s3_line": 94.29928741092637,
+      "line_with_workflows": 94.41805225653206
+    },
+    "src/npegged/parser.d": {
+      "baseline_branch": 100.0,
+      "s3_branch": 100.0,
+      "baseline_line": 99.43289224952741,
+      "s3_line": 99.43289224952741,
+      "line_with_workflows": 99.43289224952741
+    },
+    "src/npegged/ll.d": {
+      "baseline_branch": 38.46153846153847,
+      "s3_branch": 38.46153846153847,
+      "baseline_line": 51.794871794871796,
+      "s3_line": 51.794871794871796,
+      "line_with_workflows": 91.28205128205128
+    },
+    "src/npegged/learning.d": {
+      "baseline_branch": 79.26829268292683,
+      "s3_branch": 79.26829268292683,
+      "baseline_line": 97.54098360655738,
+      "s3_line": 97.54098360655738,
+      "line_with_workflows": 97.54098360655738
+    },
+    "src/npegged/language.d": {
+      "baseline_branch": 97.14285714285714,
+      "s3_branch": 97.14285714285714,
+      "baseline_line": 99.47368421052632,
+      "s3_line": 99.47368421052632,
+      "line_with_workflows": 99.47368421052632
+    },
+    "src/npegged/io.d": {
+      "baseline_branch": 92.85714285714286,
+      "s3_branch": 92.85714285714286,
+      "baseline_line": 96.29629629629629,
+      "s3_line": 96.29629629629629,
+      "line_with_workflows": 96.29629629629629
+    },
+    "src/npegged/introspection.d": {
+      "baseline_branch": 91.4798206278027,
+      "s3_branch": 91.4798206278027,
+      "baseline_line": 97.10610932475885,
+      "s3_line": 97.10610932475885,
+      "line_with_workflows": 97.10610932475885
+    },
+    "src/npegged/grammar.d": {
+      "baseline_branch": 87.943848059455,
+      "s3_branch": 87.88870703764321,
+      "baseline_line": 92.55106127352823,
+      "s3_line": 92.60731319554849,
+      "line_with_workflows": 97.41226515420064
+    },
+    "src/npegged/generator.d": {
+      "baseline_branch": 50.841750841750844,
+      "s3_branch": 50.841750841750844,
+      "baseline_line": 80.46875,
+      "s3_line": 80.46875,
+      "line_with_workflows": 95.57291666666667
+    },
+    "src/npegged/fuzz.d": {
+      "baseline_branch": 69.34306569343066,
+      "s3_branch": 69.34306569343066,
+      "baseline_line": 93.90243902439025,
+      "s3_line": 93.90243902439025,
+      "line_with_workflows": 98.80952380952381
+    },
+    "src/npegged/formatting.d": {
+      "baseline_branch": 96.875,
+      "s3_branch": 96.875,
+      "baseline_line": 100.0,
+      "s3_line": 100.0,
+      "line_with_workflows": 100.0
+    },
+    "src/npegged/dfa.d": {
+      "baseline_branch": 22.69170579029734,
+      "s3_branch": 23.437154848685665,
+      "baseline_line": 84.23326133909288,
+      "s3_line": 85.82375478927203,
+      "line_with_workflows": 85.82375478927203
+    },
+    "src/npegged/coverage.d": {
+      "baseline_branch": 57.6530612244898,
+      "s3_branch": 57.6530612244898,
+      "baseline_line": 89.27038626609442,
+      "s3_line": 89.27038626609442,
+      "line_with_workflows": 96.99570815450643
+    },
+    "src/npegged/bites.d": {
+      "baseline_branch": 51.61662817551963,
+      "s3_branch": 51.61662817551963,
+      "baseline_line": 73.40619307832422,
+      "s3_line": 73.40619307832422,
+      "line_with_workflows": 92.53187613843352
+    },
+    "src/npegged/analysis.d": {
+      "baseline_branch": 88.77159309021113,
+      "s3_branch": 88.77159309021113,
+      "baseline_line": 96.68578712555768,
+      "s3_line": 96.68578712555768,
+      "line_with_workflows": 98.08795411089866
+    },
+    "src/npegged/conversion.d": {
+      "baseline_branch": 93.33333333333333,
+      "s3_branch": 93.33333333333333,
+      "baseline_line": 100.0,
+      "s3_line": 100.0,
+      "line_with_workflows": 100.0
+    },
+    "src/npegged/meta.d": {
+      "baseline_branch": 100,
+      "s3_branch": 100,
+      "baseline_line": 100,
+      "s3_line": 100,
+      "line_with_workflows": 100
+    }
+  }
+}

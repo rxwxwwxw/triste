@@ -62,6 +62,12 @@ nothrow:
     }
 }
 
+nothrow unittest {
+    Coverage empty;
+    assert(empty.find(0, TargetKind.alternative) == size_t.max);
+    assert(empty.covered() == 0 && empty.coverable() == 0);
+}
+
 private struct Event {
     size_t target;
     size_t node = size_t.max; // repetition node, for exact-count statistics
@@ -213,6 +219,104 @@ nothrow:
         ++coverage.attributed;
         return true;
     }
+}
+
+nothrow unittest {
+    alias K = ExpressionKind;
+    static void optionalTerminal(Expression terminal, string input, bool expected) nothrow {
+        GrammarAnalysis graph;
+        graph.names = ["Root"];
+        graph.expressions = [terminal, Expression(K.optional, [0])];
+        graph.roots = [1];
+        auto coverage = buildTargets(graph, 0);
+        auto matcher = Attributor(graph, coverage);
+        assert(matcher.record(0, input) == expected);
+        assert(coverage.attributed == cast(size_t)expected);
+    }
+
+    foreach (source; ["eps", "eoi", "endOfInput", "fail"]) {
+        auto terminal = lit("a");
+        terminal.source = source;
+        terminal.nullable = source == "fail" ? Nullable.no : Nullable.yes;
+        optionalTerminal(terminal, "", true);
+        optionalTerminal(terminal, "a", false);
+    }
+    auto byteClass = lit("a");
+    byteClass.source = "byteClass";
+    byteClass.byteTerminal = true;
+    byteClass.byteWidth = 1;
+    byteClass.alphabet.addChar('a');
+    optionalTerminal(byteClass, "a", true);
+    optionalTerminal(byteClass, "b", false);
+    optionalTerminal(byteClass, "", true);
+    byteClass.known = false;
+    optionalTerminal(byteClass, "", false);
+    byteClass.known = true;
+    byteClass.byteWidth = 2;
+    optionalTerminal(byteClass, "", false);
+    byteClass.byteTerminal = false;
+    optionalTerminal(byteClass, "", false);
+    Expression unresolved;
+    unresolved.kind = K.reference;
+    unresolved.reference = "Missing";
+    optionalTerminal(unresolved, "", false);
+}
+
+nothrow unittest {
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["Root"];
+    graph.expressions = [
+        lit("a"), lit("b"), Expression(K.choice, [0, 1]), Expression(K.predicate, [2]),
+        Expression(K.sequence, [3, 0])
+    ];
+    graph.expressions[3].combinator = "posLookahead";
+    graph.roots = [4];
+    auto coverage = buildTargets(graph, 0);
+    auto matcher = Attributor(graph, coverage);
+    assert(matcher.record(0, "a"));
+    assert(!matcher.record(0, "b"));
+    assert(coverage.covered() == 0); // Predicate probes do not count as consumed derivations.
+    matcher.depthLimit = 0;
+    assert(!matcher.record(0, "a"));
+    assert(coverage.unattributed == 2);
+    // A filtered target view still permits attribution; it has no counters to increment.
+    graph.roots = [2];
+    coverage = buildTargets(graph, 0);
+    coverage.targets = null;
+    matcher = Attributor(graph, coverage);
+    assert(matcher.record(0, "b") && coverage.attributed == 1);
+    graph.expressions = [lit("a"), Expression(K.optional, [0])];
+    graph.roots = [1];
+    coverage = buildTargets(graph, 0);
+    coverage.targets = null;
+    matcher = Attributor(graph, coverage);
+    assert(matcher.record(0, "") && coverage.attributed == 1);
+}
+
+nothrow unittest {
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["Root"];
+    graph.expressions = [lit("a"), Expression(K.repetition, [0])];
+    graph.roots = [1];
+    auto coverage = buildTargets(graph, 0);
+    coverage.targets = null;
+    auto matcher = Attributor(graph, coverage);
+    auto bytes = new char[4097];
+    bytes[] = 'a';
+    assert(matcher.record(0, cast(string)bytes));
+    assert(coverage.repeatCounts[1].length == 4097 && coverage.repeatCounts[1][4096] == 1);
+    graph.expressions[0].source = "eps";
+    graph.expressions[0].nullable = Nullable.yes;
+    coverage = buildTargets(graph, 0);
+    matcher = Attributor(graph, coverage);
+    assert(matcher.record(0, "") && coverage.repeatCounts[1][0] == 1);
+    graph.expressions[1].kind = K.wrapper;
+    graph.expressions[1].combinator = "oneOrMore";
+    coverage = buildTargets(graph, 0);
+    matcher = Attributor(graph, coverage);
+    assert(!matcher.record(0, ""));
 }
 
 /// All targets of the grammar, with reachability from `startRule` and statically unknown subtrees marked.

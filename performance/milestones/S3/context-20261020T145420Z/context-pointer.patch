@@ -1,0 +1,30 @@
+--- a/src/npegged/peg.d
++++ b/src/npegged/peg.d
+@@ -407,7 +407,16 @@
+         alias Node = ParseTree;
+     Arena* arena;
+     string input;
+-    ParseContext context;
++    private ParseContext ownedContext;
++    private ParseContext* borrowedContext;
++    @property ref ParseContext context() return @nogc nothrow {
++        if (borrowedContext !is null) return *borrowedContext;
++        return ownedContext;
++    }
++    @property void context(ParseContext value) @nogc nothrow {
++        if (borrowedContext !is null) *borrowedContext = value;
++        else ownedContext = value;
++    }
+     Status status;
+     size_t steps, depth;
+     version (NPeggedRuleMetrics) bool memoHitPending;
+@@ -2029,7 +2038,8 @@
+     State!(false, true) state;
+     state.arena = &result.arena;
+     state.input = input;
+-    state.context = context;
++    ParseContext snapshot = context;
++    state.borrowedContext = &snapshot;
+     version (NPeggedPureIslands) {
+         static if (pureIslandEntry!parser)
+             state.pureIslandsEnabled = context.trace is null && context.stepLimit == size_t.max

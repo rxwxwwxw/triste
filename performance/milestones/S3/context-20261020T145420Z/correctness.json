@@ -1,0 +1,42 @@
+{
+  "observation_parity": true,
+  "fixtures": {
+    "empty": [
+      "0",
+      "1",
+      "0",
+      "0"
+    ],
+    "one": [
+      "1",
+      "1",
+      "65538",
+      "0"
+    ],
+    "eight": [
+      "8",
+      "1",
+      "524304",
+      "0"
+    ],
+    "invalid": [
+      "1",
+      "0",
+      "0",
+      "1"
+    ],
+    "trailing": [
+      "4",
+      "0",
+      "196614",
+      "1"
+    ],
+    "utf8_invalid": [
+      "1",
+      "0",
+      "0",
+      "1"
+    ]
+  },
+  "focused_test": "context-pointer-tests passed"
+}

@@ -1,6 +1,6 @@
 # NPegged Development Roadmap — Agent Execution Plan
 
-**Status:** Audited against `performance/progress.md`, implementation, tests and retained artifacts on 2026-10-19. Completed milestones are marked below; detailed evidence and limitations remain in `performance/progress.md`. **Phase 2 (§10) is next, following its recommended order Q1 → S3 → S8.**  
+**Status:** Audited against `performance/progress.md`, implementation, tests and retained artifacts on 2026-10-20. Completed milestones are marked below; detailed evidence and limitations remain in `performance/progress.md`. **Q1 and S3 are complete; S8 is next (§10). S3 remains opt-in; default enablement was rejected.**
 **Audience:** A locally running coding agent with access to the full repository, DMD, LDC, test/build scripts, and benchmark machines.  
 **Objective:** Preserve the exact observable behavior of NPegged while moving generated parsers toward handwritten D lexer/parser performance. Target **≤1.5× handwritten execution time per equal-output benchmark workload**.  
 **Priority order:** Make it work → make it correct → make it fast.  
@@ -177,10 +177,11 @@ S = one narrow change; M = a few narrowly staged PRs if necessary; L = **must be
 
 ### Audited completion inventory
 
-- **Complete:** A1–A5, F1–F4, B1–B8, P1, P2, P6, L1–L3, G1–G7, S1, S2b.
+- **Complete:** A1–A5, F1–F4, B1–B8, P1, P2, P6, L1–L3, G1–G7, S1, S2b, Q1, S3.
 - F4 and P1 remain opt-in; B1–B8 and L1/L2 are report-only; L3 is experimental. Completion does not imply default enablement or a measured gain.
 - G7 generated and validated its corpora; wiring them into timing remains Q2.
-- **Open:** P3–P5, P7–P8, L4–L6, X1–X3 and Phase 2 milestones below.
+- **Open:** P3–P5, P7–P8, L4–L6, X1–X3 and Phase 2 milestones below except Q1 and S3.
+- **S3:** exact whole-DFA entry is experimental behind `NPeggedLeanEntry`; generic context borrowing and the explicit finish return were rejected. Default performance binary is unchanged. Evidence: `performance/milestones/S3/notes-s3.md`.
 - **Rejected experiment:** S2's threshold heuristic; S2b is the retained exact implementation.
 - Historical validation limitations: DMD crashes on this host; the Phase 1 ledger records coverage and sanitizer checks as not run. These are not passing checks.
 - Evidence: `performance/progress.md`, `performance/milestones/`, `performance/size/`, `docs/{ANALYSIS_FACTS,BITES,LL,GENERATION}.md`, and the test paths named in the progress ledger.
@@ -591,7 +592,7 @@ What the generated `direct` code shows (output of `grammar!(Memoization.selectiv
 | Q1 (complete; `performance/milestones/Q1/`) | P0 | — | Fixed-cost ladder and harness floor | S | tiny |
 | Q2 | P0 | G7 | G7 corpora and missing families wired into the timing runner | M | all (adversarial cover) |
 | Q3 | P1 | Q1 | Cycle attribution for the 10 worst workloads (arm64) | S | all |
-| S3 | P0 | Q1 | Lean entry path and direct entry for whole-DFA roots | M | tiny |
+| S3 (complete; opt-in; default NO-GO) | P0 | Q1 | Lean entry path and direct entry for whole-DFA roots | M | tiny |
 | S4 | P0 | S3 | Scanner calls native to the cursor (no `s.steps`/`s.status` round trip) | S | CSV, JSON, tiny |
 | O1 | P0 | A4 | Whole-body DFA for regular leaf-record rules | M | CSV records |
 | O2 | P1 | O1 | Checkpoint elision in record loops (specializes P4) | S | CSV, JSON, PEG records |
@@ -653,7 +654,7 @@ Report each ratio both raw and with the harness floor subtracted, as extra colum
 **Tasks:** For the 10 worst workloads, record where cycles go: `xctrace` CPU Counters or `sample` on macOS, `perf` on Linux. Attribute them to entry, tick/branch, depth, scanner prologue, record put/rollback, failure recording, and memo. Keep this run separate from clean timing runs. If the tooling is unavailable, record that as **not run**.  
 **Exit:** attribution tables that justify (or rule out) S7, S8 and X1, with the rejection path attributed separately from the acceptance path.
 
-#### S3 — Lean entry path
+#### S3 — Lean entry path — COMPLETE (experimental; default NO-GO)
 
 **Files:** `src/npegged/peg.d` (`check`, `parseRecords`, `State`), `src/npegged/grammar.d` (rule emission).  
 **Tasks** (one sub-PR each, each measured against the Q1 ladder):
@@ -665,6 +666,8 @@ Report each ratio both raw and with the harness floor subtracted, as extra colum
 **Tests:** empty input; `stepLimit` 0, 1 and exactly the DFA cost; `depthLimit` 0; `memoryLimit` 0; a trace callback set (must take the old path); and validation, spans and tree modes. Each check must hold for both backends under A4.  
 **Benchmarks:** the tiny cluster, plus all 171 workloads to catch large-input regressions.  
 **Exit:** the measured per-layer reduction. The hypothesis to confirm or refute is that ≥ 15 of the 40 tiny workloads move under 1.5×.
+
+**Result:** Q1 exact/lean bridge costs approximately 17.6 → 6.9 ns on empty/one-byte inputs. Only 3 of the fixed 40 tiny workload IDs newly cross 1.5× on this host; the ≥15 hypothesis is refuted. The opt-in full comparison has 14 repeatable >5% regressions, so default enablement is rejected. The final default executable is byte-identical to the pre-S3 baseline. Context-pointer and finish-return variants are closed NO-GO. All executable source modules exceed 90% line and branch coverage; DMD/LDC, A4, sanitizer and leak evidence is retained in `performance/milestones/S3/notes-s3.md`.
 
 #### S4 — Scanner calls native to the cursor
 

@@ -1,0 +1,160 @@
+{
+  "cluster_definition": "Fixed workload membership from Phase 2 section 10.1 S2b data; only workload IDs are reused across hosts. All numeric before/after comparisons below are same Linux/Ryzen host.",
+  "membership_source": "performance/milestones/S2b/20261020T001203Z-6e7a5966f/summary.csv",
+  "before": "performance/baselines/20261020T151538Z-302680467-2d501e854",
+  "after": "performance/milestones/S3/20261020T151538Z-427156981-2d501e854",
+  "clusters": {
+    "tiny": {
+      "workloads": [
+        "handwritten-workloads/Arithmetic.Empty/validation",
+        "handwritten-workloads/Arithmetic.InvalidNumber/validation",
+        "handwritten-workloads/Arithmetic.Small/validation",
+        "handwritten-workloads/Arithmetic.Trailing/validation",
+        "handwritten-workloads/Arithmetic.Truncated/validation",
+        "handwritten-workloads/Arithmetic.Unary/validation",
+        "handwritten-workloads/CSV.Empty/validation",
+        "handwritten-workloads/CSV.EmptyQuoted/validation",
+        "handwritten-workloads/CSV.InvalidSpacing/tree",
+        "handwritten-workloads/CSV.InvalidSpacing/validation",
+        "handwritten-workloads/CSV.Trailing/spans",
+        "handwritten-workloads/CSV.Trailing/tree",
+        "handwritten-workloads/CSV.Trailing/validation",
+        "handwritten-workloads/CSV.Truncated/spans",
+        "handwritten-workloads/CSV.Truncated/tree",
+        "handwritten-workloads/CSV.Truncated/validation",
+        "handwritten-workloads/Numbers.Binary/validation",
+        "handwritten-workloads/Numbers.BinaryInvalid/spans",
+        "handwritten-workloads/Numbers.BinaryInvalid/tree",
+        "handwritten-workloads/Numbers.BinaryInvalid/validation",
+        "handwritten-workloads/Numbers.HexaInvalid/spans",
+        "handwritten-workloads/Numbers.HexaInvalid/tree",
+        "handwritten-workloads/Numbers.HexaInvalid/validation",
+        "handwritten-workloads/Numbers.ScientificEmpty/spans",
+        "handwritten-workloads/Numbers.ScientificEmpty/tree",
+        "handwritten-workloads/Numbers.ScientificEmpty/validation",
+        "handwritten-workloads/Numbers.ScientificTrailing/spans",
+        "handwritten-workloads/Numbers.ScientificTrailing/tree",
+        "handwritten-workloads/Numbers.ScientificTruncated/spans",
+        "handwritten-workloads/Numbers.ScientificTruncated/tree",
+        "handwritten-workloads/Numbers.ScientificTruncated/validation",
+        "handwritten-workloads/PEGGrammar.Empty/spans",
+        "handwritten-workloads/PEGGrammar.Empty/validation",
+        "handwritten-workloads/PEGGrammar.Permissive/validation",
+        "handwritten-workloads/PEGGrammar.Trailing/validation",
+        "handwritten-workloads/PEGGrammar.Truncated/validation",
+        "json-ambiguity/JSON.InvalidEscape/validation",
+        "json-ambiguity/JSON.InvalidNumber/validation",
+        "json-ambiguity/JSON.InvalidTrailing/spans",
+        "json-ambiguity/JSON.InvalidTrailing/validation"
+      ],
+      "before": {
+        "within_target": 9,
+        "count": 40,
+        "geomean": 1.7688217688572614
+      },
+      "after": {
+        "within_target": 12,
+        "count": 40,
+        "geomean": 1.752259106798171
+      },
+      "new_crossings": 3,
+      "lost_crossings": 0
+    },
+    "csv_records": {
+      "workloads": [
+        "handwritten-workloads/CSV.EmptyQuoted/spans",
+        "handwritten-workloads/CSV.EmptyQuoted/tree",
+        "handwritten-workloads/CSV.Flat/spans",
+        "handwritten-workloads/CSV.Flat/tree",
+        "handwritten-workloads/CSV.MultiLine/spans",
+        "handwritten-workloads/CSV.MultiLine/tree",
+        "handwritten-workloads/CSV.MultilineQuoted/spans",
+        "handwritten-workloads/CSV.MultilineQuoted/tree",
+        "handwritten-workloads/CSV.SingleLine/spans",
+        "handwritten-workloads/CSV.SingleLine/tree"
+      ],
+      "before": {
+        "within_target": 0,
+        "count": 10,
+        "geomean": 2.5891623578562
+      },
+      "after": {
+        "within_target": 0,
+        "count": 10,
+        "geomean": 2.5432375668577225
+      },
+      "new_crossings": 0,
+      "lost_crossings": 0
+    },
+    "peg_large": {
+      "workloads": [
+        "handwritten-workloads/PEGGrammar.ManyRules/spans",
+        "handwritten-workloads/PEGGrammar.ManyRules/tree",
+        "handwritten-workloads/PEGGrammar.ManyRules/validation",
+        "handwritten-workloads/PEGGrammar.Medium/spans",
+        "handwritten-workloads/PEGGrammar.Medium/tree",
+        "handwritten-workloads/PEGGrammar.Permissive/spans",
+        "handwritten-workloads/PEGGrammar.Small/spans",
+        "handwritten-workloads/PEGGrammar.Small/tree",
+        "handwritten-workloads/PEGGrammar.Trailing/spans",
+        "handwritten-workloads/PEGGrammar.Trailing/tree",
+        "handwritten-workloads/PEGGrammar.Truncated/spans",
+        "handwritten-workloads/PEGGrammar.Truncated/tree"
+      ],
+      "before": {
+        "within_target": 0,
+        "count": 12,
+        "geomean": 2.130456014809564
+      },
+      "after": {
+        "within_target": 0,
+        "count": 12,
+        "geomean": 2.146757537139141
+      },
+      "new_crossings": 0,
+      "lost_crossings": 0
+    },
+    "json_large": {
+      "workloads": [
+        "json-ambiguity/JSON.DeepNesting/spans",
+        "json-ambiguity/JSON.DeepNesting/validation",
+        "json-ambiguity/JSON.InvalidEscape/spans",
+        "json-ambiguity/JSON.InvalidEscape/tree",
+        "json-ambiguity/JSON.InvalidNumber/tree",
+        "json-ambiguity/JSON.InvalidTrailing/tree",
+        "json-ambiguity/JSON.InvalidTruncated/spans",
+        "json-ambiguity/JSON.InvalidTruncated/tree",
+        "json-ambiguity/JSON.InvalidTruncated/validation"
+      ],
+      "before": {
+        "within_target": 7,
+        "count": 9,
+        "geomean": 1.2763443468453095
+      },
+      "after": {
+        "within_target": 5,
+        "count": 9,
+        "geomean": 1.3010899223976826
+      },
+      "new_crossings": 0,
+      "lost_crossings": 2
+    },
+    "arithmetic_flat": {
+      "workloads": [
+        "handwritten-workloads/Arithmetic.Flat/validation"
+      ],
+      "before": {
+        "within_target": 1,
+        "count": 1,
+        "geomean": 0.9056
+      },
+      "after": {
+        "within_target": 1,
+        "count": 1,
+        "geomean": 0.9041
+      },
+      "new_crossings": 0,
+      "lost_crossings": 0
+    }
+  }
+}

@@ -2,14 +2,14 @@
 
 Generated from `performance/trends.csv`; do not edit by hand.
 
-Latest run: `20261020T001203Z-6e7a5966f` (milestone:S2b[direct], ldc2, commit 6e7a5966f)
+Latest run: `20261020T162737Z-073837506-2d501e854` (milestone:S3[direct], ldc2, commit 2d501e854)
 
-- Workloads within 1.5x: 99/171 (57.9%)
-- Slowdown p50/p90/p95: 1.37 / 2.04 / 2.22
-- Geometric mean: 1.32x
-- Worst: 2.71x (handwritten-workloads/Numbers.ScientificEmpty/validation)
+- Workloads within 1.5x: 88/171 (51.5%)
+- Slowdown p50/p90/p95: 1.48 / 2.43 / 2.69
+- Geometric mean: 1.50x
+- Worst: 3.20x (handwritten-workloads/PEGGrammar.Permissive/validation)
 
-Delta vs previous run `20261020T000732Z-6e7a5966f`: within-target +2, p90 -0.01, geomean -0.02
+Delta vs comparable run `20261020T162736Z-932177896-2d501e854`: within-target +0, p90 +0.01, geomean +0.00
 
 ## History
 
@@ -29,6 +29,17 @@ Delta vs previous run `20261020T000732Z-6e7a5966f`: within-target +2, p90 -0.01,
 | 20261019T231119Z-276489b1c | milestone:S1b[direct] | ldc2 | 93/171 | 2.23 | 1.38 | 2.90 |
 | 20261020T000732Z-6e7a5966f | milestone:S2[direct] | ldc2 | 97/171 | 2.05 | 1.33 | 2.77 |
 | 20261020T001203Z-6e7a5966f | milestone:S2b[direct] | ldc2 | 99/171 | 2.04 | 1.32 | 2.71 |
+| 20261020T010433Z-2d501e854 | baseline[direct] | ldc2 | 87/171 | 2.47 | 1.51 | 3.22 |
+| 20261020T011938Z-2d501e854 | milestone:S3[direct] | ldc2 | 100/171 | 2.47 | 1.49 | 3.44 |
+| 20261020T025412Z-2d501e854 | baseline[direct] | ldc2 | 89/171 | 2.40 | 1.49 | 3.23 |
+| 20261020T025412Z-2d501e854-broad-candidate | milestone:S3[direct] | ldc2 | 97/171 | 2.56 | 1.51 | 4.00 |
+| 20261020T025438Z-778388544-2d501e854 | baseline[direct] | ldc2 | 85/171 | 2.42 | 1.50 | 3.22 |
+| 20261020T025438Z-915858834-2d501e854 | milestone:S3[direct] | ldc2 | 91/171 | 2.49 | 1.53 | 3.59 |
+| 20261020T151149Z-861675744-2d501e854 | milestone:S3[direct] | ldc2 | 93/171 | 2.44 | 1.52 | 3.60 |
+| 20261020T151538Z-302680467-2d501e854 | baseline[direct] | ldc2 | 87/171 | 2.38 | 1.50 | 3.29 |
+| 20261020T151538Z-427156981-2d501e854 | milestone:S3[direct] | ldc2 | 89/171 | 2.44 | 1.52 | 3.61 |
+| 20261020T162736Z-932177896-2d501e854 | baseline[direct] | ldc2 | 88/171 | 2.43 | 1.50 | 3.23 |
+| 20261020T162737Z-073837506-2d501e854 | milestone:S3[direct] | ldc2 | 88/171 | 2.43 | 1.50 | 3.20 |
 
 ## Progress
 
@@ -78,13 +89,18 @@ Largest outstanding gaps are listed in the latest summary.csv (PEGGrammar.Permis
 - Worth trying next: P1 (per-rule effects in mixed grammars), P2 (direct lowering for `root-combinator` rules,
   e.g. JSON.True/False/Null/Number/Spacing), A5 (compile/size accounting), then F1-F3 before any B work.
 
-## Phase 2 Q1 — entry cost ladder
+## Phase 2
 
-Added `performance/milestones/Q1/` and reproducible runner
-`python3 performance/scripts/entry_ladder.py`. Empty/one-byte entry layers are
-measured with 21 retained samples and pre-timing Observation parity. Initial full
-check cost ~17 ns versus ~3.6 ns handwritten; result/arena ~5.8 ns and state/context
-~10.9 ns. Floor-subtracted ratios are N/A where the handwritten denominator is
-below the measured floor. No standard workload timing run occurred; the original
-171-workload dashboard and `trends.csv` remain unchanged. See Q1 notes for checks
-and unavailable Valgrind startup. DMD focused tests now pass on this host.
+- Q1 implemented: `benchmark/entry_ladder.d`, `performance/scripts/entry_ladder.py`,
+  `tests/test_entry_ladder.py`; 21 samples/layer on empty and one-byte fixtures.
+  See `milestones/Q1/notes.md` for measured costs and validation limitations.
+- S3 complete: exact whole-DFA entry is experimental behind `NPeggedLeanEntry`.
+  The Q1 bridge measures about 17.6 -> 6.9 ns; the fixed tiny cluster has only
+  3 new target crossings, refuting the >=15 hypothesis. Generic context borrowing
+  and explicit finish-return variants were rejected. Fourteen repeatable opt-in
+  regressions prohibit default enablement. The final default executable is
+  byte-identical to the baseline (88/171 within target in its controlled run).
+  All 25 source modules pass strict coverage; DMD/LDC, A4, ASan/LSan and Valgrind
+  checks pass. Details and the 200-rule compiler-budget limitation are in
+  `milestones/S3/notes-s3.md`.
+- Next in the roadmap's recommended order: S8 (rejection-path ceiling first).

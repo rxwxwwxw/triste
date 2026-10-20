@@ -1,0 +1,6 @@
+{
+  "parity_before_timing": true,
+  "checksum_each_batch": true,
+  "contract": "Observation including status, arena counters and encoded end/failEnd",
+  "diagnostics": "also compared directly by tests/entry.d and colocated dfa unittest"
+}

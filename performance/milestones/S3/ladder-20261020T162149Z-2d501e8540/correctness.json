@@ -1,0 +1,9 @@
+{
+  "parity_before_timing": true,
+  "fixtures": [
+    "empty",
+    "one"
+  ],
+  "compared_fields": "all Observation fields",
+  "negative_tests": "colocated unittests; separately run debug executable"
+}

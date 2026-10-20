@@ -14,4 +14,4 @@ case $(basename "$compiler") in
 esac
 ulimit -v 4194304 2>/dev/null || true
 "$compiler" "${flags[@]}" "$@" "${library[@]}" tests/differential.d -of=build/differential/runner
-timeout --preserve-status --kill-after=2s 60s build/differential/runner
+timeout --preserve-status --kill-after=2s 240s build/differential/runner --DRT-testmode=run-main

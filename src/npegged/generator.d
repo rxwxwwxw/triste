@@ -180,6 +180,28 @@ nothrow:
             repeatBias[node] = bias;
     }
 
+    nothrow unittest {
+        GrammarAnalysis graph;
+        graph.expressions = [
+            Expression(ExpressionKind.choice, [1, 2]), Expression(ExpressionKind.terminal),
+            Expression(ExpressionKind.terminal)
+        ];
+        CandidateGenerator generator;
+        generator.graph = &graph;
+        generator.altBase = [0, size_t.max, size_t.max];
+        generator.altWeight = [1, 1];
+        generator.repeatBias = [0, 0, 0];
+        generator.setWeight(3, 0, 99);
+        generator.setWeight(1, 0, 99);
+        generator.setWeight(0, 2, 99);
+        assert(generator.altWeight == [1, 1]);
+        generator.setWeight(0, 1, 7);
+        assert(generator.altWeight == [1, 7]);
+        generator.setRepeatBias(3, 3);
+        generator.setRepeatBias(1, 2);
+        assert(generator.repeatBias == [0, 2, 0]);
+    }
+
     private ulong roll() {
         return splitmix(state);
     }
@@ -240,6 +262,11 @@ nothrow:
         return a >= infinite || b >= infinite ? infinite : a + b;
     }
 
+    @nogc nothrow unittest {
+        assert(add(3, 4) == 7);
+        assert(add(infinite, 0) == infinite && add(0, infinite) == infinite);
+    }
+
     /// Bytes a terminal produces, or `infinite` when this module cannot propose input for it.
     private size_t terminalLength(ref Expression node) {
         string text;
@@ -250,6 +277,39 @@ nothrow:
         if (node.byteTerminal && node.byteWidth == 1 && node.known && !node.alphabet.empty)
             return 1;
         return infinite;
+    }
+
+    nothrow unittest {
+        GrammarAnalysis graph;
+        graph.names = ["Root"];
+        graph.expressions = [Expression(ExpressionKind.terminal)];
+        graph.roots = [0];
+        foreach (source; ["eps", "eoi", "endOfInput"]) {
+            graph.expressions[0].source = source;
+            auto generator = CandidateGenerator(graph, 0);
+            const candidate = generator.next();
+            assert(candidate.status == GenStatus.ok && candidate.text.length == 0);
+        }
+        auto terminal = Expression(ExpressionKind.terminal);
+        terminal.source = "charClass!(\"x\")";
+        terminal.known = true;
+        terminal.byteTerminal = true;
+        terminal.byteWidth = 1;
+        terminal.alphabet.addChar('x');
+        graph.expressions[0] = terminal;
+        auto generator = CandidateGenerator(graph, 0);
+        assert(generator.next().text == "x");
+        foreach (variant; 0 .. 3) {
+            graph.expressions[0] = terminal;
+            if (variant == 0)
+                graph.expressions[0].known = false;
+            else if (variant == 1)
+                graph.expressions[0].byteWidth = 2;
+            else
+                graph.expressions[0].alphabet = CharSetMask.init;
+            auto unsupported = CandidateGenerator(graph, 0);
+            assert(unsupported.next().status == GenStatus.unsupported);
+        }
     }
 
     /// Decode `literal!("...")` including the simple escapes; anything else is not supported.
@@ -306,7 +366,21 @@ nothrow:
                 return false;
             }
         }
-        return at + 1 < source.length && source[at + 1] == ')';
+        return at + 2 == source.length && source[at + 1] == ')';
+    }
+
+    nothrow unittest {
+        string bytes;
+        assert(literalBytes(`literal!("")`, bytes) && bytes.length == 0);
+        assert(literalBytes(`literal!('x')`, bytes) && bytes == "x");
+        assert(literalBytes(`literal!("\n\t\r\0\\\"\'\x0a\xAF")`, bytes) && bytes == "\n\t\r\0\\\"'\n\xAF");
+        foreach (source; [
+            "", "not-a-literal-expression", `literal!(abc)`, `literal!("unterminated`,
+            `literal!("\`, `literal!("\x`, `literal!("\x0`,
+            `literal!("\xgg")`,
+            `literal!("\x/0")`, `literal!("\z")`, `literal!("a"X`, `literal!("a")suffix`
+        ])
+            assert(!literalBytes(source, bytes));
     }
 
     /// Weight after recursion attenuation. With attenuation active every weight is scaled by 1000 so that a recursive
@@ -327,12 +401,31 @@ nothrow:
         return weight ? weight : 1;
     }
 
+    nothrow unittest {
+        CandidateGenerator generator;
+        generator.altWeight = [1, 0, 2];
+        generator.altRecursive = [true, true, false];
+        assert(generator.effectiveWeight(0, 4) == 1);
+        generator.attenuationPermille = 1;
+        assert(generator.effectiveWeight(1, 4) == 0);
+        assert(generator.effectiveWeight(2, 4) == 2000);
+        assert(generator.effectiveWeight(0, 0) == 1000);
+        assert(generator.effectiveWeight(0, 100) == 1);
+    }
+
     private void fail(GenStatus status, string reason) {
         if (!failed) {
             failed = true;
             failureStatus = status;
             failure = reason;
         }
+    }
+
+    nothrow unittest {
+        CandidateGenerator generator;
+        generator.fail(GenStatus.unsupported, "first");
+        generator.fail(GenStatus.budgetExceeded, "second");
+        assert(generator.failureStatus == GenStatus.unsupported && generator.failure == "first");
     }
 
     private void emit(string text) {

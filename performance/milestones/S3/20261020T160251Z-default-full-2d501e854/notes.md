@@ -1,0 +1,1 @@
+Initial final-default full gate run, 21 samples per implementation/case. Output parity passed; remaining ratio failures are above-target workloads. Raw samples are retained here. The later controlled prebuilt comparison, not this unpinned initial run, is used for before/after conclusions.

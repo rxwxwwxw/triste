@@ -145,13 +145,39 @@ def corpus_manifest(report):
     return sorted(entries, key=lambda e: (e['suite'], e['name']))
 
 
+def run_metadata(run_id):
+    paths = [PERF / 'baselines' / run_id / 'metadata.json']
+    paths += list((PERF / 'milestones').glob('*/' + run_id + '/metadata.json'))
+    for path in paths:
+        if path.is_file():
+            return json.loads(path.read_text())
+    return {}
+
+
+def comparable(left, right):
+    """Missing provenance never establishes a controlled before/after comparison."""
+    keys = ('host', 'architecture', 'cpu', 'os', 'compiler', 'flags', 'backend',
+            'workloads_revision', 'corpus_checksums', 'cpu_pinning',
+            'iterations_per_sample', 'warmups', 'sanitizers')
+    if not all(left.get(key) and right.get(key)
+               and left[key] not in ('unknown', 'N/A')
+               and right[key] not in ('unknown', 'N/A') for key in keys):
+        return False
+    compiler_version = 'ldc' if left['compiler'] == 'ldc2' else 'dmd'
+    return (all(left[key] == right[key] for key in keys)
+            and bool(left.get(compiler_version))
+            and left[compiler_version] not in ('unknown', 'N/A')
+            and left.get(compiler_version) == right.get(compiler_version))
+
+
 def regenerate_latest():
     """Rebuild latest.md from trends.csv and the newest run's summary."""
     trends_path = PERF / 'trends.csv'
     if not trends_path.exists():
         (PERF / 'latest.md').write_text('# Performance dashboard\n\nNo measured runs yet.\n')
         return
-    rows = list(csv.DictReader(trends_path.open()))
+    with trends_path.open() as handle:
+        rows = list(csv.DictReader(handle))
     last = rows[-1]
     lines = ['# Performance dashboard', '',
              'Generated from `performance/trends.csv`; do not edit by hand.', '',
@@ -161,12 +187,16 @@ def regenerate_latest():
              f"- Slowdown p50/p90/p95: {float(last['p50']):.2f} / {float(last['p90']):.2f} / {float(last['p95']):.2f}",
              f"- Geometric mean: {float(last['geomean']):.2f}x",
              f"- Worst: {float(last['worst']):.2f}x ({last['worst_workload']})"]
-    if len(rows) > 1:
-        prev = rows[-2]
-        lines += ['', f"Delta vs previous run `{prev['run_id']}`: within-target "
+    compatible = [row for row in rows[:-1]
+                  if comparable(run_metadata(last['run_id']), run_metadata(row['run_id']))]
+    if compatible:
+        prev = compatible[-1]
+        lines += ['', f"Delta vs comparable run `{prev['run_id']}`: within-target "
                       f"{int(last['within_target']) - int(prev['within_target']):+d}, p90 "
                       f"{float(last['p90']) - float(prev['p90']):+.2f}, geomean "
                       f"{float(last['geomean']) - float(prev['geomean']):+.2f}"]
+    elif len(rows) > 1:
+        lines += ['', 'No comparable prior run: host, compiler, backend, flags or corpus provenance differs or is missing.']
     lines += ['', '## History', '', '| run | kind | compiler | within target | p90 | geomean | worst |',
               '|---|---|---|---|---|---|---|']
     for r in rows:
@@ -188,21 +218,28 @@ def record(report, destination_root, run_id, kind, notes):
     meta = report['metadata']
     metadata = dict(run_id=run_id, timestamp_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                     git_commit=meta['revision'], git_dirty=meta['worktreeDirty'],
-                    os=platform.platform(), architecture=platform.machine(), cpu=meta['cpu'],
+                    host=platform.node(), os=platform.platform(), architecture=platform.machine(), cpu=meta['cpu'],
                     cpu_model=tool_version(['sysctl', '-n', 'machdep.cpu.brand_string']),
                     cores=__import__('os').cpu_count(),
                     dmd=tool_version(['dmd', '--version']), ldc=tool_version(['ldc2', '--version']),
                     compiler=meta['compiler'], build_command='bash scripts/benchmark.sh --export-corpus',
-                    flags='release (see scripts/benchmark.sh)', sanitizers='none (timing build)',
+                    flags=next((line.removeprefix('Build flags: ') for line in meta.get('buildLog', '').splitlines()
+                                if line.startswith('Build flags: ')), 'unknown'),
+                    sanitizers='none (timing build)',
                     harness_version=HARNESS_VERSION, backend=meta['backend'],
                     workloads_revision=hashlib.sha256((PERF / 'workloads.json').read_bytes()).hexdigest()
                     if (PERF / 'workloads.json').exists() else None,
                     corpus_checksums={f"{c['suite']}/{c['name']}": c['sha256'] for c in corpus_manifest(report)},
                     repetitions=meta['runs'], samples_per_repetition=meta['samples'],
                     iterations_per_sample=meta['iterations'], warmups='1 per case (in runner)',
-                    cpu_pinning='none', binary_bytes=meta['binaryBytes'], text_bytes=meta['textBytes'],
+                    cpu_pinning=meta.get('cpuPinning', 'none'), binary_bytes=meta['binaryBytes'], text_bytes=meta['textBytes'],
                     build_and_export_seconds=meta['buildAndExportSeconds'],
                     comparison_run=None, target_ratio=report['targetRatio'])
+    if (PERF / 'trends.csv').exists():
+        with (PERF / 'trends.csv').open() as handle:
+            prior = list(csv.DictReader(handle))
+        metadata['comparison_run'] = next((row['run_id'] for row in reversed(prior)
+            if comparable(metadata, run_metadata(row['run_id']))), None)
     (destination / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
     write_csv(destination / 'raw.csv', RAW_COLUMNS, raw)
     write_csv(destination / 'summary.csv', SUMMARY_COLUMNS, summary)
@@ -237,7 +274,7 @@ def main():
     args = parser.parse_args()
     report = json.loads(args.report.read_text())
     commit = report['metadata']['revision'][:9]
-    run_id = time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()) + '-' + commit
+    run_id = time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()) + '-' + str(time.time_ns() % 1_000_000_000).zfill(9) + '-' + commit
     backend = report['metadata'].get('backend', 'combinators')
     suffix = '' if backend == 'combinators' else f'[{backend}]'
     if args.baseline:

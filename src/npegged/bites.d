@@ -75,13 +75,24 @@ nothrow:
         if (source[start] != '"' && source[start] != '\'')
             return null;
         const quote = source[start++];
-        string text;
+        // A decoded empty literal is distinct from unsupported input (null).
+        string text = source[start .. start];
         while (start < source.length && source[start] != quote) {
             if (source[start] == '\\')
                 return null;
             text ~= source[start++];
         }
-        return start + 1 < source.length && source[start + 1] == ')' ? text : null;
+        return start + 2 == source.length && source[start + 1] == ')' ? text : null;
+    }
+
+    nothrow unittest {
+        assert(plainLiteral(`literal!("")`) !is null && plainLiteral(`literal!("")`).length == 0);
+        assert(plainLiteral(`literal!('ab')`) == "ab");
+        foreach (source; [
+            "", "not-a-literal-expression", `literal!(abc)`, `literal!("\n")`,
+            `literal!("unterminated`, `literal!("a"X`, `literal!("a")suffix`
+        ])
+            assert(plainLiteral(source) is null);
     }
 
     private TerminalShape terminal(ref Expression node) {
@@ -429,6 +440,179 @@ nothrow:
     }
 }
 
+nothrow unittest {
+    // Small acyclic PEGs exercise approximation overflow in both directions.
+    // Check proofs against the independent PEG interpreter, not another analysis.
+    alias K = ExpressionKind;
+    foreach (seed; 1 .. 13) {
+        GrammarAnalysis graph;
+        graph.names = ["Root"];
+        graph.expressions = [
+            lit("a"), lit("ab"), plain("eps", Nullable.yes), plain("eoi", Nullable.yes),
+            plain("fail", Nullable.no), letters()
+        ];
+        uint random = seed;
+        foreach (index; 6 .. 18) {
+            random = random * 1664525u + 1013904223u;
+            const left = random % index;
+            random = random * 1664525u + 1013904223u;
+            const right = random % index;
+            switch ((random >> 16) % 7) {
+            case 0:
+                graph.expressions ~= composite(K.sequence, "and", [left, right]);
+                break;
+            case 1:
+                graph.expressions ~= composite(K.choice, "or", [left, right]);
+                break;
+            case 2:
+                graph.expressions ~= composite(K.optional, "option", [left]);
+                break;
+            case 3:
+                graph.expressions ~= composite(K.repetition, "zeroOrMore", [left]);
+                break;
+            case 4:
+                graph.expressions ~= composite(K.predicate, "negLookahead", [left]);
+                break;
+            case 5:
+                graph.expressions ~= composite(K.predicate, "posLookahead", [left]);
+                break;
+            default:
+                graph.expressions ~= composite(K.wrapper, "defined", [left]);
+                break;
+            }
+        }
+        graph.roots = [graph.expressions.length - 1];
+        graph.solve();
+        foreach (maximum; [0UL, 1, 4, 16])
+            foreach (regular; [false, true]) {
+                auto analysis = BitesAnalysis(graph, Budget(maximum), regular);
+                foreach (index; 0 .. graph.expressions.length) {
+                    auto succeeds = analysis.succ(index);
+                    auto possible = analysis.maySucc(index);
+                    auto empty = analysis.nul(index);
+                    auto bites = analysis.bites(index);
+                    foreach (input; sampleInputs(2)) {
+                        bool bitten;
+                        const end = matchNode(graph, index, input, 0, &bitten);
+                        if (succeeds.contains(input))
+                            assert(end >= 0);
+                        if (end >= 0)
+                            assert(possible.contains(input));
+                        if (end == 0)
+                            assert(empty.contains(input));
+                        if (bitten)
+                            assert(bites.contains(input));
+                    }
+                }
+                if (!regular && (maximum == 0 || maximum == 4)) {
+                    auto next = NextBites(graph, analysis, Budget(maximum), maximum == 0 ? 0 : 8);
+                    const premises = checkPremises(graph, analysis, next);
+                    const sites = commitSites(premises);
+                    if (!next.trusted || !next.converged) {
+                        foreach (check; premises)
+                            assert(!check.wellFormed);
+                        foreach (site; sites)
+                            assert(!site.candidate);
+                    }
+                    assert(next.nextBites(size_t.max, Outcome.succ).contains("anything"));
+                    assert(next.nextBites(size_t.max, Outcome.fail).contains("anything"));
+                    // Conservative diagnostics must never silently become an emitted cut.
+                    const diagnostics = unifiedDiagnostics(graph, Budget(maximum));
+                    foreach (item; diagnostics)
+                        if (item.cutCandidate)
+                            assert(item.theorem.length != 0);
+                    assert(renderUnified(diagnostics, false).length || !diagnostics.length);
+                    assert(renderUnified(diagnostics, true).length != 0);
+                }
+            }
+    }
+}
+
+nothrow unittest {
+    GrammarAnalysis graph;
+    graph.names = ["Root"];
+    auto recursive = composite(ExpressionKind.reference, "", []);
+    recursive.reference = "Root";
+    graph.expressions = [recursive];
+    graph.roots = [0];
+    auto cycle = BitesAnalysis(graph, Budget.init, true);
+    assert(cycle.succ(0).emptiness() == Proof.provenEmpty);
+    assert(cycle.nul(0).contains("anything"));
+    assert(cycle.bites(0).contains("anything"));
+    assert(cycle.maySucc(0).contains("anything"));
+    assert(cycle.cuts >= 4);
+    assert(cycle.succ(size_t.max).emptiness() == Proof.provenEmpty);
+    assert(cycle.nul(size_t.max).contains("anything"));
+    assert(cycle.bites(size_t.max).contains("anything"));
+    assert(cycle.maySucc(size_t.max).contains("anything"));
+    CharSetMask[] pattern;
+    assert(!cycle.fixedPattern(size_t.max, pattern));
+    graph.expressions[0].reference = "Missing";
+    auto missing = BitesAnalysis(graph, Budget.init, true);
+    assert(missing.succ(0).emptiness() == Proof.provenEmpty);
+    assert(missing.nul(0).contains("anything"));
+    assert(missing.bites(0).contains("anything"));
+    assert(missing.maySucc(0).contains("anything"));
+    graph.expressions = [
+        lit("ab"), letters(), plain("endOfInput", Nullable.yes), plain("fail", Nullable.no),
+        Expression.init, plain("opaque", Nullable.no)
+    ];
+    graph.expressions[5].first.addChar('a');
+    auto terminals = BitesAnalysis(graph, Budget(1), true);
+    foreach (index; 0 .. graph.expressions.length) {
+        terminals.succ(index);
+        terminals.nul(index);
+        terminals.bites(index);
+        terminals.maySucc(index);
+    }
+    assert(terminals.fixedPattern(0, pattern));
+    assert(pattern.length == 2);
+    assert(terminals.fixedPattern(1, pattern));
+    assert(!terminals.fixedPattern(2, pattern));
+    assert(!terminals.fixedPattern(3, pattern));
+    assert(!terminals.fixedPattern(4, pattern));
+    assert(!terminals.fixedPattern(5, pattern));
+    assert(!terminals.fixedPattern(0, pattern, 9));
+    pattern.length = 65;
+    assert(!terminals.fixedPattern(0, pattern));
+    InputLanguage overflow = InputLanguage.universal();
+    overflow.overflow = true;
+    assert(terminals.lower(overflow).emptiness() == Proof.provenEmpty);
+    assert(terminals.upper(overflow).contains("anything"));
+}
+
+nothrow unittest {
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["Root"];
+    graph.expressions = [
+        lit("ab"), classAB(), composite(K.sequence, "and", [0, 1]),
+        composite(K.wrapper, "defined", [2]), Expression.init, composite(K.sequence, "and", [0,
+            4]), composite(K.sequence, "and", []), composite(K.sequence, "and", [0]),
+        composite(K.predicate, "predictiveNot", [0]), composite(K.wrapper, "oneOrMore", [0])
+    ];
+    graph.roots = [3];
+    graph.solve();
+    auto analysis = BitesAnalysis(graph, Budget.init, true);
+    CharSetMask[] pattern;
+    assert(analysis.fixedPattern(2, pattern) && pattern.length == 3);
+    assert(pattern[0].contains('a') && pattern[1].contains('b'));
+    assert(pattern[2].contains('a') && pattern[2].contains('b') && !pattern[2].contains('c'));
+    pattern.length = 0;
+    assert(analysis.fixedPattern(3, pattern) && pattern.length == 3);
+    pattern.length = 0;
+    assert(!analysis.fixedPattern(5, pattern));
+    assert(!analysis.fixedPattern(6, pattern));
+    assert(!analysis.fixedPattern(9, pattern));
+    assert(analysis.succ(6).contains("anything"));
+    assert(analysis.succ(7).contains("abc") && !analysis.succ(7).contains("a"));
+    assert(analysis.succSequence([], 0).contains("anything"));
+    assert(analysis.maySuccSequence([], 0).contains("anything"));
+    assert(analysis.succ(8).contains("a") && !analysis.succ(8).contains("ab"));
+    assert(analysis.nul(8).contains("a") && !analysis.nul(8).contains("ab"));
+    assert(analysis.maySucc(8).contains("a") && !analysis.maySucc(8).contains("ab"));
+}
+
 /// Add BITES disjointness diagnostics (B4) to the prefix-discrimination results, report-only.
 /// Disjointness of upper approximations is a proof; an overlap is only "possible" and becomes "unknown"
 /// when either alternative needed a budget cut, a recursive back edge or an unknown/unresolved node.
@@ -473,6 +657,30 @@ void annotateBites(ref GrammarAnalysis graph, ref ChoiceDiscrimination[] choices
         choice.bitesAllDisjoint = allDisjoint;
         choice.noHidingProven = allNoHiding;
     }
+}
+
+nothrow unittest {
+    GrammarAnalysis graph;
+    graph.names = ["Root"];
+    graph.expressions = [lit("a"), lit("b"), composite(ExpressionKind.choice, "or", [0, 1])];
+    graph.roots = [2];
+    graph.solve();
+    ChoiceDiscrimination invalid;
+    invalid.expressionIndex = size_t.max;
+    ChoiceDiscrimination choice;
+    choice.expressionIndex = 2;
+    choice.bitesAllDisjoint = choice.noHidingProven = true;
+    choice.pairs = [BranchDiscrimination(0, size_t.max), BranchDiscrimination(size_t.max, 1)];
+    ChoiceDiscrimination[] reports = [invalid, choice];
+    annotateBites(graph, reports);
+    foreach (report; reports)
+        assert(!report.bitesAllDisjoint && !report.noHidingProven);
+    char[200] source;
+    source[] = 'x';
+    graph.expressions[2].source = source[].idup;
+    const diagnostics = unifiedDiagnostics(graph);
+    assert(diagnostics.length == 1);
+    assert(diagnostics[0].source == source[0 .. 160] ~ "...");
 }
 
 /// Outcome of an expression: the paper's R = {succ, fail}.
@@ -1152,6 +1360,11 @@ private string quoteWitness(string text) nothrow {
     return result ~ "\"";
 }
 
+nothrow unittest {
+    assert(quoteWitness("") == "\"\"");
+    assert(quoteWitness("a\"\\\x00\x1f\x7f\xff") == "\"a\\\"\\\\\\u0000\\u001f\\u007f\\u00ff\"");
+}
+
 private string languageJson(const InputLanguage value) nothrow {
     string witness;
     const present = value.shortestWitness(witness);
@@ -1226,6 +1439,13 @@ private bool containsText(string input, string needle) nothrow {
         if (input[i .. i + needle.length] == needle)
             return true;
     return false;
+}
+
+nothrow unittest {
+    assert(containsText("", ""));
+    assert(!containsText("", "x"));
+    assert(containsText("abc", "bc"));
+    assert(!containsText("abc", "z"));
 }
 
 version (unittest) {

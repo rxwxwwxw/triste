@@ -1,0 +1,1 @@
+Generation succeeded and was deterministic. Native compilation was NOT RUN: the absent /usr/bin/time wrapper failed before invoking ldc2. Historical CSV FAILED fields denote this wrapper failure. The corrected parent recipe uses per-child wait4 resource accounting and preserves the missing-tool attempt here.

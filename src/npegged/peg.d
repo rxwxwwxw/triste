@@ -787,6 +787,32 @@ struct State(bool CT, int Check = 0) {
         return tree;
     }
 
+    nothrow unittest {
+        // No-failure entries still normalize end; remembered failures must not
+        // erase a farther frontier or attach a child to an accepted prefix.
+        State state;
+        Arena owner;
+        state.arena = &owner;
+        auto accepted = state.node(0, 3);
+        accepted.failEnd = 1;
+        auto normalized = state.finish(accepted);
+        assert(normalized.successful && normalized.end == 3 && normalized.failEnd == 3);
+        auto failure = state.node(0, 2, false);
+        state.recordFailure(failure);
+        assert(state.finish(accepted).failEnd == 3);
+        failure.end = failure.failEnd = 4;
+        state.recordFailure(failure);
+        auto merged = state.finish(accepted);
+        assert(merged.successful && merged.end == 3 && merged.failEnd == 4);
+        static if (!Check)
+            assert(merged.failedChild.length == 1 && merged.failedChild[0].end == 4);
+        accepted.successful = false;
+        accepted.failEnd = 5;
+        assert(state.finish(accepted).failEnd == 5);
+        accepted.failEnd = 4;
+        assert(state.finish(accepted).failEnd == 4);
+    }
+
     size_t outputCheckpoint() const nothrow {
         static if (Check == 2)
             return records.length;
@@ -1987,6 +2013,16 @@ version (NPeggedPureIslands) @nogc nothrow unittest {
 
 pragma(inline, true) CheckResult check(alias parser)(ref ParseContext context, scope string input) @nogc nothrow {
     CheckResult result;
+    static if (is(parser == struct)) {
+        alias EntryOwner = parser;
+        enum entryName = "opCall";
+    } else {
+        alias EntryOwner = __traits(parent, parser);
+        enum entryName = __traits(identifier, parser);
+    }
+    static if (__traits(compiles, EntryOwner.npeggedTryCheck!entryName(context, input, result)))
+        if (EntryOwner.npeggedTryCheck!entryName(context, input, result))
+            return result;
     result.arena.limit = context.memoryLimit;
     State!(false, true) state;
     state.arena = &result.arena;
@@ -2777,6 +2813,28 @@ struct literalChoice2(texts...) {
     alias shadowing = literalChoice2!("<", "<=");
     ParseContext c;
     assert(check!shadowing(c, "<=").end == 1);
+}
+
+@nogc nothrow unittest {
+    // Verify the runtime-built table against the independent ordered PEG path
+    // for every two-byte prefix and for EOF after every possible first byte.
+    alias Plan = literalChoice2!("ab", "ac", "z", "za");
+    alias Reference = choice!(false, literal!"ab", literal!"ac", literal!"z", literal!"za");
+    const table = Plan.computePlan();
+    assert(Plan.computeSlots() == 2);
+    foreach (first; 0 .. 256)
+        foreach (second; 0 .. 257) {
+            char[2] bytes = [cast(char)first, cast(char)second];
+            State!(false, 1) state;
+            state.input = cast(string)bytes[0 .. second == 256 ? 1 : 2];
+            const reference = Reference(state, 0);
+            const row = table.slot[first];
+            const winner = row ? table.winner[row - 1][second] : 0;
+            assert((winner != 0) == reference.successful);
+            assert(winner != 4); // Earlier 'z' always shadows 'za'.
+            if (winner)
+                assert(reference.end == (winner == 3 ? 1 : 2));
+        }
 }
 
 template branch(alias Rule, ulong b0, ulong b1, ulong b2, ulong b3, bool Nullable = false) {

@@ -1426,6 +1426,158 @@
    "reference": "benchmark/handwritten/*.d",
    "equivalence": "identical output records/hash, checked before timing",
    "timed": true
+  },
+  {
+   "workload_id": "entry.empty",
+   "grammar": "Entry: Root <- [a-z]* eoi",
+   "start_rule": "Root",
+   "input": "hex:",
+   "input_bytes": 0,
+   "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "validity": "valid",
+   "family": "entry_diagnostic",
+   "modes": [
+    "validation"
+   ],
+   "backend": "direct + NPeggedLeanEntry, compared with exact wrapper",
+   "compiler": "ldc2 -O3 -release -boundscheck=off -defaultlib=druntime-ldc -fno-exceptions",
+   "reference": "N/A: generated-versus-generated diagnostic",
+   "equivalence": "identical successful/status/end/failEnd and arena counters before timing; encoded end/failEnd checksum each batch",
+   "runner": "python3 performance/scripts/entry_pair.py",
+   "timed": true
+  },
+  {
+   "workload_id": "entry.one",
+   "grammar": "Entry: Root <- [a-z]* eoi",
+   "start_rule": "Root",
+   "input": "hex:61",
+   "input_bytes": 1,
+   "input_sha256": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+   "validity": "valid",
+   "family": "entry_diagnostic",
+   "modes": [
+    "validation"
+   ],
+   "backend": "direct + NPeggedLeanEntry, compared with exact wrapper",
+   "compiler": "ldc2 -O3 -release -boundscheck=off -defaultlib=druntime-ldc -fno-exceptions",
+   "reference": "N/A: generated-versus-generated diagnostic",
+   "equivalence": "identical successful/status/end/failEnd and arena counters before timing; encoded end/failEnd checksum each batch",
+   "runner": "python3 performance/scripts/entry_pair.py",
+   "timed": true
+  },
+  {
+   "workload_id": "entry.eight",
+   "grammar": "Entry: Root <- [a-z]* eoi",
+   "start_rule": "Root",
+   "input": "hex:6161616161616161",
+   "input_bytes": 8,
+   "input_sha256": "1f3ce40415a2081fa3eee75fc39fff8e56c22270d1a978a7249b592dcebd20b4",
+   "validity": "valid",
+   "family": "entry_diagnostic",
+   "modes": [
+    "validation"
+   ],
+   "backend": "direct + NPeggedLeanEntry, compared with exact wrapper",
+   "compiler": "ldc2 -O3 -release -boundscheck=off -defaultlib=druntime-ldc -fno-exceptions",
+   "reference": "N/A: generated-versus-generated diagnostic",
+   "equivalence": "identical successful/status/end/failEnd and arena counters before timing; encoded end/failEnd checksum each batch",
+   "runner": "python3 performance/scripts/entry_pair.py",
+   "timed": true
+  },
+  {
+   "workload_id": "entry.invalid",
+   "grammar": "Entry: Root <- [a-z]* eoi",
+   "start_rule": "Root",
+   "input": "hex:21",
+   "input_bytes": 1,
+   "input_sha256": "bb7208bc9b5d7c04f1236a82a0093a5e33f40423d5ba8d4266f7092c3ba43b62",
+   "validity": "invalid",
+   "family": "entry_diagnostic",
+   "modes": [
+    "validation"
+   ],
+   "backend": "direct + NPeggedLeanEntry, compared with exact wrapper",
+   "compiler": "ldc2 -O3 -release -boundscheck=off -defaultlib=druntime-ldc -fno-exceptions",
+   "reference": "N/A: generated-versus-generated diagnostic",
+   "equivalence": "identical successful/status/end/failEnd and arena counters before timing; encoded end/failEnd checksum each batch",
+   "runner": "python3 performance/scripts/entry_pair.py",
+   "timed": true
+  },
+  {
+   "workload_id": "entry.trailing",
+   "grammar": "Entry: Root <- [a-z]* eoi",
+   "start_rule": "Root",
+   "input": "hex:61616121",
+   "input_bytes": 4,
+   "input_sha256": "b69d9a800469bff925bcf325da3a97b9e0d50d802f63c4cf4b891a0b138bf232",
+   "validity": "invalid",
+   "family": "entry_diagnostic",
+   "modes": [
+    "validation"
+   ],
+   "backend": "direct + NPeggedLeanEntry, compared with exact wrapper",
+   "compiler": "ldc2 -O3 -release -boundscheck=off -defaultlib=druntime-ldc -fno-exceptions",
+   "reference": "N/A: generated-versus-generated diagnostic",
+   "equivalence": "identical successful/status/end/failEnd and arena counters before timing; encoded end/failEnd checksum each batch",
+   "runner": "python3 performance/scripts/entry_pair.py",
+   "timed": true
+  },
+  {
+   "workload_id": "entry.utf8_invalid",
+   "grammar": "Entry: Root <- [a-z]* eoi",
+   "start_rule": "Root",
+   "input": "hex:ff",
+   "input_bytes": 1,
+   "input_sha256": "a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89",
+   "validity": "invalid",
+   "family": "entry_diagnostic",
+   "modes": [
+    "validation"
+   ],
+   "backend": "direct + NPeggedLeanEntry, compared with exact wrapper",
+   "compiler": "ldc2 -O3 -release -boundscheck=off -defaultlib=druntime-ldc -fno-exceptions",
+   "reference": "N/A: generated-versus-generated diagnostic",
+   "equivalence": "identical successful/status/end/failEnd and arena counters before timing; encoded end/failEnd checksum each batch",
+   "runner": "python3 performance/scripts/entry_pair.py",
+   "timed": true
+  },
+  {
+   "workload_id": "q1-ladder.empty",
+   "grammar": "Q1: Root <- 'a'? eoi (original explicit DFA table)",
+   "start_rule": "entry / Q1Bridge.Root",
+   "input": "hex:",
+   "input_bytes": 0,
+   "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "validity": "valid",
+   "family": "entry_ladder_diagnostic",
+   "modes": [
+    "validation"
+   ],
+   "backend": "original Q1 rungs plus exact/lean adapters over the same table",
+   "compiler": "ldc2 -O3 -release -boundscheck=off -defaultlib=druntime-ldc -fno-exceptions",
+   "reference": "handwritten Observation rung; exact bridge for entry-cost attribution",
+   "equivalence": "success/status Observation parity before timing; bridge unit tests also compare end/failEnd and arena counters",
+   "runner": "python3 performance/milestones/S3/q1_ladder.py",
+   "timed": true
+  },
+  {
+   "workload_id": "q1-ladder.a",
+   "grammar": "Q1: Root <- 'a'? eoi (original explicit DFA table)",
+   "start_rule": "entry / Q1Bridge.Root",
+   "input": "hex:61",
+   "input_bytes": 1,
+   "input_sha256": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+   "validity": "valid",
+   "family": "entry_ladder_diagnostic",
+   "modes": [
+    "validation"
+   ],
+   "backend": "original Q1 rungs plus exact/lean adapters over the same table",
+   "compiler": "ldc2 -O3 -release -boundscheck=off -defaultlib=druntime-ldc -fno-exceptions",
+   "reference": "handwritten Observation rung; exact bridge for entry-cost attribution",
+   "equivalence": "success/status Observation parity before timing; bridge unit tests also compare end/failEnd and arena counters",
+   "runner": "python3 performance/milestones/S3/q1_ladder.py",
+   "timed": true
   }
  ]
 }

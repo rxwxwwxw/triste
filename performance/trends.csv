@@ -13,3 +13,14 @@ run_id,kind,compiler,commit,workloads,within_target,pct_within_target,p50,p90,p9
 20261019T231119Z-276489b1c,milestone:S1b[direct],ldc2,276489b1c3fbe6b024927d4dea85c936efefeac0,171,93,54.3860,1.4348,2.2263,2.4603,1.3829,2.8960,handwritten-workloads/PEGGrammar.Permissive/validation
 20261020T000732Z-6e7a5966f,milestone:S2[direct],ldc2,6e7a5966f9286683ca5d3e74777927f7987bc652,171,97,56.7251,1.3774,2.0487,2.2273,1.3332,2.7712,json-ambiguity/JSON.InvalidTrailing/spans
 20261020T001203Z-6e7a5966f,milestone:S2b[direct],ldc2,6e7a5966f9286683ca5d3e74777927f7987bc652,171,99,57.8947,1.3671,2.0367,2.2155,1.3155,2.7055,handwritten-workloads/Numbers.ScientificEmpty/validation
+20261020T010433Z-2d501e854,baseline[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,87,50.8772,1.4760,2.4677,2.6884,1.5068,3.2185,handwritten-workloads/CSV.MultiLine/spans
+20261020T011938Z-2d501e854,milestone:S3[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,100,58.4795,1.4014,2.4669,2.6122,1.4862,3.4368,handwritten-workloads/CSV.LongTruncated/validation
+20261020T025412Z-2d501e854,baseline[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,89,52.0468,1.4684,2.4014,2.5684,1.4910,3.2282,handwritten-workloads/CSV.MultiLine/spans
+20261020T025412Z-2d501e854-broad-candidate,milestone:S3[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,97,56.7251,1.4469,2.5629,2.6456,1.5121,3.9955,handwritten-workloads/CSV.LongTruncated/validation
+20261020T025438Z-778388544-2d501e854,baseline[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,85,49.7076,1.5074,2.4238,2.6408,1.5028,3.2244,handwritten-workloads/CSV.MultiLine/spans
+20261020T025438Z-915858834-2d501e854,milestone:S3[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,91,53.2164,1.4588,2.4862,2.8643,1.5284,3.5855,handwritten-workloads/CSV.LongTruncated/validation
+20261020T151149Z-861675744-2d501e854,milestone:S3[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,93,54.3860,1.4632,2.4398,2.7326,1.5164,3.6017,handwritten-workloads/CSV.LongQuoted/validation
+20261020T151538Z-302680467-2d501e854,baseline[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,87,50.8772,1.4906,2.3789,2.5429,1.4988,3.2873,handwritten-workloads/PEGGrammar.Permissive/validation
+20261020T151538Z-427156981-2d501e854,milestone:S3[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,89,52.0468,1.4645,2.4379,2.7860,1.5164,3.6126,handwritten-workloads/CSV.LongQuoted/validation
+20261020T162736Z-932177896-2d501e854,baseline[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,88,51.4620,1.4887,2.4280,2.6286,1.5028,3.2350,handwritten-workloads/CSV.MultiLine/spans
+20261020T162737Z-073837506-2d501e854,milestone:S3[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,88,51.4620,1.4816,2.4332,2.6894,1.5037,3.2035,handwritten-workloads/PEGGrammar.Permissive/validation

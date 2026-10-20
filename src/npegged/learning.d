@@ -61,6 +61,18 @@ Binding[] bindings(ref GrammarAnalysis graph) nothrow {
     return result;
 }
 
+nothrow unittest {
+    GrammarAnalysis graph;
+    graph.names = ["Root", "Missing"];
+    graph.expressions = [
+        Expression(ExpressionKind.terminal), Expression(ExpressionKind.optional, [0]),
+        Expression(ExpressionKind.sequence, [1, 1])
+    ];
+    graph.roots = [2, 100];
+    const result = bindings(graph);
+    assert(result.length == 1 && result[0].node == 1 && result[0].ordinal == 0);
+}
+
 struct Learner {
 nothrow:
     GrammarAnalysis* graph;
@@ -142,6 +154,30 @@ nothrow:
     }
 }
 
+nothrow unittest {
+    GrammarAnalysis graph;
+    graph.names = ["Root"];
+    Expression terminal;
+    terminal.kind = ExpressionKind.terminal;
+    terminal.source = "literal!(\"x\")";
+    terminal.known = true;
+    terminal.nullable = Nullable.no;
+    graph.expressions = [terminal, Expression(ExpressionKind.optional, [0])];
+    graph.roots = [1];
+    graph.solve();
+    foreach (skipped; [0, 19, 999]) {
+        auto learner = Learner(graph, 0);
+        learner.observe("x", true);
+        foreach (_; 0 .. skipped)
+            learner.observe("", true);
+        assert(learner.hits(size_t.max, TargetKind.alternative) == 0);
+        const expected = skipped == 0 ? "optional Root 0 probability 1\n" : skipped == 19
+            ? "optional Root 0 probability 0.050\n" : "optional Root 0 probability 0.001\n";
+        const text = learner.policyText(0);
+        assert(text.length >= expected.length && text[$ - expected.length .. $] == expected);
+    }
+}
+
 /// Mean absolute difference of two share vectors, in permille (total variation distance averaged over entries).
 size_t shareDistance(const ulong[] a, const ulong[] b) @nogc nothrow {
     if (a.length != b.length || !a.length)
@@ -150,6 +186,12 @@ size_t shareDistance(const ulong[] a, const ulong[] b) @nogc nothrow {
     foreach (i; 0 .. a.length)
         sum += a[i] > b[i] ? a[i] - b[i] : b[i] - a[i];
     return cast(size_t)(sum / a.length);
+}
+
+@nogc nothrow unittest {
+    const ulong[1] one = [1];
+    assert(shareDistance(null, null) == 1000);
+    assert(shareDistance(one[], null) == 1000);
 }
 
 /// Total variation distance (permille) between two length distributions bucketed by powers of two.
@@ -176,6 +218,15 @@ size_t lengthDistance(const string[] a, const string[] b) nothrow {
         sum += x > y ? x - y : y - x;
     }
     return cast(size_t)(sum / 2);
+}
+
+nothrow unittest {
+    string large = new immutable(char)[32768];
+    string larger = new immutable(char)[65536];
+    assert(lengthDistance(null, ["a"]) == 1000);
+    assert(lengthDistance(["a"], null) == 1000);
+    assert(lengthDistance([""], [large]) == 1000);
+    assert(lengthDistance([large], [larger]) == 0);
 }
 
 nothrow unittest {

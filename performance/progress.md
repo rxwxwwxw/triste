@@ -49,4 +49,13 @@ Largest outstanding gaps are listed in the latest summary.csv (PEGGrammar.Permis
 - Q1 implemented: `benchmark/entry_ladder.d`, `performance/scripts/entry_ladder.py`,
   `tests/test_entry_ladder.py`; 21 samples/layer on empty and one-byte fixtures.
   See `milestones/Q1/notes.md` for measured costs and validation limitations.
-- Next in the roadmap's recommended order: S3, then S8.
+- S3 complete: exact whole-DFA entry is experimental behind `NPeggedLeanEntry`.
+  The Q1 bridge measures about 17.6 -> 6.9 ns; the fixed tiny cluster has only
+  3 new target crossings, refuting the >=15 hypothesis. Generic context borrowing
+  and explicit finish-return variants were rejected. Fourteen repeatable opt-in
+  regressions prohibit default enablement. The final default executable is
+  byte-identical to the baseline (88/171 within target in its controlled run).
+  All 25 source modules pass strict coverage; DMD/LDC, A4, ASan/LSan and Valgrind
+  checks pass. Details and the 200-rule compiler-budget limitation are in
+  `milestones/S3/notes-s3.md`.
+- Next in the roadmap's recommended order: S8 (rejection-path ceiling first).

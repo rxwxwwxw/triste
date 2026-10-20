@@ -21,11 +21,11 @@ sources = list(Path('src').rglob('*.d'))
 Path('build/coverage/sources.json').write_text(json.dumps({str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}))
 PY
 find . -maxdepth 1 -name '*.lst' -delete
-dmd_extra=()
-gdc_extra=()
+dmd_extra=(-I. -version=NPeggedDFAEdgeCoverage -version=NPeggedLeanEntry)
+gdc_extra=(-I. -fversion=NPeggedDFAEdgeCoverage -fversion=NPeggedLeanEntry)
 if [[ "${SHARED_OUTPUT_COVERAGE:-0}" == 1 ]]; then
- dmd_extra=(-version=NPeggedSharedOutput -version=NPeggedMetrics)
- gdc_extra=(-fversion=NPeggedSharedOutput -fversion=NPeggedMetrics)
+ dmd_extra+=(-version=NPeggedSharedOutput -version=NPeggedMetrics)
+ gdc_extra+=(-fversion=NPeggedSharedOutput -fversion=NPeggedMetrics)
 fi
 if [[ "${PURE_ISLANDS_COVERAGE:-0}" == 1 ]]; then
  dmd_extra+=(-version=NPeggedPureIslands -version=NPeggedMetrics)
@@ -62,6 +62,7 @@ if [[ "${SCANNER_METRICS_COVERAGE:-0}" == 1 ]]; then
  prlimit --as=4294967296 -- timeout --kill-after=2s 60s build/coverage-scanner/gdc-scanner --DRT-testmode=run-main > build/coverage-scanner/gdc.txt
  scripts/collect_coverage.sh build/coverage build/coverage-scanner/gdc-scanner gdc-scanner-report
 fi
+python3 scripts/coverage_workflows.py
 while IFS= read -r -d '' notes; do
  directory=$(dirname "$notes")
  basename=$(basename "$notes")
