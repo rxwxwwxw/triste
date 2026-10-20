@@ -77,3 +77,14 @@ Largest outstanding gaps are listed in the latest summary.csv (PEGGrammar.Permis
   "slack fast path" (batch ticks when `steps + maxTicks < stepLimit`) can recover at most part of that 30%.
 - Worth trying next: P1 (per-rule effects in mixed grammars), P2 (direct lowering for `root-combinator` rules,
   e.g. JSON.True/False/Null/Number/Spacing), A5 (compile/size accounting), then F1-F3 before any B work.
+
+## Phase 2 Q1 — entry cost ladder
+
+Added `performance/milestones/Q1/` and reproducible runner
+`python3 performance/scripts/entry_ladder.py`. Empty/one-byte entry layers are
+measured with 21 retained samples and pre-timing Observation parity. Initial full
+check cost ~17 ns versus ~3.6 ns handwritten; result/arena ~5.8 ns and state/context
+~10.9 ns. Floor-subtracted ratios are N/A where the handwritten denominator is
+below the measured floor. No standard workload timing run occurred; the original
+171-workload dashboard and `trends.csv` remain unchanged. See Q1 notes for checks
+and unavailable Valgrind startup. DMD focused tests now pass on this host.

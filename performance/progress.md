@@ -43,3 +43,10 @@ Largest outstanding gaps are listed in the latest summary.csv (PEGGrammar.Permis
   "slack fast path" (batch ticks when `steps + maxTicks < stepLimit`) can recover at most part of that 30%.
 - Worth trying next: P1 (per-rule effects in mixed grammars), P2 (direct lowering for `root-combinator` rules,
   e.g. JSON.True/False/Null/Number/Spacing), A5 (compile/size accounting), then F1-F3 before any B work.
+
+## Phase 2
+
+- Q1 implemented: `benchmark/entry_ladder.d`, `performance/scripts/entry_ladder.py`,
+  `tests/test_entry_ladder.py`; 21 samples/layer on empty and one-byte fixtures.
+  See `milestones/Q1/notes.md` for measured costs and validation limitations.
+- Next in the roadmap's recommended order: S3, then S8.

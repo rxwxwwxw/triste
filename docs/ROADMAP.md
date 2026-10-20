@@ -1,6 +1,6 @@
 # NPegged Development Roadmap — Agent Execution Plan
 
-**Status:** Work queue. This document marks no milestone complete; progress lives in `performance/latest.md` and `performance/progress.md`. Phase 1 (A–G, S1/S2b) is largely done; **Phase 2 (§10) is the next phase.**  
+**Status:** Audited against `performance/progress.md`, implementation, tests and retained artifacts on 2026-10-19. Completed milestones are marked below; detailed evidence and limitations remain in `performance/progress.md`. **Phase 2 (§10) is next, following its recommended order Q1 → S3 → S8.**  
 **Audience:** A locally running coding agent with access to the full repository, DMD, LDC, test/build scripts, and benchmark machines.  
 **Objective:** Preserve the exact observable behavior of NPegged while moving generated parsers toward handwritten D lexer/parser performance. Target **≤1.5× handwritten execution time per equal-output benchmark workload**.  
 **Priority order:** Make it work → make it correct → make it fast.  
@@ -175,37 +175,47 @@ Use *existing* repository workloads first. Add missing families with separate te
 
 S = one narrow change; M = a few narrowly staged PRs if necessary; L = **must be split further before implementation**. If a supposedly small milestone takes more than a focused PR, split it and preserve dependency tracking.
 
+### Audited completion inventory
+
+- **Complete:** A1–A5, F1–F4, B1–B8, P1, P2, P6, L1–L3, G1–G7, S1, S2b.
+- F4 and P1 remain opt-in; B1–B8 and L1/L2 are report-only; L3 is experimental. Completion does not imply default enablement or a measured gain.
+- G7 generated and validated its corpora; wiring them into timing remains Q2.
+- **Open:** P3–P5, P7–P8, L4–L6, X1–X3 and Phase 2 milestones below.
+- **Rejected experiment:** S2's threshold heuristic; S2b is the retained exact implementation.
+- Historical validation limitations: DMD crashes on this host; the Phase 1 ledger records coverage and sanitizer checks as not run. These are not passing checks.
+- Evidence: `performance/progress.md`, `performance/milestones/`, `performance/size/`, `docs/{ANALYSIS_FACTS,BITES,LL,GENERATION}.md`, and the test paths named in the progress ledger.
+
 ## 3. Foundations — A milestones
 
-### A1 — Baseline and fair benchmark automation
+### A1 — Baseline and fair benchmark automation — COMPLETE
 
 **Files:** actual build/benchmark files (discover), `performance/`, scripts if missing.  
 **Tasks:** inventory every existing workload and handwritten reference; explicitly record output mode; automate timed release builds/runs for both DMD and LDC when available; create `performance/README.md`, registry, raw/summary data and dashboard.  
 **Tests (minimum):** known-correct equal-output pair; intentionally unequal-output pair rejected before timing; missing baseline produces `N/A` rather than a fabricated ratio; repeat run preserves schema and corpus checksum.  
 **Exit:** an initial reproducible baseline under `performance/baselines/<run-id>/` and `performance/latest.md` generated from it. If the environment cannot run a compiler, stop claiming measured performance and record that as an explicit blocker.
 
-### A2 — Per-rule counters, without timing contamination
+### A2 — Per-rule counters, without timing contamination — COMPLETE
 
 **Files:** `npegged/peg.d`, `grammar.d`, reporting/test helpers.  
 **Tasks:** count calls, success/failure, retries/backtracks, bytes examined, memo hits/misses, output materializations/rollbacks, and optional per-rule exclusive/inclusive time in a **separate instrumentation build**. Reuse existing metric versions instead of duplicating counters.  
 **Tests:** one-branch success, choice rollback, repeated memoized invocation, failed lookahead, capture output.  
 **Exit:** per-rule machine-readable metrics, zero overhead when disabled (or measured negligible overhead if genuinely unavoidable); instrumented workloads added under `performance/milestones/A2/`.
 
-### A3 — Eligibility and missed-opportunity report
+### A3 — Eligibility and missed-opportunity report — COMPLETE
 
 **Files:** `analysis.d`, `grammar.d`.  
 **Tasks:** extend existing `eligibilityReport` with rule-local reasons for direct/scalar fallback, recognizer/record mode, DFA eligibility/fusion, FIRST dispatch, memo policy, action effects, unknown facts, and code-generation strategy. Keep backward-compatible report fields.  
 **Tests:** grammar-wide action mixed with pure rules; left-recursive rule; parameterized rule; unsupported/unknown construct.  
 **Exit:** deterministic JSON and readable text reports that correspond to actual emitted strategies.
 
-### A4 — Differential semantics gate
+### A4 — Differential semantics gate — COMPLETE
 
 **Files:** test harness and colocated tests.  
 **Tasks:** run the same grammar/input through reference combinators and applicable direct/DFA/memo variants, comparing all observable fields for each mode. For mismatches save smallest available seed/input, compiler flags, and backend versions.  
 **Tests:** valid, invalid, EOF/truncated, nullable, lookahead, shadowed alternatives, left recursion, actions, UTF-8, limit exhaustion, compact records, tree. Include timeout/memory checks.  
 **Exit:** automated gate invoked for every subsequent optimization; generated-parser equivalence checked before benchmark timing.
 
-### A5 — Generated code and compilation overhead
+### A5 — Generated code and compilation overhead — COMPLETE
 
 **Files:** benchmark scripts, `performance/`.  
 **Tasks:** measure generated D source bytes/lines, binary bytes, DMD/LDC compilation time, parser-generation time, peak RSS.  
@@ -216,28 +226,28 @@ S = one narrow change; M = a few narrowly staged PRs if necessary; L = **must be
 
 **Ordering gate:** Finish **F1–F3** before beginning any BITES implementation. FIRST and BITES answer related but different questions; **keep both**. F4 (bounded FIRST-2) is an independent optimization and can happen before or alongside later BITES tasks, but not instead of F1–F3.
 
-### F1 — Correct conservative grammar facts
+### F1 — Correct conservative grammar facts — COMPLETE
 
 **Files:** `npegged/analysis.d` and tests, minimal `grammar.d` integration.  
 **Tasks:** audit fixed-point nullability, may-advance, may-fail, terminal byte sets, well-formedness/progress, effects, and unknown propagation. Separate “provably yes/no” from “possibly yes/no”; avoid interpreting `unknown` as `false`. Handle terminal encoding, zero-width `eps`/`eoi`, positive/negative predicates, recursion/left recursion, and parameterized/dynamic nodes. Preserve existing fast FIRST-bitset analysis.  
 **Tests:** empty and nonempty literals; nullable choice/sequence; negative/positive lookahead; EOF in both positions; Unicode and invalid UTF-8; recursion and repetition of potentially nullable expressions.  
 **Exit:** documented abstract facts, termination conditions, and a validation matrix. Report unsupported constructs rather than assuming soundness.
 
-### F2 — Contextual FOLLOW, not CFG semantics smuggled into PEG
+### F2 — Contextual FOLLOW, not CFG semantics smuggled into PEG — COMPLETE
 
 **Files:** `analysis.d`.  
 **Tasks:** compute a classical CFG-style FOLLOW relation for **eligible, action-free CFG-like subsets** to support future LL diagnostics. Also preserve the PEG-specific need for outcome-sensitive continuation analysis; ordinary FOLLOW does not handle backtracking/ordered-choice context faithfully. Use separate names/representations so FOLLOW is **not** reused as NEXTBITES without proof.  
 **Tests:** nested choices, nullable suffixes, grammar entry and EOF, recursive rules, sequences behind ordered choices, lookahead.  
 **Exit:** conservative report-only FOLLOW sets with a scope/limitations section; zero generated-code changes.
 
-### F3 — FIRST conflicts and prefix diagnostics
+### F3 — FIRST conflicts and prefix diagnostics — COMPLETE
 
 **Files:** `analysis.d`, `grammar.d`.  
 **Tasks:** enrich existing `analyzePrefixDiscrimination` and `prefixDiscriminationReport` with source location/rule name, potential LL(1) FIRST/FIRST and FIRST/FOLLOW conflicts, and separate definite literal-prefix shadowing from uncertain overlaps. Do **not** classify every FIRST overlap as actual PEG hiding.  
 **Tests:** `'a' / 'b'`, `'ab' / 'ac'`, `'a' / 'ab'`, `'ab' / 'a'`, EOF-guarded prefix, nullable trailing branch.  
 **Exit:** stable JSON/text diagnostics, no parser code changes.
 
-### F4 — Conservative FIRST-2 decision trees
+### F4 — Conservative FIRST-2 decision trees — COMPLETE
 
 **Files:** `analysis.d`, `grammar.d`, and/or `peg.d`.  
 **Tasks:** for provably pure, nonnullable alternatives with a bounded disjoint two-byte prefix (including distinct end-of-input outcomes), generate a small dispatch plan. Require a sound proof that dispatch does not bypass a potentially successful earlier alternative; otherwise fall back to ordered choice.  
@@ -302,42 +312,42 @@ The paper's critical conditions include:
 
 **Do not confuse** a proof of *absence of language hiding* with equivalence of a transformed grammar, nor a BITES conflict warning with proof of actual hiding. The paper explicitly notes precision limits, for example keyword/identifier rules guarded by nontrivial negative lookahead, and proposes richer regular `SUCC` approximations.
 
-### B1 — Specify representation and proof outcomes (report-only)
+### B1 — Specify representation and proof outcomes (report-only) — COMPLETE
 
 **Files:** `analysis.d` + design comments/tests; no parser changes.  
 **Tasks:** design `InputLanguage` or equivalent to represent prefix languages with Boolean union/intersection/complement and EOF semantics. Initial components should include empty/universal, exact terminal-prefix cylinders, byte-class prefixes, and symbolic Boolean combinations; choose an implementation that supports a **sound emptiness query**, not just random sampling. Specify budgets for automaton states, expression nodes, and processing time. Explicit answers: `provenEmpty`, `provenNonempty`, `unknown`; `unknown` is never treated as empty. Define trusted facts and effect/left-recursion exclusions.  
 **Tests:** empty vs universal; disjoint prefixes; overlapping prefixes; `"a"Σ* ∩ (Σ* \ "a"Σ*)`; EOF/empty; symbolically complex case exceeds budget → `unknown`.  
 **Exit:** documented proof contract and standalone set-operation tests. No optimization consuming BITES yet.
 
-### B2 — Implement conservative SUCC and NULL
+### B2 — Implement conservative SUCC and NULL — COMPLETE
 
 **Files:** `analysis.d`.  
 **Tasks:** construct `SUCC` as a sound subset of matching inputs and `NULL` as a sound superset of zero-width successful inputs. Base both on F1 facts, but keep `SUCC`/`NULL` as **input languages**, not booleans. Implement proper handling of predicates and zero-width terminals, preserving the soundness directions. For recursion, dynamic predicates, left recursion, actions, or unsupported wrappers, use conservative unknown/top/bottom as appropriate.  
 **Tests:** terminal prefix, ordered choice union, `!"abc"`, `&"abc"`, `eps`, `eoi`, optional/star, unknown recursive reference, nullable sequence and choice.  
 **Exit:** reportable sets; property tests that sampling never finds a success outside `SUCC`-soundness/`NULL`-soundness directions (sampling supplements, not substitutes for proof).
 
-### B3 — Calculate BITES on the expression graph
+### B3 — Calculate BITES on the expression graph — COMPLETE
 
 **Files:** `analysis.d`, minimal `grammar.d` report interface.  
 **Tasks:** compute `BITES` for supported nonrecursive expression operators using the paper's rules; analyze well-formed recursive grammars by sound fixed-point/graph methods or degrade unknown. Record the exact proof scope and budgets. Ensure lookahead itself has no bite, but its `NULL` restriction constrains subsequent byte consumption. Do not replace existing FIRST sets.  
 **Tests:** both `"abc"[a-z]*` and `(!"abc")[a-z]*`; pure lookahead only; nested negative lookahead; nullable prefix then consuming suffix; union of choices; optional/repetition; recursive and parameterized fallback; EOF and malformed UTF-8.  
 **Exit:** `BITES(expr)` query and stable report-only serialization; A4 verifies no parser behavior changed.
 
-### B4 — BITES disjointness and language-hiding diagnostics
+### B4 — BITES disjointness and language-hiding diagnostics — COMPLETE
 
 **Files:** `analysis.d`, `grammar.d`.  
 **Tasks:** add pairwise disjointness analysis to the existing prefix-report structure, preserving the older FIRST-based details. Classification must distinguish `proven-disjoint`, `possible-overlap`, and `unknown`; a constructive overlap witness is helpful but optional. Apply the *nonnullable* Proposition 5 only when its premises are proven, otherwise report potential hiding without asserting its existence.  
 **Tests:** disjoint-FIRST choice; FIRST-overlap/BITES-disjoint guarded choice; prefix capture `('a' / 'aa') 'b'`; completely shadowed branch; nullable alternative unsupported at this stage; unknown dynamic predicate.  
 **Exit:** diagnostics identify where BITES improved on FIRST and where its limits prevent a conclusion. Still no runtime changes.
 
-### B5 — Outcome-sensitive NEXTBITES and nullable/repetition analysis
+### B5 — Outcome-sensitive NEXTBITES and nullable/repetition analysis — COMPLETE
 
 **Files:** `analysis.d`.  
 **Tasks:** construct conservative `Last` and `Next` graph relations for **success and failure separately**, including propagation through nested expressions; calculate `NEXTBITES(e, succ)` and `NEXTBITES(e, fail)` as defined in §8 and Appendix A.5–A.6 of the reference. Include parent/caller continuation edges and outcome-sensitive traversal. Check Proposition 10/11 prerequisites for nullable choices and Proposition 12/13 for repetitions. Avoid substituting CFG FOLLOW for NEXTBITES.  
 **Tests:** `('a' / 'c'?) 'a'`, safe and unsafe nullable alternatives, `(!'a' .)* 'a'` as a safe stopping-delimiter pattern, `'a'* ('ab' / 'c')` as a possible hiding case, nested rule calls, failure continuation, recursion/unknown fallback.  
 **Exit:** sound report of success/failure continuation possibilities, with proof-status/unknown fields. This is a second distinct analysis deliverable, not silently folded into B3.
 
-### B6 — BITES-driven early cut, only after correctness proof
+### B6 — BITES-driven early cut, only after correctness proof — COMPLETE
 
 **Files:** `grammar.d`, `peg.d`, A4 harness.  
 **Tasks:** first report `candidateCommitSites` and exact theorem/premises per site. Enable an experimental guarded cut **only** for well-formed, pure, nonnullable disjoint choices satisfying Proposition 6, and only if stopping retries also preserves required diagnostics, failure positions, records, and resource limits. Extend to nullable choices/repetitions only when B5's stronger premises and effect invariants are proven. A successful BITES-disjointness check alone is **not** a general license to cut or transform parsing.  
@@ -345,7 +355,7 @@ The paper's critical conditions include:
 **Benchmarks:** `choices`, `failure`, `pathological`, `output_modes`; before/after raw/summary under `performance/milestones/B6/`.  
 **Exit:** off-by-default fast path proven correct; make default only if reproducible improvement and no output regression.
 
-### B7 — Increase precision with regular SUCC
+### B7 — Increase precision with regular SUCC — COMPLETE
 
 **Files:** `analysis.d`, optionally reuse proven-correct helpers from `dfa.d`.  
 **Tasks:** study extending `SUCC` for regular sequences and bounded lookahead so guarded keyword/identifier patterns can be distinguished. Prefer reusable lazy regular-language operations or a small Boolean prefix-automaton representation; cap determinization and state blowups. Use this **only** as a sound **under**approximation of match success.  
@@ -353,7 +363,7 @@ The paper's critical conditions include:
 **Benchmarks:** compiler analysis time, peak memory, number of newly certified disjoint choices, and any B6 runtime effect in separately instrumented/release runs.  
 **Exit:** documented gain in certificate precision against analysis cost; keep narrower original if not worthwhile.
 
-### B8 — Unified FIRST/BITES diagnostic report
+### B8 — Unified FIRST/BITES diagnostic report — COMPLETE
 
 **Files:** `analysis.d`, `grammar.d`.  
 **Tasks:** report for each choice/repetition: FIRST status, BITES status, `NEXTBITES` status, proof theorem, reason/blocker, source location, and recommended backend candidate. Differentiate grammar *lint* from safe *optimization*. Integrate with `eligibilityReport` or a dedicated documented API without breaking existing consumers.  
@@ -362,7 +372,7 @@ The paper's critical conditions include:
 
 ## 6. Runtime specialization — P milestones
 
-### P1 — Localize action/effect barriers
+### P1 — Localize action/effect barriers — COMPLETE
 
 **Files:** `analysis.d`, `grammar.d`, `peg.d` if needed.  
 **Observation:** Current `scalarRules` and `directRule` checks can be blocked by grammar-wide `actionGrammar`; `RuleEffect` and optional pure-island support already exist.  
@@ -371,7 +381,7 @@ The paper's critical conditions include:
 **Benchmarks:** mixed grammars with tiny pure rules plus actionful parent, modes separated; report eligibility gain and code-size costs.  
 **Exit:** no semantics change, measurable reduction in execution cost where pure subrules dominate.
 
-### P2 — Expand direct lowering one operator at a time
+### P2 — Expand direct lowering one operator at a time — COMPLETE
 
 **Files:** `grammar.d`.  
 **Tasks:** identify most frequent `directFallback=root-combinator` reasons from A3, select **one** wrapper/terminal shape per PR, emit direct cursor code with correct failure/capture contract.  
@@ -402,7 +412,7 @@ The paper's critical conditions include:
 **Benchmarks:** deeply nested short tokens; code-size/compiler-time accounting.  
 **Exit:** lower overhead on call-heavy workloads without losing diagnostics.
 
-### P6 — Scanner specialization and DFA representation
+### P6 — Scanner specialization and DFA representation — COMPLETE
 
 **Files:** `dfa.d`, `grammar.d`.  
 **Tasks:** profile existing DFA loops; experiment separately with literal scanning, contiguous ASCII character classes, delimiter scans, compressed byte classes, and sparse vs dense transitions. Do not assume vectorization is inherently faster.  
@@ -429,21 +439,21 @@ The paper's critical conditions include:
 
 **Important:** PEG ordered choice `/` and greedy repetition are **not** CFG alternation and repetition. A mere parse table built after rewriting operators does **not** certify language equivalence. For instance, `('a' / 'ab') 'c'` and `'a'* 'a' eoi` behave differently under naive PEG/CFG readings. BITES disjointness proves specific non-hiding/commit properties; it does not alone prove arbitrary CFG extraction. Reference: Mascarenhas, Medeiros, Ierusalimschy, [*On the Relation between Context-Free Grammars and Parsing Expression Grammars*](https://arxiv.org/abs/1304.3177) (2014 journal version; LL(1) and related sufficient translation classes).
 
-### L1 — A proof-carrying conversion contract
+### L1 — A proof-carrying conversion contract — COMPLETE
 
 **Files:** `analysis.d` and new cold analysis module only if code size warrants.  
 **Tasks:** define region classification `{certifiedLL1, boundedLookaheadCandidate, CFGCandidateUnproven, PEGOnly, unknown}` and precise assumptions: no unaccounted lookahead behavior, no observable actions/side effects, safe greedy repetition, ordered-choice disambiguation, and full-input language contract. Incorporate F2 and B4/B5 certificates where relevant; separately document how the published **CFG→PEG** equivalence results can and cannot justify **PEG→CFG** extraction.  
 **Tests:** known LL(1), predicate-aware lookahead safe/unsafe, prefix capture, greediness, nullable alternatives, left recursion, actionful and unsupported nodes.  
 **Exit:** report-only proof checker with explicit witnesses/blockers and no false claimed equivalence.
 
-### L2 — Export conservative certified CFG/EBNF
+### L2 — Export conservative certified CFG/EBNF — COMPLETE
 
 **Files:** cold grammar emitter.  
 **Tasks:** emit a human-readable CFG/EBNF only for certified regions, retaining the original source rule IDs and proof metadata. For general PEG regions emit a separate `not-convertible/unknown` entry rather than pretending to translate them.  
 **Tests:** roundtrip of eligible grammars, rejected unsafe prefixes/greedy repetition, correct nullable rules and EOF constraints.  
 **Exit:** inspectable text/JSON output plus differential acceptance checks on finite test corpora (empirical checking is *additional* evidence, not a proof).
 
-### L3 — Dedicated LL(1) backend
+### L3 — Dedicated LL(1) backend — COMPLETE
 
 **Files:** `grammar.d`, optionally new small backend module.  
 **Tasks:** compile only certified regions to table-free or small-table recursive descent, preserve output-mode contracts, and allow ordinary PEG fallback for uncertified rules.  
@@ -477,49 +487,49 @@ The paper's critical conditions include:
 
 **Fundamental rule:** Walking a PEG's syntax tree does **not** guarantee acceptance because of prioritized choice, greediness, lookahead, and semantic conditions. The **actual parser is the acceptance oracle**, and a generated “valid” sample must be checked for **full-input** acceptance. A generator may legitimately fail to produce a candidate under its budget; it must report failure, not emit an invalid candidate as valid.
 
-### G1 — Seeded bounded candidate generator
+### G1 — Seeded bounded candidate generator — COMPLETE
 
 **Files:** new cold generation module; tests alongside source.  
 **Tasks:** deterministic documented PRNG, string/character-class terminals, sequence, ordered-choice proposals, optional/repeat proposals, recursion/output/attempt budgets. Start with action-free grammars. Repeat distribution should explicitly allow empty and skewed lengths. Reject unknown/unsupported constructs or use controlled oracle-based fallback.  
 **Tests:** same seed yields same candidates, differing seeds explore branches, recursion hard stop, nullable loop prevents non-progress, EOF handling, UTF-8 roundtrip.  
 **Exit:** reproducible candidate stream; no assertion that candidates are necessarily accepted yet.
 
-### G2 — Full PEG acceptance oracle
+### G2 — Full PEG acceptance oracle — COMPLETE
 
 **Files:** generator and existing parsing APIs.  
 **Tasks:** parse each candidate with the actual grammar from the designated start rule, require full-input success, retry on rejection, and return explicit exhausted-budget/unsupported status. Avoid evaluating user-defined actions with side effects in testing unless user explicitly opts in and effects can be isolated.  
 **Tests:** `('a'/'ab') 'c'` candidate trap, `'a'* 'a' eoi` impossible branch, lookahead, a valid disjoint grammar, budget exhaustion.  
 **Exit:** every sample reported as valid is independently accepted by the reference parser.
 
-### G3 — Coverage-guided grammar generation
+### G3 — Coverage-guided grammar generation — COMPLETE
 
 **Files:** generator, A2 metrics adapters.  
 **Tasks:** collect coverage from **actual successful parses**, not merely branches selected by the generator; bias toward undercovered alternatives and rare repeat depths. Track unreachable/unknown coverage separately.  
 **Tests:** exercised-vs-proposed branches differ, rare alternative under weighted choices, timeout under unreachable branch, fixed-seed reproducibility.  
 **Exit:** coverage report and reproducible corpus.
 
-### G4 — Weighted choice and repetition policies
+### G4 — Weighted choice and repetition policies — COMPLETE
 
 **Files:** generator + external policy config.  
 **Tasks:** per-alternative weights, optional probability, repeat-length histograms/distributions, token length policies, recursion attenuation and explicit output budgets. Keep weights **outside** grammar syntax initially. Normalize and validate policy; zero weights should mean disabled only when permitted.  
 **Tests:** deterministic samples, malformed negative/NaN weights rejected, zero-weight branches, long-tail repetitions, output-length budget.  
 **Exit:** configurable generation with observable policy metadata.
 
-### G5 — Learn approximate weights from representative corpora
+### G5 — Learn approximate weights from representative corpora — COMPLETE
 
 **Files:** tracer/statistics helper.  
 **Tasks:** parse real inputs and count actual successful alternatives, rule/context frequencies, token lengths, repetition counts, depth distributions. Optionally collect conditional context (parent rule, previous token class); do not claim independent marginal statistics perfectly reproduce real distributions. Keep provenance and sampling bias notes.  
 **Tests:** synthetic corpus with known weights, escaped/invalid input ignored with correct status, replay reproducibility, no action-side effects in measurement.  
 **Exit:** exported model that G4 can load; holdout comparison of generated vs real length/depth/branch histograms.
 
-### G6 — Invalid mutation, differential fuzzing, and shrinking
+### G6 — Invalid mutation, differential fuzzing, and shrinking — COMPLETE
 
 **Files:** tests/generator and corpus utilities.  
 **Tasks:** mutate valid samples near delimiters, keywords, lookahead boundaries, UTF-8 sequences, and EOF; retain **oracle-verified invalid** samples. For any backend mismatch, shrink while maintaining the mismatch and save input, grammar, seed and build modes. Combine with uniformly random bytes to explore malformed cases.  
 **Tests:** intentionally seeded backend mismatch minimized; valid mutation still valid must not be mislabeled; invalid UTF-8 and truncated EOF; iteration/time budget; deterministic replay.  
 **Exit:** versioned regression seeds and A4 CI integration.
 
-### G7 — Representative benchmark corpus generator
+### G7 — Representative benchmark corpus generator — COMPLETE
 
 **Files:** `performance/corpora/`, generators, workload registry.  
 **Tasks:** materialize seeded small/medium/large inputs with checksum and weight-model provenance, valid/invalid mix, recursion/length distributions and occasional adversarial outliers. Include at least one real corpus family where licensing and privacy permit. Ensure grammar-generated benchmarks are **not the only** benchmark input; avoid tuning to the generator alone.  
@@ -578,7 +588,7 @@ What the generated `direct` code shows (output of `grammar!(Memoization.selectiv
 
 | ID | Priority | Prerequisite | Work product | Size | Primary cluster |
 |---|---|---|---|---|---|
-| Q1 | P0 | — | Fixed-cost ladder and harness floor | S | tiny |
+| Q1 (complete; `performance/milestones/Q1/`) | P0 | — | Fixed-cost ladder and harness floor | S | tiny |
 | Q2 | P0 | G7 | G7 corpora and missing families wired into the timing runner | M | all (adversarial cover) |
 | Q3 | P1 | Q1 | Cycle attribution for the 10 worst workloads (arm64) | S | all |
 | S3 | P0 | Q1 | Lean entry path and direct entry for whole-DFA roots | M | tiny |
@@ -614,7 +624,7 @@ How existing milestones map onto this phase:
 - X2: O4 is its regular-region subset.
 - X3: consumes Q2/Q3 data.
 
-#### Q1 — Fixed-cost ladder and harness floor
+#### Q1 — Fixed-cost ladder and harness floor — COMPLETE
 
 **Files:** `benchmark/`, `performance/scripts/`.  
 **Tasks:** Add microbenchmarks that time each layer of the entry path in isolation on empty and one-byte input, so the ~13 ns tiny-input gap is split into measured parts:
