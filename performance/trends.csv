@@ -11,3 +11,5 @@ run_id,kind,compiler,commit,workloads,within_target,pct_within_target,p50,p90,p9
 20261019T224838Z-276489b1c,baseline[direct],ldc2,276489b1c3fbe6b024927d4dea85c936efefeac0,171,78,45.6140,1.5461,2.5043,2.7868,1.4738,3.4394,handwritten-workloads/Arithmetic.Flat/validation
 20261019T225825Z-276489b1c,milestone:S1[direct],ldc2,276489b1c3fbe6b024927d4dea85c936efefeac0,171,96,56.1404,1.3671,2.0413,2.2136,1.3225,2.7211,handwritten-workloads/Numbers.ScientificEmpty/validation
 20261019T231119Z-276489b1c,milestone:S1b[direct],ldc2,276489b1c3fbe6b024927d4dea85c936efefeac0,171,93,54.3860,1.4348,2.2263,2.4603,1.3829,2.8960,handwritten-workloads/PEGGrammar.Permissive/validation
+20261020T000732Z-6e7a5966f,milestone:S2[direct],ldc2,6e7a5966f9286683ca5d3e74777927f7987bc652,171,97,56.7251,1.3774,2.0487,2.2273,1.3332,2.7712,json-ambiguity/JSON.InvalidTrailing/spans
+20261020T001203Z-6e7a5966f,milestone:S2b[direct],ldc2,6e7a5966f9286683ca5d3e74777927f7987bc652,171,99,57.8947,1.3671,2.0367,2.2155,1.3155,2.7055,handwritten-workloads/Numbers.ScientificEmpty/validation

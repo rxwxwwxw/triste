@@ -2,14 +2,14 @@
 
 Generated from `performance/trends.csv`; do not edit by hand.
 
-Latest run: `20261019T231119Z-276489b1c` (milestone:S1b[direct], ldc2, commit 276489b1c)
+Latest run: `20261020T001203Z-6e7a5966f` (milestone:S2b[direct], ldc2, commit 6e7a5966f)
 
-- Workloads within 1.5x: 93/171 (54.4%)
-- Slowdown p50/p90/p95: 1.43 / 2.23 / 2.46
-- Geometric mean: 1.38x
-- Worst: 2.90x (handwritten-workloads/PEGGrammar.Permissive/validation)
+- Workloads within 1.5x: 99/171 (57.9%)
+- Slowdown p50/p90/p95: 1.37 / 2.04 / 2.22
+- Geometric mean: 1.32x
+- Worst: 2.71x (handwritten-workloads/Numbers.ScientificEmpty/validation)
 
-Delta vs previous run `20261019T225825Z-276489b1c`: within-target -3, p90 +0.19, geomean +0.06
+Delta vs previous run `20261020T000732Z-6e7a5966f`: within-target +2, p90 -0.01, geomean -0.02
 
 ## History
 
@@ -27,6 +27,8 @@ Delta vs previous run `20261019T225825Z-276489b1c`: within-target -3, p90 +0.19,
 | 20261019T224838Z-276489b1c | baseline[direct] | ldc2 | 78/171 | 2.50 | 1.47 | 3.44 |
 | 20261019T225825Z-276489b1c | milestone:S1[direct] | ldc2 | 96/171 | 2.04 | 1.32 | 2.72 |
 | 20261019T231119Z-276489b1c | milestone:S1b[direct] | ldc2 | 93/171 | 2.23 | 1.38 | 2.90 |
+| 20261020T000732Z-6e7a5966f | milestone:S2[direct] | ldc2 | 97/171 | 2.05 | 1.33 | 2.77 |
+| 20261020T001203Z-6e7a5966f | milestone:S2b[direct] | ldc2 | 99/171 | 2.04 | 1.32 | 2.71 |
 
 ## Progress
 
@@ -56,6 +58,7 @@ Last updated 2026-10-19.
 | G5 weight learning from corpora | done (marginal model, holdout comparison) | `tests/learning.d` |
 | G6 mutation/differential fuzzing/shrinking, regression seeds | done; combinators vs direct agree over 1500+ inputs | `tests/fuzz_differential.d`, `tests/regression/` |
 | G7 reproducible corpora (json/arithmetic/csv; real + synthetic + learned + adversarial; manifest) | done; **not yet wired into the timing runner** | `performance/corpora/`, `tests/corpus_generation.d`, `tests/test_corpora.py` |
+| S2b rule-call tick from register counter (direct) | 99/171 within 1.5x (58%), p90 2.04, geomean 1.32; no regression vs S1 | `milestones/S2b`; S2 threshold heuristic rejected (`milestones/S2`) |
 | P3-P5, P7-P8, L4-L6, X* | not started | — |
 
 P6 result (LDC, vs baseline): within 1.5x 53 -> 59 of 171, geomean 1.81 -> 1.62, JSON.EscapeHeavy 4.9x -> ~1.4x,

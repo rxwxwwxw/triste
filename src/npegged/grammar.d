@@ -1928,6 +1928,43 @@ package struct Frontend {
         assert(frontend.emitEmpty(graph, oversized, "Large", guard, 1) is null);
     }
 
+    /// Cursors with fewer tick sites than this keep the shared-memory step counter: the register copies cost more
+    /// (three loads and a store per call) than they save when a rule ticks only a few times.
+    enum localStepSites = 1;
+
+    private static size_t countOf(string text, string needle) nothrow {
+        size_t count;
+        for (size_t i; i + needle.length <= text.length; ++i)
+            if (text[i .. i + needle.length] == needle)
+                ++count;
+        return count;
+    }
+
+    private static string replaceAll(string text, string from, string to) nothrow {
+        string result;
+        size_t i;
+        while (i < text.length) {
+            if (i + from.length <= text.length && text[i .. i + from.length] == from) {
+                result ~= to;
+                i += from.length;
+            } else
+                result ~= text[i++];
+        }
+        return result;
+    }
+
+    /// The same cursor body with `steps`/`status` accessed in the shared state (what the code did before S1).
+    private static string withSharedSteps(string code) nothrow {
+        code = replaceAll(code, "s.steps = _steps; ", "");
+        code = replaceAll(code, " _steps = s.steps; _live = s.status == Status.ok;", "");
+        code = replaceAll(code, "_steps = s.steps; _live = s.status == Status.ok;", "");
+        code = replaceAll(code, "_tick()", "s.tick()");
+        code = replaceAll(code, "!_live", "s.status != Status.ok");
+        code = replaceAll(code, "_live", "s.status == Status.ok");
+        code = replaceAll(code, "_limit", "s.context.stepLimit");
+        return replaceAll(code, "_steps", "s.steps");
+    }
+
     /// Step accounting held in locals inside a cursor function (register resident). `s.steps` and `s.status` are
     /// synchronized around every call that can tick (rules, scanners, combinators) and written back on exit,
     /// so the work-unit count and resource-limit behavior stay exactly those of `State.tick`.
@@ -2024,9 +2061,16 @@ package struct Frontend {
                         tag = recordSubtrees[reference] ? ", -2L" : ", -3L";
                 }
             }
-            code ~= "s.steps = _steps; " ~ target ~ "Ok = s." ~ entry ~ "!(_cursor_" ~ expression
-                .reference ~ ", " ~ quoted(name ~ "." ~ expression.reference) ~ tag ~ ")(" ~ target
-                ~ "End, " ~ target ~ "Fail); _steps = s.steps; _live = s.status == Status.ok;\n";
+            if (entry == "recognizeRule") // The work unit comes from the register counter; the callee skips its own tick (same failure result).
+                code ~= "if (!_tick()) { " ~ target ~ "Fail = " ~ target ~ "End; " ~ target
+                    ~ "Ok = false; } else { s.steps = _steps; " ~ target
+                    ~ "Ok = s.recognizeRuleTicked!(_cursor_" ~ expression.reference ~ ", " ~ quoted(
+                            name ~ "." ~ expression.reference) ~ tag ~ ")(" ~ target ~ "End, " ~ target
+                    ~ "Fail); _steps = s.steps; _live = s.status == Status.ok; }\n";
+            else
+                code ~= "s.steps = _steps; " ~ target ~ "Ok = s." ~ entry ~ "!(_cursor_" ~ expression
+                    .reference ~ ", " ~ quoted(name ~ "." ~ expression.reference) ~ tag ~ ")(" ~ target
+                    ~ "End, " ~ target ~ "Fail); _steps = s.steps; _live = s.status == Status.ok;\n";
         } else if (outputMode == 2 && op == "dfaToken" && expression.arguments.length == 4) {
             string innerRecords = expression.arguments[3];
             while (innerRecords.length && (innerRecords[0] == ' ' || innerRecords[0] == '\t'))
@@ -2639,9 +2683,12 @@ package struct Frontend {
                     llRule = ruleIndex;
                     const cursorBody = emitDirect(directGraph, directRoot, "p", "_result", serial, 0, check);
                     llActive = false;
+                    const localSteps = countOf(cursorBody, "_tick()") >= localStepSites;
                     ruleOut ~= directDeclarations;
                     ruleOut ~= (useDirect || check == 2 && directRecords ? "" : "pragma(inline, true) ") ~ "private static bool _cursor_" ~ r ~ "(ref State!(false, " ~ number(
-                            check) ~ ") s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ llLocals ~ cursorBody ~ "s.steps = _steps; cursor = _resultEnd; failure = _resultFail; return _resultOk; }\n";
+                            check) ~ ") s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ (
+                            localSteps ? llLocals ~ cursorBody ~ "s.steps = _steps; " : withSharedSteps(
+                            cursorBody)) ~ "cursor = _resultEnd; failure = _resultFail; return _resultOk; }\n";
                 }
                 ruleOut ~= "pragma(inline, true) private static State!(CT, Check).Node _direct_" ~ r ~ "(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; " ~ "const successful = _cursor_" ~ r ~ "(s, end, failure); " ~ "auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }\n";
             }

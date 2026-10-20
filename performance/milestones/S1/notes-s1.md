@@ -32,3 +32,16 @@ regressions (6 remain, <= 8.7%) but is slower overall: 93/171 within 1.5x, p90 2
 
 Next candidates on direct: fuse adjacent ticks, remove the per-node `live` initialisation, reduce rule-call synchronization (the likely
 remaining PEGGrammar cost).
+
+## S2 follow-up (direct backend)
+
+Ceiling experiments on Arithmetic.Flat after S1 (unsound, not committed): trace check 0.6%, depth accounting ~9%, rule-level tick ~7%.
+Depth must stay visible to callees through shared state, so moving it to a register would need the same memory traffic; skipped.
+- **S2b (kept, `milestones/S2b`)**: the rule-call tick comes from the caller's register counter and the callee entry
+  `recognizeRuleTicked` skips its own tick (failure result identical). 96 -> 99 of 171 within 1.5x; no workload >5% slower than S1,
+  two >5% faster; p90 2.04, geomean 1.32. Exactness: dense differential sweeps pass.
+- **S2 (rejected, `milestones/S2`)**: cursors with fewer than 3 tick sites kept the shared-memory counter (threshold sweep 1/3/6/12 on ten
+  workloads: tiny PEG cases improved, Arithmetic.Small got 20% slower at 6; at 3 JSON spans/tree regressed up to 25% vs S1). The PEG and
+  JSON/Arithmetic cases pull in opposite directions at any single threshold, so the heuristic was removed.
+- Not done: fusing adjacent ticks (the two failure paths of a fused pair have different `end`/`failEnd` values, so a fused form needs a
+  3-way result; expected gain a few percent) and removing the per-node `_live` copies (a register move; no measurable effect expected).

@@ -1231,6 +1231,26 @@ struct State(bool CT, int Check = 0) {
 
     }
 
+    /// `recognizeRule` for callers that already took the work unit from their own register-resident counter:
+    /// generated cursors tick locally, then synchronize `steps` and call this. Everything else is identical.
+    pragma(inline, true) bool recognizeRuleTicked(alias body, string name, bool Trace = true)(
+            ref size_t end, ref size_t failEnd) nothrow {
+        static assert(Check == 1 || Check == 2);
+        const pos = end;
+        if (depth >= context.depthLimit) {
+            status = Status.resourceLimit;
+            failEnd = pos;
+            return false;
+        }
+        ++depth;
+        const successful = body(this, end, failEnd);
+        --depth;
+        static if (Trace)
+            if (context.trace !is null)
+                context.trace(name, pos, successful, context.userData);
+        return successful;
+    }
+
     /// Recognition rule boundary with scalar results; memoized rules keep Node seeds.
     pragma(inline, true) bool recognizeRule(alias body, string name, bool Trace = true)(ref size_t end,
             ref size_t failEnd) nothrow {
