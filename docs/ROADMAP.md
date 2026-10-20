@@ -601,7 +601,7 @@ What the generated `direct` code shows (output of `grammar!(Memoization.selectiv
 | W2 | P1 | W1, A5 | Limit-free clones selected at entry | M | all valid inputs |
 | W3 | P1 | W1 | Depth checks only at heads of recursive cycles | M | JSON, Arithmetic, PEG |
 | S5 | P1 | S4 | Depth as a cursor parameter (realizes part of P5) | M | rule-boundary-heavy |
-| S6 | P1 | S4, D2 | Tick regions guarded by slack | M | all |
+| S6 (closed: superseded by D2) | P1 | S4, D2 | Tick regions guarded by slack | M | all |
 | S7 | P2 | Q3 | Cursor results returned in registers (realizes part of P5) | S | rule-boundary-heavy |
 | S8 (NO-GO; `performance/milestones/S8/`) | P1 | Q1 | Furthest failure held in a register; cheaper rejection path | S | tiny invalid |
 | C1 | P1 | W2, D3 | `accept` mode, and optimistic `check` with exact replay | M | valid inputs |
@@ -609,9 +609,9 @@ What the generated `direct` code shows (output of `grammar!(Memoization.selectiv
 | C3 | P2 | C1, B6 | Proposition 6 cuts in the accept clone (promotes B6) | M | backtracking-heavy |
 | C4 | P2 | C1, B7 | Redundant-predicate elimination in the accept clone | S | PEGGrammar |
 | O4 | P3 | O1, O3 | Tagged-DFA lowering of regular regions that emit records (research) | L | CSV, JSON lexemes |
-| D1 | P1 | A4, A5 | **Decision:** make `direct` the default backend | S | all |
-| D2 | P1 | — | **Decision:** work-unit contract (exact today, or coarser) | S | all |
-| D3 | P1 | — | **Decision:** whether to add a public `accept` output mode | S | valid inputs |
+| D1 (decided: keep `combinators`) | P1 | A4, A5 | **Decision:** make `direct` the default backend | S | all |
+| D2 (decided: coarser model, implemented; `performance/milestones/D2/`) | P1 | — | **Decision:** work-unit contract (exact today, or coarser) | S | all |
+| D3 (decided: yes) | P1 | — | **Decision:** whether to add a public `accept` output mode | S | valid inputs |
 
 Recommended order: **Q1 → S3 → S8** (ceiling first; most tiny cases are rejections) **→ S4 → O1 → O2/O3 → Q2 → W1 → W2/W3 → S5 → S6** (after D2) **→ C1** (after D3) **→ C2–C4**. Put D1 to the maintainer as soon as Q1 is done. S7 and O4 go ahead only if Q3 attribution or a ceiling experiment supports them. P8 (iterative expressions) stays the main lever for `Arithmetic` and can run in parallel with the W milestones.
 
@@ -765,7 +765,9 @@ Steps are not in any public result (§10.1 item 5), and the bound guarantees no 
 
 Pass `depth` by value through `_cursor_*` signatures. Synchronize `s.depth` only at boundaries into combinators, memoized rules and trace. S2 skipped this because callees read `s.depth` from shared state; a parameter removes that memory traffic for cursor-to-cursor calls. Use it where W3 does not apply, or combine the two. Tests and exit are the same as for S1 (dense depth-limit sweeps).
 
-#### S6 — Tick regions guarded by slack
+#### S6 — Tick regions guarded by slack — CLOSED (superseded by D2)
+
+**Result:** D2 chose the coarse work-unit model, which removes the per-node ticks this milestone would have guarded (`docs/WORK_UNITS.md`).
 
 **Prerequisite:** decision D2, because a coarser work-unit model would make this redundant.  
 **Tasks:** For maximal straight-line regions of a cursor (no loops, rule calls or scanners), compute the static maximum tick count `K_R`. Emit `if (_limit - _steps >= K_R) { unchecked increments } else { exact region }`. When the guard holds, no tick inside the region can fail. That removes the obstacle S2 recorded for fusing adjacent ticks, where the two failure paths of a fused pair had different `end`/`failEnd` values and needed a 3-way result. Choose regions by a structural criterion, not a size threshold, because S2 showed thresholds help tiny PEG cases and hurt Arithmetic.  
@@ -815,7 +817,9 @@ Some regions are regular and emit only leaf records; CSV `Root <- Field (Sep Fie
 - **(b)** A generated recognizer with tag replay checked against the cursor path.
 - **(c)** Records parity, including rollback on late failure.
 
-#### D1 — Decision: make `direct` the default backend
+#### D1 — Decision: make `direct` the default backend — DECIDED (keep `combinators`)
+
+**Decision (maintainer, 2026-10-20):** keep `combinators` as the `grammar!` default; the numbers above stay as the decision record.
 
 Present the maintainer with the following:
 - The L3 and S2b numbers.
@@ -826,11 +830,15 @@ Present the maintainer with the following:
 
 Flip the `grammar!` default only on explicit approval.
 
-#### D2 — Decision: work-unit contract
+#### D2 — Decision: work-unit contract — DECIDED (coarser model), IMPLEMENTED
+
+**Decision (maintainer, 2026-10-20):** allow the coarser model. Implemented on every backend as model v2 in `docs/WORK_UNITS.md`: one unit per rule call, repetition attempt and `examined - pos + 1` per scanner; terminals, sequences and choices are free. Evidence and the benchmark deltas are in `performance/milestones/D2/notes.md` (validation -10..-14% on Arithmetic/PEGGrammar).
 
 Write down the current model: one tick per evaluated node; DFA scanners charge `examined − pos + 1`; the rule tick is taken by the caller (S2b). Then ask whether a coarser model is acceptable, for example one unit per rule entry, per loop iteration and per consumed byte. It would still bound runtime, because unbounded work must pass through rule calls or loops, but `resourceLimit` would fire at different points than today. If it is approved, most of S6 and part of W2 become simple codegen changes. If not, this phase uses only the exact two-clone techniques.
 
-#### D3 — Decision: public `accept` mode
+#### D3 — Decision: public `accept` mode — DECIDED (yes)
+
+**Decision (maintainer, 2026-10-20):** add `accept!` (C1).
 
 Adding `accept!` widens the public API and adds a fourth workload mode. Ask before implementing C1(a).
 

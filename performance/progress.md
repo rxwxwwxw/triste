@@ -59,3 +59,7 @@ Largest outstanding gaps are listed in the latest summary.csv (PEGGrammar.Permis
   checks pass. Details and the 200-rule compiler-budget limitation are in
   `milestones/S3/notes-s3.md`.
 - Next in the roadmap's recommended order: S8 (rejection-path ceiling first).
+- S8 NO-GO (rejection-path ceiling <3%), S4 done, O1 NO-GO (premise fails), O2 done, O3 done, Q2 done (corpora + families
+  timed; 264 workloads), D2 implemented (model v2, `docs/WORK_UNITS.md`): see each `milestones/<ID>/notes*.md`.
+  On the original 171 workload ids: within 1.5x 99 (S2b) -> 103 (Q2 run, before D2). D2 then moved Arithmetic/PEGGrammar
+  validation and spans down by 10-15%; full-gate numbers for the whole phase are recorded when the phase closes.

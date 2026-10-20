@@ -730,6 +730,12 @@ struct State(bool CT, int Check = 0) {
         return data;
     }
 
+    /// Work-unit model v2 (docs/WORK_UNITS.md): fine-grained nodes only observe the status; rule calls, repetition
+    /// attempts and scanners count units with `tick`.
+    pragma(inline, true) bool alive() const nothrow {
+        return status == Status.ok;
+    }
+
     pragma(inline, true) bool tick() nothrow {
         if (status != Status.ok)
             return false;
@@ -1334,12 +1340,25 @@ struct State(bool CT, int Check = 0) {
     }
 
     /// Non-memoized compact rule entry with scalar recognition and transactional capture.
-    pragma(inline, true) bool recognizeRecordedRule(alias body, string name, long RecordKind = -1)(
+    pragma(inline, true) bool recognizeRecordedRule(alias body, string name, long RecordKind = -1, bool Ticked = false)(
             ref size_t end, ref size_t failEnd) nothrow {
         static assert(Check == 2);
+        // `Ticked`: the caller already took the rule's work unit from its register counter (see recognizeRuleTicked).
+        static if (Ticked)
+            alias boundary = recognizeRuleTicked!(body, name, false);
+        else
+            alias boundary = recognizeRule!(body, name, false);
         static if (RecordKind == -3)
-            return recognizeRule!(body, name, false)(end, failEnd);
-        else {
+            return boundary(end, failEnd);
+        else static if (RecordKind == -2) {
+            // No record of its own: nothing to open or finish, and the descendants restore the parent themselves.
+            const checkpoint = records.length;
+            const successful = boundary(end, failEnd);
+            syncOutput();
+            if (!successful || status != Status.ok)
+                records.rollback(checkpoint);
+            return successful;
+        } else {
             const pos = end;
             const checkpoint = records.length;
             const parent = records.parent;
@@ -1347,7 +1366,7 @@ struct State(bool CT, int Check = 0) {
                 records.parent = parent;
             static if (RecordKind >= 0 && (RecordKind & (1L << 32))) {
                 assert(records.selector(name) == cast(uint)RecordKind);
-                const successful = recognizeRule!(body, name, false)(end, failEnd);
+                const successful = boundary(end, failEnd);
                 if (successful && status == Status.ok) {
                     assert(records.length == checkpoint, "A compiled leaf emitted a selected descendant");
                     records.putLeaf(cast(uint)RecordKind, pos, end);
@@ -1368,7 +1387,7 @@ struct State(bool CT, int Check = 0) {
                         const index = records.openKind(cast(uint)RecordKind, pos);
                 }
                 syncOutput();
-                const successful = recognizeRule!(body, name, false)(end, failEnd);
+                const successful = boundary(end, failEnd);
                 syncOutput();
                 if (successful && status == Status.ok)
                     records.finishFresh(index, end);
@@ -1415,6 +1434,44 @@ struct State(bool CT, int Check = 0) {
             assert(state.recognizeRecordedRule!(advance, "leaf", (1L << 32) | 7)(end, failure));
             assert(state.status == Status.resourceLimit && limited.nodes.length == 0);
             assert(!state.recognizeRecordedRule!(advance, "leaf", 7)(end, failure));
+
+            // A rule without a record of its own rolls back what its body emitted when it fails, and the
+            // `Ticked` entry (work unit taken by the caller) is the same transaction without its own tick.
+            static bool emitThenFail(ref State inner, ref size_t at, ref size_t fail) @nogc nothrow {
+                inner.records.put(CompactNode(9, at, at + 1, inner.records.parent));
+                fail = at + 1;
+                return false;
+            }
+
+            static bool emitThenAdvance(ref State inner, ref size_t at, ref size_t fail) @nogc nothrow {
+                inner.records.put(CompactNode(9, at, at + 1, inner.records.parent));
+                ++at;
+                fail = at;
+                return true;
+            }
+
+            Arena roomy;
+            RecordBuffer wide;
+            wide.arena = &roomy;
+            wide.selector = &select;
+            State second;
+            second.attachRecords(wide);
+            second.input = "abcd";
+            end = failure = 0;
+            assert(!second.recognizeRecordedRule!(emitThenFail, "skip", -2)(end, failure));
+            assert(wide.nodes.length == 0 && wide.parent == size_t.max);
+            assert(second.recognizeRecordedRule!(emitThenAdvance, "skip", -2)(end, failure));
+            assert(wide.nodes.length == 1 && end == 1);
+            end = failure = 0;
+            const before = second.steps;
+            assert(second.recognizeRecordedRule!(advance, "skip", -2, true)(end, failure));
+            assert(second.steps == before && end == 1);
+            assert(second.recognizeRecordedRule!(advance, "leaf", (1L << 32) | 7, true)(end, failure));
+            assert(second.steps == before && wide.nodes.length == 2 && end == 2);
+            second.context.stepLimit = 0;
+            end = failure = 0;
+            assert(!second.recognizeRecordedRule!(advance, "skip", -2)(end, failure));
+            assert(second.status == Status.resourceLimit && wide.nodes.length == 2);
         }
     }
 
@@ -2048,7 +2105,9 @@ pragma(inline, true) CheckResult check(alias parser)(ref ParseContext context, s
     auto bad = check!(and!(literal!"ab", eoi))(context, "ax");
     assert(bad.status == Status.mismatch && bad.failEnd == 1 && bad.arena.used == 0);
     context.stepLimit = 0;
-    auto limited = check!(literal!"a")(context, "a");
+    // Terminals charge nothing; a repetition attempt does.
+    assert(check!(literal!"a")(context, "a").successful);
+    auto limited = check!(oneOrMore!(literal!"a"))(context, "a");
     assert(limited.status == Status.resourceLimit && !limited.successful);
 }
 
@@ -2169,7 +2228,8 @@ version (unittest) private uint omitRecord(string name) @nogc nothrow pure {
     assert(borrowed.arena.allocationCalls == 0 && borrowed.outputArena.allocationCalls == 0);
     context = ParseContext.init;
     context.stepLimit = 0;
-    assert(parseRecords!(literal!"a", omitRecord)(context, "a").status == Status.resourceLimit);
+    assert(parseRecords!(oneOrMore!(literal!"a"), omitRecord)(context, "a").status == Status
+            .resourceLimit);
 }
 
 version (unittest) private ParseTree legacyRecordParser(ref State!false state, size_t pos) @nogc nothrow {
@@ -2238,7 +2298,7 @@ State!(CT, Check).Node eoi(bool CT, int Check = 0)(ref State!(CT, Check) s, size
 
 alias endOfInput = eoi;
 State!(CT, Check).Node any(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t pos) nothrow {
-    if (!s.tick() || pos >= s.input.length)
+    if (!s.alive() || pos >= s.input.length)
         return s.failure(pos, "any char");
     auto result = s.node(pos, pos + 1);
     static if (!Check)
@@ -2263,11 +2323,11 @@ struct literal(string text) {
         }
 
         static size_t byteSteps(ubyte c) @nogc nothrow pure {
-            return 1;
+            return 0;
         }
     }
     static State!(CT, Check).Node opCall(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t pos) nothrow {
-        if (!s.tick())
+        if (!s.alive())
             return s.node(pos, pos, false);
         static if (text.length == 0) {
             return s.node(pos, pos);
@@ -2366,7 +2426,7 @@ bool decode(scope string input, ref size_t pos, out dchar value) @nogc nothrow p
 
 struct charRange(dchar low, dchar high) {
     static size_t byteSteps(ubyte c) @nogc nothrow pure {
-        return 1;
+        return 0;
     }
 
     enum byteScanner = high < 128;
@@ -2377,7 +2437,7 @@ struct charRange(dchar low, dchar high) {
 
     static State!(CT, Check).Node opCall(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t pos) nothrow {
         static if (high < 128) {
-            if (!s.tick() || pos >= s.input.length)
+            if (!s.alive() || pos >= s.input.length)
                 return s.failure(pos, "character range");
             const char c = s.input[pos];
             if (c < low || c > high)
@@ -2389,7 +2449,7 @@ struct charRange(dchar low, dchar high) {
         } else {
             size_t end = pos;
             dchar value;
-            if (!s.tick() || !decode(s.input, end, value) || value < low || value > high)
+            if (!s.alive() || !decode(s.input, end, value) || value < low || value > high)
                 return s.failure(pos, "character range");
             auto result = s.node(pos, end);
             static if (!Check)
@@ -2507,7 +2567,7 @@ struct CharSetMask {
 
 struct charClass(ulong b0, ulong b1, ulong b2, ulong b3) {
     static size_t byteSteps(ubyte c) @nogc nothrow pure {
-        return 1;
+        return 0;
     }
 
     enum byteScanner = true;
@@ -2518,7 +2578,7 @@ struct charClass(ulong b0, ulong b1, ulong b2, ulong b3) {
     }
 
     static State!(CT, Check).Node opCall(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t pos) nothrow {
-        if (!s.tick() || pos >= s.input.length)
+        if (!s.alive() || pos >= s.input.length)
             return s.failure(pos, "character class");
         const ubyte c = cast(ubyte)s.input[pos];
         enum ulong[4] bits = [b0, b1, b2, b3];
@@ -2557,8 +2617,8 @@ struct and(rules...) {
         }
 
         static size_t byteSteps(ubyte c) @nogc nothrow pure {
-            // Sequence ticks before each child, plus any's terminal tick.
-            return 3 + rules[0].predicateSteps(c);
+            // Sequences, any and the predicate charge nothing; the repetition around them pays per attempt.
+            return rules[0].predicateSteps(c);
         }
     } else
         enum byteScanner = false;
@@ -2573,7 +2633,7 @@ struct and(rules...) {
         }
         static foreach (r; rules) {
             {
-                if (!s.tick())
+                if (!s.alive())
                     return s.node(pos, pos, false);
                 auto next = r(s, result.end);
                 if (!next.successful) {
@@ -2885,8 +2945,8 @@ struct predictiveChoice(branches...) {
             const target = branchTable[c];
             static foreach (i, branch; branches)
                 if (target == i + 1)
-                    return 1 + branch.rule.byteSteps(c);
-            return 1;
+                    return branch.rule.byteSteps(c);
+            return 0;
         }
     }
 
@@ -2908,7 +2968,7 @@ struct predictiveChoice(branches...) {
         static if (Check == 1) {
             pragma(inline, true);
         }
-        if (!s.tick())
+        if (!s.alive())
             return s.node(pos, pos, false);
         if (pos >= s.input.length) {
             static if (fallback)
@@ -2967,7 +3027,7 @@ struct predictiveChoice(branches...) {
     assert(check!nullable(context, "x").end == 0);
     assert(check!nullable(context, "ab").end == 2);
     context.stepLimit = 1;
-    assert(check!nullable(context, "ab").status == Status.resourceLimit);
+    assert(check!nullable(context, "bb").status == Status.resourceLimit);
 }
 
 template longest_match(rules...) {
@@ -3168,8 +3228,9 @@ version (unittest) template unscanned(alias Rule) {
     alias delimiters = predictiveChoice!(branch!(literal!"a", a), branch!(literal!"b", b));
     assert(delimiters.byteMatches('a') && delimiters.byteMatches('b'));
     assert(!delimiters.byteMatches('c'));
-    assert(delimiters.byteSteps('a') == 2 && delimiters.byteSteps('b') == 2);
-    assert(delimiters.byteSteps('c') == 1);
+    // Work-unit model v2: terminals and choices are free, so the byte fast paths add nothing per byte.
+    assert(delimiters.byteSteps('a') == 0 && delimiters.byteSteps('b') == 0);
+    assert(delimiters.byteSteps('c') == 0);
     alias run = and!(negLookahead!delimiters, any);
     static assert(run.byteScanner);
     foreach (input; ["", "a", "b", "c", "cca", "\xffc"]) {
@@ -3275,7 +3336,7 @@ struct lookahead(alias r, bool positive) {
     limited.input = "a";
     limited.steps = 2;
     limited.context.stepLimit = 1;
-    assert(!lookahead!(literal!"a", true)(limited, 0).successful);
+    assert(!lookahead!(and!(option!(literal!"a"), literal!"a"), true)(limited, 0).successful);
     assert(limited.status == Status.resourceLimit && limited.steps == 2);
 
     import npegged.meta : AliasSeq;
@@ -3345,7 +3406,7 @@ struct predictiveNot(alias r, ulong b0, ulong b1, ulong b2, ulong b3) {
             pragma(inline, true);
         }
         if (s.context.trace is null && pos < s.input.length && !mask.contains(cast(ubyte)s.input[pos])) {
-            if (!s.tick())
+            if (!s.alive())
                 return s.node(pos, pos, false);
             return s.node(pos, pos);
         }
@@ -3364,7 +3425,9 @@ struct predictiveNot(alias r, ulong b0, ulong b1, ulong b2, ulong b3) {
         assert(result.failEnd == expected.failEnd);
     }
     context.stepLimit = 0;
-    assert(check!probe(context, "x").status == Status.resourceLimit);
+    // The probe charges nothing (model v2), with or without the FIRST shortcut.
+    assert(check!probe(context, "x").successful && check!(negLookahead!(literal!"ab"))(context, "x")
+            .successful);
 }
 
 template negLookahead(alias r) {
@@ -3722,7 +3785,7 @@ template list0(alias element, alias separator) {
 /// Full Unicode folding, preserving Pegged's fixed byte-length literal consumption.
 template caseInsensitiveLiteral(string text) {
     State!(CT, Check).Node caseInsensitiveLiteral(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t pos) nothrow {
-        if (!s.tick() || pos > s.input.length || text.length > s.input.length - pos
+        if (!s.alive() || pos > s.input.length || text.length > s.input.length - pos
                 || !caseEqual(s.input[pos .. pos + text.length], text))
             return s.failure(pos, text);
         auto result = s.node(pos, pos + text.length);
@@ -3944,13 +4007,19 @@ Position position(scope const ref ParseTree tree) @nogc nothrow pure {
     assert(!middle.successful);
     auto word = parse!(and!(literal!"1", wordBoundary))(context, "1x");
     assert(word.successful);
+    // Terminals charge nothing but fail as soon as a limit has fired (work-unit model v2).
     context.stepLimit = 0;
-    auto byteLimited = parse!any(context, "a");
+    assert(parse!any(context, "a").successful && parse!(charRange!('a', 'z'))(context, "a")
+            .successful);
+    auto byteLimited = parse!(and!(option!(literal!"z"), any))(context, "a");
     assert(byteLimited.status == Status.resourceLimit);
-    auto caseLimited = parse!(caseInsensitiveLiteral!"a")(context, "a");
-    assert(caseLimited.status == Status.resourceLimit);
-    auto rangeLimited = parse!(charRange!('a', 'z'))(context, "a");
-    assert(rangeLimited.status == Status.resourceLimit);
+    State!(false, 1) exhausted;
+    exhausted.input = "a";
+    exhausted.status = Status.resourceLimit;
+    assert(!any(exhausted, 0).successful);
+    assert(!caseInsensitiveLiteral!"a"(exhausted, 0).successful);
+    assert(!charRange!('a', 'z')(exhausted, 0).successful);
+    assert(!literal!"a"(exhausted, 0).successful);
 }
 
 @nogc nothrow unittest {

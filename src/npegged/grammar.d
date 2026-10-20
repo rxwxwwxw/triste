@@ -1985,9 +1985,9 @@ package struct Frontend {
                         eof ? "" : [cast(char)outside].idup) ~ "; auto matched = " ~ graph
                     .expressions[root].source ~ "(state, 0); auto failure = state.checkpointFailure(); return " ~ type ~ "(state.steps, failure.present, state.status == Status.ok && matched.successful" ~ " && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();\n";
             }
-            guard ~= "static if (" ~ symbol ~ ".valid && " ~ symbol ~ ".cost >= 3) { if (_live"
-                ~ " && s.context.trace is null && " ~ position ~ " " ~ (eof
-                        ? "==" : "<") ~ " s.input.length";
+            guard ~= "static if (" ~ symbol ~ ".valid && " ~ symbol ~ ".cost >= " ~ number(
+                    emptyCostThreshold) ~ ") { if (_live" ~ " && s.context.trace is null && "
+                ~ position ~ " " ~ (eof ? "==" : "<") ~ " s.input.length";
             if (!eof)
                 guard ~= " && !CharSetMask([" ~ ulongHex(facts.first.bits[0]) ~ ", " ~ ulongHex(
                         facts.first.bits[1]) ~ ", " ~ ulongHex(facts.first.bits[2]) ~ ", " ~ ulongHex(
@@ -2027,6 +2027,12 @@ package struct Frontend {
     /// Cursors with fewer tick sites than this keep the shared-memory step counter: the register copies cost more
     /// (three loads and a store per call) than they save when a rule ticks only a few times.
     enum localStepSites = 1;
+
+    /// Cursors that never tick but test liveness this often also keep it in a register.
+    enum localLiveSites = 4;
+
+    /// Minimum work units an empty path must charge before the FIRST-set shortcut replaces evaluating the expression.
+    enum emptyCostThreshold = 1;
 
     private static size_t countOf(string text, string needle) nothrow {
         size_t count;
@@ -2078,9 +2084,9 @@ package struct Frontend {
         return llRule < llCertified.length && llCertified[llRule];
     }
 
-    /// L3: work units the direct form of `body` consumes when it fails on its first byte, or 0 when that is not
-    /// statically known. Mirrors `emitDirect`: a sequence ticks once per element, a literal/byte class once, and a
-    /// predictive choice once (its dispatch). Only nonnullable bodies with a known FIRST set qualify.
+    /// L3: nonzero when the direct form of `body` provably charges no work unit and records a single failure at its
+    /// start when the next byte is outside FIRST(body) (work-unit model v2: sequences, terminals and predictive choices
+    /// are free), or 0 when that is not statically known. Only nonnullable bodies with a known FIRST set qualify.
     private size_t llGuardTicks(ref GrammarAnalysis graph, size_t body) nothrow {
         if (body >= graph.facts.length || !graph.facts[body].known
                 || graph.facts[body].nullable != Nullable.no || graph.facts[body].first.empty)
@@ -2223,6 +2229,11 @@ package struct Frontend {
                         tag = recordSubtrees[reference] ? ", -2L" : ", -3L";
                 }
             }
+            if (entry == "recognizeRecordedRule" && tag == ", -3L") {
+                // A rule without selected records is a plain rule boundary in records mode too.
+                entry = "recognizeRule";
+                tag = ", false";
+            }
             if (entry == "recognizeRule") // The work unit comes from the register counter; the callee skips its own tick (same failure result).
                 code ~= "if (!_tick()) { " ~ target ~ "Fail = " ~ target ~ "End; " ~ target
                     ~ "Ok = false; } else { s.steps = _steps; " ~ target
@@ -2286,7 +2297,7 @@ package struct Frontend {
         } else if (lower && op == "and") {
             foreach (child; expression.children) {
                 const next = "_d" ~ number(serial++);
-                code ~= "if (!_tick()) { " ~ target ~ "End = " ~ position ~ "; " ~ target ~ "Fail = "
+                code ~= "if (!_live) { " ~ target ~ "End = " ~ position ~ "; " ~ target ~ "Fail = "
                     ~ position ~ "; " ~ target ~ "Ok = false; break; }\n";
                 code ~= emitDirect(graph, child, target ~ "End", next, serial, depth + 1, outputMode);
                 code ~= "if (!" ~ next ~ "Ok) { " ~ target ~ "Ok = false; " ~ target ~ "Fail = " ~ next
@@ -2302,7 +2313,7 @@ package struct Frontend {
                 code ~= "alias " ~ probe ~ " = " ~ expression.source
                     ~ "; if (s.context.trace is null && " ~ position ~ " < s.input.length && !" ~ probe
                     ~ ".mask.contains(cast(ubyte)s.input["
-                    ~ position ~ "])) { " ~ target ~ "Ok = _tick(); break; }\n";
+                    ~ position ~ "])) { " ~ target ~ "Ok = _live; break; }\n";
             }
             code ~= "const " ~ saved ~ " = s.beginProbe();\n" ~ emitDirect(graph,
                     expression.children[0],
@@ -2319,8 +2330,8 @@ package struct Frontend {
             code ~= "}\n";
         } else if (lower && op == "predictiveChoice") {
             const dispatch = "_choice" ~ number(serial++);
-            code ~= "if (!_tick()) { " ~ target ~ "Ok = false; break; }\n" ~ "alias " ~ dispatch
-                ~ " = " ~ expression.source ~ ";\n" ~ "const ubyte " ~ dispatch ~ "Selected = " ~ position
+            code ~= "if (!_live) { " ~ target ~ "Ok = false; break; }\n" ~ "alias " ~ dispatch ~ " = "
+                ~ expression.source ~ ";\n" ~ "const ubyte " ~ dispatch ~ "Selected = " ~ position
                 ~ " < s.input.length ? " ~ dispatch ~ ".branchTable[cast(ubyte)s.input[" ~ position
                 ~ "]] : cast(ubyte)" ~ dispatch ~ ".fallback; switch (" ~ dispatch ~ "Selected) {\n";
             foreach (i, branch; expression.children) {
@@ -2370,24 +2381,22 @@ package struct Frontend {
             const guard = llActive && llGuardTicks(graph, expression.children[0])
                 && llRuleCertified() ? llGuardTicks(graph, expression.children[0]) : 0;
             if (guard) {
-                // L3: the body provably fails on a byte outside FIRST(body), consuming exactly `guard` work
-                // units and recording one failure at the cursor; replay that without running the body.
+                // L3: the body provably fails on a byte outside FIRST(body), charging nothing (the repetition
+                // attempt that got us here is already paid and `_live` holds) and recording one failure at the
+                // cursor; replay that without running the body.
                 const 
                 body = "_g" ~ number(serial++);
                 const mask = "_first" ~ number(serial++);
                 const first = graph.facts[expression.children[0]].first;
                 const here = target ~ "End";
-                string ticks = "_tick()";
-                foreach (_; 1 .. guard)
-                    ticks ~= " && _tick()";
                 code ~= "size_t " ~ next ~ "End = " ~ here ~ ", " ~ next ~ "Fail = " ~ here ~ "; bool "
                     ~ next ~ "Ok = false;\nenum ulong[4] " ~ mask ~ " = [" ~ ulongHex(
                             first.bits[0]) ~ ", " ~ ulongHex(first.bits[1]) ~ ", " ~ ulongHex(
                             first.bits[2]) ~ ", " ~ ulongHex(first.bits[3]) ~ "];\nif (" ~ here
                     ~ " >= s.input.length || (" ~ mask ~ "[cast(ubyte)s.input[" ~ here
                     ~ "] >> 6] & (1UL << (cast(ubyte)s.input["
-                    ~ here ~ "] & 63))) == 0) { if (" ~ ticks ~ ") s.recordFailure(s.node(" ~ here
-                    ~ ", " ~ here ~ ", false)); } else {\n" ~ emitDirect(graph,
+                    ~ here ~ "] & 63))) == 0) { s.recordFailure(s.node(" ~ here ~ ", " ~ here
+                    ~ ", false)); } else {\n" ~ emitDirect(graph,
                             expression.children[0], here, body, serial, depth + 1, outputMode)
                     ~ next ~ "End = " ~ body ~ "End; "
                     ~ next ~ "Fail = " ~ body ~ "Fail; " ~ next ~ "Ok = " ~ body ~ "Ok; }\n";
@@ -2405,7 +2414,7 @@ package struct Frontend {
             code ~= "if (!_live" ~ (op == "oneOrMore" ? " || !" ~ count : "") ~ ") " ~ target ~ "Ok = false;\n";
         } else if (startsWith(expression.source, "literal!(")) {
             const text = decodedLiteral(expression.source);
-            code ~= "if (!_tick()) { " ~ target ~ "Ok = false; break; }\n";
+            code ~= "if (!_live) { " ~ target ~ "Ok = false; break; }\n";
             if (text.length) {
                 const bytes = "_literal" ~ number(serial++);
                 const matched = "_matched" ~ number(serial++);
@@ -2432,7 +2441,7 @@ package struct Frontend {
                     expression.alphabet.bits[0]) ~ ", " ~ ulongHex(expression.alphabet.bits[1])
                 ~ ", " ~ ulongHex(expression.alphabet.bits[2]) ~ ", " ~ ulongHex(
                         expression.alphabet.bits[3])
-                ~ "]; if (!_tick() || " ~ position ~ " >= s.input.length || (" ~ mask
+                ~ "]; if (!_live || " ~ position ~ " >= s.input.length || (" ~ mask
                 ~ "[cast(ubyte)s.input[" ~ position ~ "] >> 6] & (1UL << (cast(ubyte)s.input["
                 ~ position ~ "] & 63))) == 0) { " ~ target ~ "Ok = false; s.recordFailure(s.node("
                 ~ position ~ ", " ~ position ~ ", false)); } else { ++" ~ target ~ "End; " ~ target
@@ -2854,7 +2863,8 @@ package struct Frontend {
                     llRule = ruleIndex;
                     const cursorBody = emitDirect(directGraph, directRoot, "p", "_result", serial, 0, check);
                     llActive = false;
-                    const localSteps = countOf(cursorBody, "_tick()") >= localStepSites;
+                    const localSteps = countOf(cursorBody, "_tick()") >= localStepSites
+                        || countOf(cursorBody, "_live") >= localLiveSites;
                     ruleOut ~= directDeclarations;
                     ruleOut ~= (useDirect || check == 2 && directRecords ? "" : "pragma(inline, true) ") ~ "private static bool _cursor_" ~ r ~ "(ref State!(false, " ~ number(
                             check) ~ ") s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ (
