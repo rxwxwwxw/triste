@@ -1350,11 +1350,9 @@ struct State(bool CT, int Check = 0) {
                 const successful = recognizeRule!(body, name, false)(end, failEnd);
                 if (successful && status == Status.ok) {
                     assert(records.length == checkpoint, "A compiled leaf emitted a selected descendant");
-                    const index = records.openKind(cast(uint)RecordKind, pos);
+                    records.putLeaf(cast(uint)RecordKind, pos, end);
                     syncOutput();
-                    if (status == Status.ok)
-                        records.finishFresh(index, end);
-                    else
+                    if (status != Status.ok)
                         records.rollback(checkpoint);
                 } else
                     records.rollback(checkpoint);

@@ -281,18 +281,39 @@ struct RecordBuffer {
             failure = Status.invalidInput;
             return size_t.max;
         }
-        if (_length == storage.length) {
-            auto replacement = arena.allocate!CompactNode(growthCapacity(_length, _length + 1, 32));
-            if (!replacement.length)
-                return size_t.max;
-            replacement[0 .. _length] = storage[0 .. _length];
-            version (NPeggedMetrics)
-                if (metrics !is null)
-                    metrics.growthCopyBytes += _length * CompactNode.sizeof;
-            storage = replacement;
-        }
+        if (_length == storage.length && !grow())
+            return size_t.max;
         storage[_length] = node;
         return _length++;
+    }
+
+    /// One more slot of capacity; false when the arena refuses (its status then reports why).
+    private bool grow() @nogc nothrow {
+        auto replacement = arena.allocate!CompactNode(growthCapacity(_length, _length + 1, 32));
+        if (!replacement.length)
+            return false;
+        replacement[0 .. _length] = storage[0 .. _length];
+        version (NPeggedMetrics)
+            if (metrics !is null)
+                metrics.growthCopyBytes += _length * CompactNode.sizeof;
+        storage = replacement;
+        return true;
+    }
+
+    /// O3: append a finished leaf record for a compiled leaf rule (`kind != uint.max`, no descendants). The status
+    /// is not tested up front: the caller synchronizes it right after and rolls the record back when it is not ok,
+    /// which is what the failed `put` of the open/finish pair amounted to. The parent is valid by construction
+    /// (rollbacks never cut below an open ancestor) and `_length` cannot reach `size_t.max` before memory is gone.
+    package(npegged) pragma(inline, true) void putLeaf(uint kind, size_t begin, size_t end) @nogc nothrow {
+        if (suppressed)
+            return;
+        assert(kind != uint.max);
+        assert(parent == size_t.max || parent < _length);
+        if (_length == storage.length && !grow())
+            return;
+        version (NPeggedSharedOutput)
+            assert(coveringSpan(_length) == size_t.max);
+        storage[_length++] = CompactNode(kind, begin, end, parent);
     }
 
     size_t open(string name, size_t begin) @nogc nothrow {
@@ -1014,4 +1035,41 @@ struct SharedRecordStore {
     SharedRecordStore missing;
     assert(!missing.restore(output, SharedRecordSnapshot.init, scratch));
     assert(output.status == Status.resourceLimit);
+}
+
+/// O3: `putLeaf` is `openKind` + `finishFresh` for a childless record, including growth, suppression and failure.
+@nogc nothrow unittest {
+    Arena owner;
+    RecordBuffer fast, reference;
+    fast.arena = reference.arena = &owner;
+    // Across the first growth steps and with a non-root parent.
+    const root = fast.put(CompactNode(1, 0, 100));
+    assert(root == reference.put(CompactNode(1, 0, 100)));
+    fast.parent = reference.parent = root;
+    foreach (i; 0 .. 200) {
+        fast.putLeaf(7, i, i + 1);
+        const index = reference.openKind(7, i);
+        reference.parent = root;
+        reference.finishFresh(index, i + 1);
+    }
+    assert(fast.nodes == reference.nodes && fast.length == 201);
+    assert(fast.nodes[200] == CompactNode(7, 199, 200, root));
+    // Suppressed output records nothing.
+    fast.suppressed = true;
+    fast.putLeaf(7, 0, 1);
+    assert(fast.length == 201);
+    fast.suppressed = false;
+    // Rolling back after a leaf restores the previous length.
+    const before = fast.length;
+    fast.putLeaf(8, 3, 4);
+    assert(fast.length == before + 1);
+    fast.rollback(before);
+    assert(fast.length == before && fast.status == Status.ok);
+    // A refused growth leaves the buffer unchanged and reports the arena status.
+    Arena tiny;
+    tiny.limit = 0;
+    RecordBuffer starved;
+    starved.arena = &tiny;
+    starved.putLeaf(1, 0, 1);
+    assert(starved.length == 0 && starved.status != Status.ok);
 }
