@@ -9,6 +9,7 @@ import benchmark.workload_output : observeWorkloadOutput, verifyWorkloadOutput,
     supportsWorkloadOutput, arithmeticOutput, csvOutput;
 import benchmark.scalar_output : handwrittenScalarOutput;
 import benchmark.options : Options, OptionStatus, parseOptions;
+import benchmark.corpus_index : CorpusRow, parseCorpusRow, readWholeFile, isValidUtf8;
 import npegged.peg : ParseContext, ParseResult;
 import npegged.storage : Buffer, Status;
 import benchmark.json_output : OutputMode, handwrittenOutput, ambiguousOutput, handwrittenAmbiguous;
@@ -60,6 +61,7 @@ struct BenchmarkCase {
     ArenaPeakFn getNPeggedArenaPeak;
     bool expectedAccepted = true;
     bool workloadPair;
+    bool largeInput;
 }
 
 Observation observeCase(ref BenchmarkCase bc, size_t engine, bool comparison, OutputMode mode) {
@@ -115,13 +117,14 @@ unittest {
         assert(observeCase(probe, engine, false, OutputMode.validation).accepted);
 }
 
-void writeJsonString(string value) @nogc nothrow {
+/// `latin1` escapes every byte >= 0x80 as \u00XX so that bytes that are not valid UTF-8 survive a JSON round trip.
+void writeJsonString(string value, bool latin1 = false) @nogc nothrow {
     putchar('"');
     foreach (ubyte c; cast(const(ubyte)[])value) {
         if (c == '"' || c == '\\') {
             putchar('\\');
             putchar(c);
-        } else if (c < 32)
+        } else if (c < 32 || latin1 && c >= 0x80)
             printf("\\u%04x", cast(uint)c);
         else
             putchar(c);
@@ -139,11 +142,24 @@ void writeJsonString(string value) @nogc nothrow {
     assert(text[0 .. length] == `"\u0000\u0009\u000a\"\\é"`);
 }
 
+@nogc nothrow unittest {
+    import benchmark.test_output : CapturedStdout;
+
+    auto capture = CapturedStdout.open();
+    writeJsonString("a\xFF\xC3\xA9", true);
+    char[64] text;
+    auto length = capture.read(text);
+    assert(text[0 .. length] == `"a\u00ff\u00c3\u00a9"`);
+}
+
 void exportJsonCase(string name, string input, bool expected, size_t iterations, bool timed, bool ambiguous = false) @nogc nothrow {
     printf("{\"name\":");
     writeJsonString(name);
+    const latin1 = !isValidUtf8(input);
     printf(",\"input\":");
-    writeJsonString(input);
+    writeJsonString(input, latin1);
+    if (latin1)
+        printf(",\"inputLatin1\":true");
     printf(",\"grammar\":\"%s\"", (ambiguous ? "ambiguous" : "json").ptr);
     printf(",\"expectedAccepted\":%s,\"iterations\":%zu,\"timed\":%s", (expected ? "true" : "false")
             .ptr, iterations, (timed ? "true" : "false").ptr);
@@ -186,6 +202,59 @@ bool contains(string text, string pattern) @nogc nothrow pure {
     assert(!contains("abc", "z"));
 }
 
+/// Q2: benchmark cases for the G7 corpora. `JSON.corpus.<label>.<name>` joins the JSON suite and
+/// `Arithmetic.corpus...`/`CSV.corpus...` the handwritten-workload suite, so every case is compared with its
+/// handwritten twin and its output is verified before timing. Entries whose file is missing (large, uncommitted)
+/// are skipped; a row whose file length differs from the index is a hard error (stale corpus).
+bool addCorpusCases(ref BenchmarkCase[] benchmarks, string indexPath, bool workloadSuite, ref size_t skipped) {
+    const text = readWholeFile(indexPath);
+    if (text is null) {
+        fprintf(stderr, "Cannot read corpus index %.*s\n", cast(int)indexPath.length, indexPath.ptr);
+        return false;
+    }
+    size_t begin;
+    bool header = true;
+    foreach (i; 0 .. text.length + 1) {
+        if (i != text.length && text[i] != '\n')
+            continue;
+        const line = text[begin .. i];
+        begin = i + 1;
+        if (header) {
+            header = false;
+            continue;
+        }
+        if (!line.length)
+            continue;
+        CorpusRow row;
+        if (!parseCorpusRow(line, row)) {
+            fprintf(stderr, "Malformed corpus index row: %.*s\n", cast(int)line.length, line.ptr);
+            return false;
+        }
+        const prefix = row.family == "json" ? "JSON." : row.family == "arithmetic"
+            ? "Arithmetic." : row.family == "csv" ? "CSV." : null;
+        if (prefix is null || (row.family == "json") == workloadSuite)
+            continue;
+        const input = readWholeFile(row.path);
+        if (input is null) {
+            ++skipped;
+            continue;
+        }
+        if (input.length != row.bytes) {
+            fprintf(stderr, "Corpus file %.*s has %zu bytes, index says %zu\n",
+                    cast(int)row.path.length, row.path.ptr, input.length, row.bytes);
+            return false;
+        }
+        BenchmarkCase bc;
+        bc.name = prefix ~ "corpus." ~ row.label ~ "." ~ row.name;
+        bc.input = input;
+        bc.expectedAccepted = row.valid;
+        bc.defaultIterations = input.length >= 65536 ? 20 : input.length >= 4096 ? 200 : 1000;
+        bc.largeInput = input.length >= 65536;
+        benchmarks ~= bc;
+    }
+    return true;
+}
+
 int main(string[] args) {
     Options options;
     const status = parseOptions(args, options);
@@ -195,7 +264,7 @@ int main(string[] args) {
     }
     if (status == OptionStatus.help) {
         printf("Default: canonical full trees; --mode selects an explicit comparison cohort.\n");
-        printf("Usage: benchmark_runner [--iterations=N|-n N] [--samples=N] [--filter=TEXT|-f TEXT] [--json] [--memory] [--export-corpus] [--target-engines] [--workloads] [--mode=validation|spans|tree]\n");
+        printf("Usage: benchmark_runner [--iterations=N|-n N] [--samples=N] [--filter=TEXT|-f TEXT] [--json] [--memory] [--export-corpus] [--target-engines] [--workloads] [--mode=validation|spans|tree] [--corpus-index=PATH] [--families]\n");
         return 0;
     }
     const customIterations = options.iterations;
@@ -463,6 +532,37 @@ int main(string[] args) {
         }
     }
 
+    if (options.families && !options.workloads) {
+        // Q2: families the earlier registry lacked. Names are `JSON.family.<family>.<Case>`.
+        enum medium = mediumJson;
+        string spaced = "  ";
+        foreach (_; 0 .. 11)
+            spaced ~= spaced;
+        struct FamilyInput {
+            string name, input;
+            bool accepted;
+        }
+
+        static immutable utf8Valid = "[\"\u00e9\", \"\xE6\x97\xA5\xE6\x9C\xAC\", \"\xF0\x9F\x98\x80\", {\"k\xC3\xA9y\": \"v\xC3\xA9\"}]";
+        FamilyInput[] additions = [
+            FamilyInput("JSON.family.lex_utf8.Multibyte",
+                    utf8Valid,
+                    true), FamilyInput("JSON.family.lex_utf8.TruncatedTail", "[\"abc\xC3", false),
+            FamilyInput("JSON.family.lex_utf8.RawInvalidBytes", "[\"\xFF\xFE\xC0\x80\"]", true),
+            FamilyInput("JSON.family.failure.FirstByte", "}", false),
+            FamilyInput("JSON.family.failure.LastByte", medium[0 .. $ - 1] ~ ")", false),
+            FamilyInput("JSON.family.pathological.WhitespaceThenError", spaced ~ "x", false)
+        ];
+        foreach (addition; additions) {
+            auto entry = jsonBase;
+            entry.name = addition.name;
+            entry.input = addition.input;
+            entry.defaultIterations = 200;
+            entry.expectedAccepted = addition.accepted;
+            benchmarks ~= entry;
+        }
+    }
+
     if (options.workloads) {
         struct WorkloadInput {
             string name, input;
@@ -543,6 +643,14 @@ int main(string[] args) {
 
     }
 
+    if (options.corpusIndex.length) {
+        size_t skippedCorpora;
+        if (!addCorpusCases(benchmarks, options.corpusIndex, options.workloads, skippedCorpora))
+            return 2;
+        if (skippedCorpora)
+            fprintf(stderr, "corpus: %zu index entries skipped (file not present)\n", skippedCorpora);
+    }
+
     foreach (ref bc; benchmarks)
         bc.workloadPair = (options.workloads || !options.explicitMode && !options.exportCorpus)
             && !contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous.");
@@ -561,8 +669,11 @@ int main(string[] args) {
             if (bc.workloadPair) {
                 printf("{\"name\":");
                 writeJsonString(bc.name);
+                const latin1 = !isValidUtf8(bc.input);
                 printf(",\"input\":");
-                writeJsonString(bc.input);
+                writeJsonString(bc.input, latin1);
+                if (latin1)
+                    printf(",\"inputLatin1\":true");
                 const obligation = mode == OutputMode.validation
                     ? "validation" : mode == OutputMode.spans ? "spans" : "tree";
                 printf(",\"grammar\":\"workload\",\"output\":\"%s\",\"expectedAccepted\":%s,\"iterations\":%zu,\"timed\":true",
@@ -620,6 +731,8 @@ int main(string[] args) {
                 && !contains(bc.name, "JSON.") && !contains(bc.name, "Ambiguous.")))
             continue;
         size_t iterations = customIterations ? customIterations : bc.defaultIterations;
+        if (bc.largeInput && iterations > 16)
+            iterations /= 16;
         // Checks deliberately remain outside timing and do not depend on assert.
         if (comparison && !bc.workloadPair && !verifyOutputs(bc.input, mode, bc.expectedAccepted,
                 contains(bc.name, "Ambiguous."))) {

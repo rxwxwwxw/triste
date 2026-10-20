@@ -2,14 +2,35 @@
 
 Generated from `performance/trends.csv`; do not edit by hand.
 
-Latest run: `20261020T162737Z-073837506-2d501e854` (milestone:S3[direct], ldc2, commit 2d501e854)
+Latest run: `20261020T220009Z-547430000-38e6e00b1` (milestone:Q2[direct], ldc2, commit 38e6e00b1)
 
-- Workloads within 1.5x: 88/171 (51.5%)
-- Slowdown p50/p90/p95: 1.48 / 2.43 / 2.69
-- Geometric mean: 1.50x
-- Worst: 3.20x (handwritten-workloads/PEGGrammar.Permissive/validation)
+- Workloads within 1.5x: 179/264 (67.8%)
+- Slowdown p50/p90/p95: 1.32 / 1.87 / 2.04
+- Geometric mean: 1.27x
+- Worst: 2.79x (handwritten-workloads/Numbers.ScientificEmpty/validation)
 
-Delta vs comparable run `20261020T162736Z-932177896-2d501e854`: within-target +0, p90 +0.01, geomean +0.00
+No comparable prior run: host, compiler, backend, flags or corpus provenance differs or is missing.
+
+## Families and corpus labels (newest run)
+
+Labels: `fixture` = in-repo case, `real`/`synthetic`/`learned`/`adversarial` = G7 corpora. `no_twin` workloads have no equal-output handwritten baseline and carry no ratio.
+
+| family | label | workloads | paired | no_twin | within target | geomean | worst |
+|---|---|---|---|---|---|---|---|
+| corpus_arithmetic | adversarial | 3 | 3 | 0 | 2/3 | 1.3241 | 1.7286 |
+| corpus_arithmetic | synthetic | 12 | 12 | 0 | 12/12 | 1.1507 | 1.4926 |
+| corpus_csv | adversarial | 3 | 3 | 0 | 3/3 | 1.3992 | 1.4030 |
+| corpus_csv | synthetic | 12 | 12 | 0 | 4/12 | 1.3062 | 1.8698 |
+| corpus_json | adversarial | 3 | 3 | 0 | 0/3 | 1.6138 | 1.7726 |
+| corpus_json | learned | 12 | 12 | 0 | 11/12 | 1.2734 | 1.5191 |
+| corpus_json | real | 18 | 18 | 0 | 18/18 | 0.9887 | 1.2502 |
+| corpus_json | synthetic | 12 | 12 | 0 | 12/12 | 1.2458 | 1.4565 |
+| failure | fixture | 78 | 78 | 0 | 27/78 | 1.5168 | 2.7891 |
+| lex_ascii | fixture | 54 | 54 | 0 | 42/54 | 1.1588 | 1.9730 |
+| lex_utf8 | fixture | 9 | 9 | 0 | 7/9 | 1.5156 | 2.1422 |
+| nested_expr | fixture | 21 | 21 | 0 | 14/21 | 1.2727 | 1.9462 |
+| pathological | fixture | 12 | 12 | 0 | 12/12 | 0.9878 | 1.3082 |
+| structured | fixture | 15 | 15 | 0 | 15/15 | 1.0842 | 1.3865 |
 
 ## History
 
@@ -40,6 +61,7 @@ Delta vs comparable run `20261020T162736Z-932177896-2d501e854`: within-target +0
 | 20261020T151538Z-427156981-2d501e854 | milestone:S3[direct] | ldc2 | 89/171 | 2.44 | 1.52 | 3.61 |
 | 20261020T162736Z-932177896-2d501e854 | baseline[direct] | ldc2 | 88/171 | 2.43 | 1.50 | 3.23 |
 | 20261020T162737Z-073837506-2d501e854 | milestone:S3[direct] | ldc2 | 88/171 | 2.43 | 1.50 | 3.20 |
+| 20261020T220009Z-547430000-38e6e00b1 | milestone:Q2[direct] | ldc2 | 179/264 | 1.87 | 1.27 | 2.79 |
 
 ## Progress
 

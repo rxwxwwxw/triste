@@ -25,6 +25,43 @@ def report(rows):
                 measurements=[dict(run=1, suite='s', output='validation', report=dict(benchmarks=rows))])
 
 
+class FamilyTests(unittest.TestCase):
+    def test_family_and_label_classification(self):
+        family, label = record.workload_family, record.workload_label
+        cases = {
+            'json-ambiguity/JSON.family.lex_utf8.Multibyte/spans': ('lex_utf8', 'fixture'),
+            'json-ambiguity/JSON.family.failure.FirstByte/tree': ('failure', 'fixture'),
+            'json-ambiguity/JSON.corpus.learned.json-small-valid-102/tree': ('corpus_json', 'learned'),
+            'handwritten-workloads/CSV.corpus.adversarial.csv-adversarial-valid-0/spans': ('corpus_csv', 'adversarial'),
+            'json-ambiguity/Ambiguous.Retry/validation': ('pathological', 'fixture'),
+            'handwritten-workloads/Arithmetic.Deep/tree': ('nested_expr', 'fixture'),
+            'json-ambiguity/JSON.InvalidTruncated/validation': ('failure', 'fixture'),
+            'handwritten-workloads/CSV.Truncated/spans': ('failure', 'fixture'),
+            'json-ambiguity/JSON.Medium/tree': ('structured', 'fixture'),
+            'handwritten-workloads/Numbers.Binary/validation': ('lex_ascii', 'fixture'),
+        }
+        for workload, (want_family, want_label) in cases.items():
+            self.assertEqual((family(workload), label(workload)), (want_family, want_label), workload)
+
+    def test_breakdown_counts_no_twin_without_a_ratio(self):
+        def row(workload, impl, ratio, ok='true'):
+            return dict(workload_id=workload, implementation=impl, slowdown_ratio=ratio, correctness_ok=ok)
+        summary = [
+            row('s/JSON.family.failure.A/tree', 'npegged', '1.2000'),
+            row('s/JSON.family.failure.B/tree', 'npegged', '2.0000'),
+            row('s/JSON.family.failure.C/tree', 'npegged', 'N/A'),
+            row('s/JSON.family.failure.D/tree', 'npegged', '1.0000', ok='false'),
+            row('s/JSON.family.failure.A/tree', 'handwritten', 'N/A'),
+        ]
+        [group] = record.family_breakdown(summary)
+        self.assertEqual((group['family'], group['label']), ('failure', 'fixture'))
+        self.assertEqual((group['workloads'], group['paired'], group['no_twin'], group['within_target']), (4, 2, 2, 1))
+        self.assertEqual(group['worst'], '2.0000')
+        self.assertAlmostEqual(float(group['geomean']), (1.2 * 2.0) ** 0.5, places=3)
+        [empty] = record.family_breakdown([row('s/JSON.family.failure.C/tree', 'npegged', 'N/A')])
+        self.assertEqual((empty['geomean'], empty['worst'], empty['paired']), ('N/A', 'N/A', 0))
+
+
 class RecordTests(unittest.TestCase):
     def test_equal_pair_ratio(self):
         raw, summary, ok = record.build_tables(report([bench('NPegged', 2), bench('Handwritten', 1)]), 'r')

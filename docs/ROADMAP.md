@@ -1,6 +1,6 @@
 # NPegged Development Roadmap — Agent Execution Plan
 
-**Status:** Audited against `performance/progress.md`, implementation, tests and retained artifacts on 2026-10-20. Completed milestones are marked below; detailed evidence and limitations remain in `performance/progress.md`. **Q1 and S3 are complete; S8 is next (§10). S3 remains opt-in; default enablement was rejected.**
+**Status:** Audited against `performance/progress.md`, implementation, tests and retained artifacts on 2026-10-20. Completed milestones are marked below; detailed evidence and limitations remain in `performance/progress.md`. **Q1, S3, S4, S8 (NO-GO), O1 (NO-GO), O2 and O3 are closed (§10); Q2 is in progress. S3 remains opt-in; default enablement was rejected.**
 **Audience:** A locally running coding agent with access to the full repository, DMD, LDC, test/build scripts, and benchmark machines.  
 **Objective:** Preserve the exact observable behavior of NPegged while moving generated parsers toward handwritten D lexer/parser performance. Target **≤1.5× handwritten execution time per equal-output benchmark workload**.  
 **Priority order:** Make it work → make it correct → make it fast.  
@@ -177,7 +177,7 @@ S = one narrow change; M = a few narrowly staged PRs if necessary; L = **must be
 
 ### Audited completion inventory
 
-- **Complete:** A1–A5, F1–F4, B1–B8, P1, P2, P6, L1–L3, G1–G7, S1, S2b, Q1, S3.
+- **Complete:** A1–A5, F1–F4, B1–B8, P1, P2, P6, L1–L3, G1–G7, S1, S2b, Q1, S3, S4, O2, O3. **Closed NO-GO:** S8, O1.
 - F4 and P1 remain opt-in; B1–B8 and L1/L2 are report-only; L3 is experimental. Completion does not imply default enablement or a measured gain.
 - G7 generated and validated its corpora; wiring them into timing remains Q2.
 - **Open:** P3–P5, P7–P8, L4–L6, X1–X3 and Phase 2 milestones below except Q1 and S3.
@@ -593,17 +593,17 @@ What the generated `direct` code shows (output of `grammar!(Memoization.selectiv
 | Q2 | P0 | G7 | G7 corpora and missing families wired into the timing runner | M | all (adversarial cover) |
 | Q3 | P1 | Q1 | Cycle attribution for the 10 worst workloads (arm64) | S | all |
 | S3 (complete; opt-in; default NO-GO) | P0 | Q1 | Lean entry path and direct entry for whole-DFA roots | M | tiny |
-| S4 | P0 | S3 | Scanner calls native to the cursor (no `s.steps`/`s.status` round trip) | S | CSV, JSON, tiny |
-| O1 | P0 | A4 | Whole-body DFA for regular leaf-record rules | M | CSV records |
-| O2 | P1 | O1 | Checkpoint elision in record loops (specializes P4) | S | CSV, JSON, PEG records |
-| O3 | P1 | O1 | `RecordBuffer` fast path for compiled leaf kinds | S | records |
+| S4 (complete; `performance/milestones/S4/`) | P0 | S3 | Scanner calls native to the cursor (no `s.steps`/`s.status` round trip) | S | CSV, JSON, tiny |
+| O1 (NO-GO; `performance/milestones/O1/`) | P0 | A4 | Whole-body DFA for regular leaf-record rules | M | CSV records |
+| O2 (complete; `performance/milestones/O2/`) | P1 | O1 | Checkpoint elision in record loops (specializes P4) | S | CSV, JSON, PEG records |
+| O3 (complete; `performance/milestones/O3/`) | P1 | O1 | `RecordBuffer` fast path for compiled leaf kinds | S | records |
 | W1 | P1 | L1, B6 | Static work and depth bounds (report-only) | M | analysis |
 | W2 | P1 | W1, A5 | Limit-free clones selected at entry | M | all valid inputs |
 | W3 | P1 | W1 | Depth checks only at heads of recursive cycles | M | JSON, Arithmetic, PEG |
 | S5 | P1 | S4 | Depth as a cursor parameter (realizes part of P5) | M | rule-boundary-heavy |
 | S6 | P1 | S4, D2 | Tick regions guarded by slack | M | all |
 | S7 | P2 | Q3 | Cursor results returned in registers (realizes part of P5) | S | rule-boundary-heavy |
-| S8 | P1 | Q1 | Furthest failure held in a register; cheaper rejection path | S | tiny invalid |
+| S8 (NO-GO; `performance/milestones/S8/`) | P1 | Q1 | Furthest failure held in a register; cheaper rejection path | S | tiny invalid |
 | C1 | P1 | W2, D3 | `accept` mode, and optimistic `check` with exact replay | M | valid inputs |
 | C2 | P2 | C1, B4, F4 | BITES-guarded dispatch in the accept clone | M | PEG, JSON |
 | C3 | P2 | C1, B6 | Proposition 6 cuts in the accept clone (promotes B6) | M | backtracking-heavy |
@@ -669,14 +669,16 @@ Report each ratio both raw and with the harness floor subtracted, as extra colum
 
 **Result:** Q1 exact/lean bridge costs approximately 17.6 → 6.9 ns on empty/one-byte inputs. Only 3 of the fixed 40 tiny workload IDs newly cross 1.5× on this host; the ≥15 hypothesis is refuted. The opt-in full comparison has 14 repeatable >5% regressions, so default enablement is rejected. The final default executable is byte-identical to the pre-S3 baseline. Context-pointer and finish-return variants are closed NO-GO. All executable source modules exceed 90% line and branch coverage; DMD/LDC, A4, sanitizer and leak evidence is retained in `performance/milestones/S3/notes-s3.md`.
 
-#### S4 — Scanner calls native to the cursor
+#### S4 — Scanner calls native to the cursor — COMPLETE
 
 **Files:** `src/npegged/dfa.d`, `src/npegged/grammar.d`.  
 **Tasks:** Add a `dfaToken` entry that takes the cursor's `_steps`, `_limit` and `_live` by `ref`. It is inlined, so these stay in registers. This removes the `s.steps = _steps; …; _steps = s.steps; _live = s.status == Status.ok;` round trip around each scanner call. It also drops prologue checks the cursor has already established (`_live`, `_steps < _limit`, and `pos <= input.length`, which holds by construction). Failure replay still calls the original combinator; the exact path syncs first.  
 **Tests:** step-limit sweeps across a scanner boundary (limit inside, at and after the scan), the replay path, and scanners inside lookahead.  
 **Exit:** identical work units under A4 dense sweeps, and measured gains on CSV, JSON and tiny inputs.
 
-#### O1 — Whole-body DFA for regular leaf-record rules
+**Result:** `dfaToken.cursor` keeps `_steps`/`_live` in registers around settled scans and replays through `opCall` otherwise (exact; unit sweep over step/depth limits and the A4 dense sweeps pass). PEGGrammar spans improve 4–20% (Empty -20%, Permissive -9%); CSV/JSON/Numbers are within ±3% (CSV.Flat/spans +3.0%, disclosed). See `performance/milestones/S4/notes.md`.
+
+#### O1 — Whole-body DFA for regular leaf-record rules — CLOSED NO-GO
 
 **Files:** `src/npegged/grammar.d` (records-mode planning), `src/npegged/dfa.d`.  
 **Observation:** `CSV.Flat` takes 0.83 µs in validation and 12.1 µs in spans. The difference is almost all inside `Field`, which validation compiles into `_dfa_Root` and records mode does not.  
@@ -694,14 +696,18 @@ Report each ratio both raw and with the harness floor subtracted, as extra colum
 **Benchmarks:** CSV spans/tree, JSON spans/tree, PEG spans/tree.  
 **Exit:** CSV records close to the 1.5× target, or a recorded reason why not (for example, the record put itself dominates, which leads to O3).
 
-#### O2 — Checkpoint elision in record loops
+**Result (NO-GO):** the premise fails. CSV `Field`'s doubled-quote escape loop is regular only when anchored by `Root`'s `eoi` and follow context, so standalone `regularTable(Field)` is null; where a leaf body is regular (Arithmetic `Number`) it is already one `dfaToken`. See `performance/milestones/O1/notes.md`.
+
+#### O2 — Checkpoint elision in record loops — COMPLETE
 
 **Files:** `src/npegged/grammar.d`, `src/npegged/analysis.d`.  
 **Tasks:** Add a static fact, `emitsOnlyAfterLastFailurePoint(e)`: every record `e` emits is opened after the last position where `e` can still fail. Examples are a sequence whose only record-emitting child is last and is a leaf, or a body made of non-emitting children. Where it is proven, the per-iteration `outputCheckpoint()` and `rollbackOutput` in repetitions and option arms are dead, so drop them.  
 **Tests:** `(Sep Field)*` (proven), `(Field Sep)*` with Sep able to fail (not proven), nested option with an emitting middle child (not proven), and rollback at EOF.  
 **Exit:** equal records; checkpoint and rollback counts in the instrumented build drop as predicted.
 
-#### O3 — `RecordBuffer` fast path for compiled leaf kinds
+**Result:** `failureLeavesNoOutput` (a record child that is last, choices whose arms all qualify, non-emitting bodies) removes the per-iteration checkpoint and rollback. PEGGrammar tree -9..-12%, Arithmetic spans -5..-6%, CSV.Flat -5.2%; worst +2.9% (noise level). Unit test counts emitted checkpoints for proven/unproven shapes; a new `loops` differential fixture sweeps limits. See `performance/milestones/O2/notes.md`.
+
+#### O3 — `RecordBuffer` fast path for compiled leaf kinds — COMPLETE
 
 **Files:** `src/npegged/records.d`, `src/npegged/peg.d`.  
 **Tasks:**
@@ -711,6 +717,8 @@ Report each ratio both raw and with the harness floor subtracted, as extra colum
 
 **Tests:** output limit 0, exactly at limit, and growth across the slab boundary.  
 **Exit:** measured put cost relative to the handwritten writer, which uses the same buffer.
+
+**Result:** `putLeaf` (single capacity branch; status checked once after the append, rolled back when not ok) is exact. CSV records improve 10–14% (Flat/spans 11.8 -> 10.5 µs; cumulatively 12.1 -> 10.5 µs with S4 and O2), still about 1.8× handwritten. Capacity reservation was not done (arena counters feed `Observation`). See `performance/milestones/O3/notes.md`.
 
 #### W1 — Static work and depth bounds (report-only)
 
@@ -768,7 +776,9 @@ Pass `depth` by value through `_cursor_*` signatures. Synchronize `s.depth` only
 
 For cursors that are not inlined, return `(end | okBit, failEnd)` as a 16-byte struct (x0/x1 under AAPCS64, rax/rdx under SysV) instead of `ref` out-parameters. `end ≤ input.length < 2^63` leaves room for the bit. Measure on both architectures if available, and keep the change only if it beats the `ref` form. This matches P5's goal of a cheaper internal calling convention.
 
-#### S8 — Furthest failure held in a register; cheaper rejection path (only if a ceiling experiment supports it)
+#### S8 — Furthest failure held in a register; cheaper rejection path — CLOSED NO-GO
+
+**Result:** the ceiling experiment (failure recording deleted entirely, unsound) moved the Numbers/CSV tiny rejections by only -0.1% to -4.6% (median about -2%), below the 3% threshold. See `performance/milestones/S8/notes.md`.
 
 S1 found that removing failure recording made no difference on valid `Arithmetic.Flat`. However, 34 of the 40 tiny over-target workloads are rejections, so the failure path deserves its own ceiling experiment. Targets: `Numbers.*Invalid`, `CSV.Trailing`, `PEGGrammar.Truncated`. Candidate costs on that path are `recordFailure(s.node(…))` stores, the `predictiveChoice` default arm's `s.failure(pos, "choice")`, the `finish` merge, and the `dfaToken` fast-failure branch. Keep `furthestFailure.failEnd` and `hasFailure` in cursor locals, synced the way S1 syncs steps. Drop the milestone if the ceiling is < 3% on that cluster.
 

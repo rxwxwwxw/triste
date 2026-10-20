@@ -10,8 +10,8 @@ enum OptionStatus {
 struct Options {
     size_t iterations;
     size_t samples = 5;
-    string filter;
-    bool json, memory, exportCorpus, targetEngines, workloads, explicitMode;
+    string filter, corpusIndex;
+    bool json, memory, exportCorpus, targetEngines, workloads, explicitMode, families;
     bool comparison = true;
     OutputMode mode = OutputMode.tree;
 }
@@ -53,6 +53,7 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
         case "--filter":
         case "-f":
         case "--mode":
+        case "--corpus-index":
             if (!assigned) {
                 if (++index == args.length)
                     return OptionStatus.invalid;
@@ -73,6 +74,11 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
             case "--filter":
             case "-f":
                 options.filter = value;
+                break;
+            case "--corpus-index":
+                if (!value.length)
+                    return OptionStatus.invalid;
+                options.corpusIndex = value;
                 break;
             default:
                 options.comparison = true;
@@ -112,6 +118,9 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
                 break;
             case "--target-engines":
                 options.targetEngines = true;
+                break;
+            case "--families":
+                options.families = true;
                 break;
             case "--help":
             case "-h":
@@ -158,6 +167,20 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
     ];
     foreach (args; invalid)
         assert(parseOptions(args, options) == OptionStatus.invalid);
+}
+
+@nogc nothrow pure unittest {
+    Options corpus;
+    assert(parseOptions(["runner", "--corpus-index=a/b.tsv"], corpus) == OptionStatus.ok);
+    assert(corpus.corpusIndex == "a/b.tsv");
+    assert(parseOptions(["runner", "--corpus-index", "c.tsv", "--workloads"], corpus) == OptionStatus
+            .ok);
+    assert(corpus.corpusIndex == "c.tsv" && corpus.workloads);
+    assert(parseOptions(["runner", "--corpus-index="], corpus) == OptionStatus.invalid);
+    assert(parseOptions(["runner", "--corpus-index"], corpus) == OptionStatus.invalid);
+    Options families;
+    assert(parseOptions(["runner", "--families"], families) == OptionStatus.ok && families.families);
+    assert(parseOptions(["runner", "--families=1"], families) == OptionStatus.invalid);
 }
 
 @nogc nothrow pure unittest {

@@ -51,6 +51,39 @@ class CorpusManifest(unittest.TestCase):
             self.assertIn(('medium', True), kinds)
             self.assertIn(('adversarial', True), kinds)
 
+    def test_index_matches_manifest_and_labels(self):
+        import sys
+        sys.path.insert(0, str(ROOT / 'performance/scripts'))
+        import corpus_index
+        text = (ROOT / 'performance/corpora/index.tsv').read_text()
+        self.assertEqual(text, corpus_index.render(MANIFEST), 'index.tsv is stale: run corpus_index.py')
+        lines = [line.split('\t') for line in text.splitlines()]
+        self.assertEqual(lines[0], corpus_index.COLUMNS)
+        labels = {line[2] for line in lines[1:]}
+        self.assertEqual(labels, {'real', 'synthetic', 'learned', 'adversarial'})
+        for name, family, label, valid, size, digest, path in lines[1:]:
+            self.assertIn(family, ('json', 'arithmetic', 'csv'))
+            self.assertIn(valid, ('0', '1'))
+            file = ROOT / path
+            if file.exists():  # large entries are regenerated, not committed
+                data = file.read_bytes()
+                self.assertEqual(hashlib.sha256(data).hexdigest(), digest, name)
+                self.assertEqual(len(data), int(size), name)
+            else:
+                self.assertTrue(path.startswith('build/corpora-large/'), name)
+        self.assertEqual(sum(line[2] == 'learned' for line in lines[1:]), 4)
+        self.assertFalse([line for line in lines[1:] if line[0].startswith('milestones_')])
+
+    def test_dashboard_label_rules(self):
+        import sys
+        sys.path.insert(0, str(ROOT / 'performance/scripts'))
+        import corpus_index
+        label = corpus_index.dashboard_label
+        self.assertEqual(label({'label': 'real'}), 'real')
+        self.assertEqual(label({'label': 'adversarial', 'provenance': 'adversarial-handwritten'}), 'adversarial')
+        self.assertEqual(label({'label': 'synthetic', 'provenance': 'synthetic-learned(real-json:training)'}), 'learned')
+        self.assertEqual(label({'label': 'synthetic', 'provenance': 'synthetic-default + mutation'}), 'synthetic')
+
     def test_a1_fixture_list_is_preserved(self):
         self.assertTrue(MANIFEST['corpora'])
 

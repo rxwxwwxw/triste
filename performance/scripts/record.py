@@ -111,6 +111,76 @@ def dashboard_stats(summary):
                 worst=worst[0], worst_workload=worst[1])
 
 
+LEXICAL = ('Numbers.', 'CSV.', 'PEGGrammar.')
+FAILURE_WORDS = ('Truncated', 'Trailing', 'Invalid', 'Empty', 'Permissive')
+NESTED = ('Arithmetic.Deep', 'Arithmetic.Nested', 'Arithmetic.Flat', 'Arithmetic.Unary', 'JSON.DeepNesting',
+          'PEGGrammar.Deep', 'PEGGrammar.ManyRules')
+
+
+def workload_name(workload_id):
+    """`suite/Name/mode` -> Name."""
+    parts = workload_id.split('/')
+    return parts[1] if len(parts) >= 2 else workload_id
+
+
+def workload_label(workload_id):
+    """Corpus provenance label: real | synthetic | learned | adversarial, or `fixture` for in-repo cases."""
+    name = workload_name(workload_id)
+    marker = '.corpus.'
+    if marker in name:
+        return name.split(marker, 1)[1].split('.', 1)[0]
+    return 'fixture'
+
+
+def workload_family(workload_id):
+    """Benchmark family of section 1. Explicit `.family.<f>.` names win; otherwise a name-based classification."""
+    name = workload_name(workload_id)
+    if '.family.' in name:
+        return name.split('.family.', 1)[1].split('.', 1)[0]
+    if '.corpus.' in name:
+        return 'corpus_' + name.split('.', 1)[0].lower()
+    if name.startswith('Ambiguous.'):
+        return 'pathological'
+    if any(name.startswith(prefix) for prefix in NESTED):
+        return 'nested_expr'
+    if name.startswith('JSON.') and 'Invalid' in name:
+        return 'failure'
+    if any(word in name for word in FAILURE_WORDS) and not name.startswith('JSON.'):
+        return 'failure'
+    if name.startswith('JSON.'):
+        return 'structured'
+    if name.startswith(LEXICAL) or name.startswith('Arithmetic.'):
+        return 'lex_ascii'
+    return 'other'
+
+
+def family_breakdown(summary):
+    """Per (family, label) counts of paired npegged workloads, those within target and the geomean/worst ratio.
+    Workloads without a handwritten twin are counted as `no_twin` and never given a ratio."""
+    groups = {}
+    for row in summary:
+        if row['implementation'] != 'npegged':
+            continue
+        key = (workload_family(row['workload_id']), workload_label(row['workload_id']))
+        group = groups.setdefault(key, dict(ratios=[], no_twin=0))
+        if row['slowdown_ratio'] == 'N/A' or row['correctness_ok'] != 'true':
+            group['no_twin'] += 1
+        else:
+            group['ratios'].append((float(row['slowdown_ratio']), row['workload_id']))
+    rows = []
+    for (family, label), group in sorted(groups.items()):
+        values = [v for v, _ in group['ratios']]
+        rows.append(dict(family=family, label=label, workloads=len(values) + group['no_twin'],
+                         paired=len(values), no_twin=group['no_twin'],
+                         within_target=sum(v <= TARGET for v in values),
+                         geomean=f"{math.exp(sum(map(math.log, values)) / len(values)):.4f}" if values else 'N/A',
+                         worst=f"{max(values):.4f}" if values else 'N/A'))
+    return rows
+
+
+FAMILY_COLUMNS = ['family', 'label', 'workloads', 'paired', 'no_twin', 'within_target', 'geomean', 'worst']
+
+
 def git(*args):
     return subprocess.run(['git', *args], cwd=ROOT, capture_output=True, text=True).stdout.strip()
 
@@ -138,7 +208,8 @@ def corpus_manifest(report):
         for case in value:
             data = json.dumps(case, sort_keys=True).encode()
             entries.append(dict(suite=suite, name=case['name'], grammar=case.get('grammar'),
-                                bytes=len(case['input'].encode()) if 'input' in case else None,
+                                bytes=((len(case['input'].encode('latin-1')) if case.get('inputLatin1') else len(case['input'].encode()))
+                                   if 'input' in case else None),
                                 expected_accepted=case['expectedAccepted'], timed=case['timed'],
                                 sha256=hashlib.sha256(data).hexdigest(),
                                 origin='in-repo fixture exported by scripts/benchmark.sh'))
@@ -170,6 +241,26 @@ def comparable(left, right):
             and left.get(compiler_version) == right.get(compiler_version))
 
 
+def family_section(run_id):
+    """Per-family / provenance-label table of the newest run (runs recorded before Q2 have none)."""
+    paths = [PERF / 'baselines' / run_id / 'families.csv']
+    paths += list((PERF / 'milestones').glob('*/' + run_id + '/families.csv'))
+    for path in paths:
+        if path.is_file():
+            with path.open() as handle:
+                rows = list(csv.DictReader(handle))
+            lines = ['', '## Families and corpus labels (newest run)', '',
+                     'Labels: `fixture` = in-repo case, `real`/`synthetic`/`learned`/`adversarial` = G7 corpora. '
+                     '`no_twin` workloads have no equal-output handwritten baseline and carry no ratio.', '',
+                     '| family | label | workloads | paired | no_twin | within target | geomean | worst |',
+                     '|---|---|---|---|---|---|---|---|']
+            for r in rows:
+                lines.append(f"| {r['family']} | {r['label']} | {r['workloads']} | {r['paired']} | {r['no_twin']} "
+                             f"| {r['within_target']}/{r['paired']} | {r['geomean']} | {r['worst']} |")
+            return lines
+    return []
+
+
 def regenerate_latest():
     """Rebuild latest.md from trends.csv and the newest run's summary."""
     trends_path = PERF / 'trends.csv'
@@ -197,6 +288,7 @@ def regenerate_latest():
                       f"{float(last['geomean']) - float(prev['geomean']):+.2f}"]
     elif len(rows) > 1:
         lines += ['', 'No comparable prior run: host, compiler, backend, flags or corpus provenance differs or is missing.']
+    lines += family_section(last['run_id'])
     lines += ['', '## History', '', '| run | kind | compiler | within target | p90 | geomean | worst |',
               '|---|---|---|---|---|---|---|']
     for r in rows:
@@ -234,6 +326,7 @@ def record(report, destination_root, run_id, kind, notes):
                     iterations_per_sample=meta['iterations'], warmups='1 per case (in runner)',
                     cpu_pinning=meta.get('cpuPinning', 'none'), binary_bytes=meta['binaryBytes'], text_bytes=meta['textBytes'],
                     build_and_export_seconds=meta['buildAndExportSeconds'],
+                    q2=meta.get('q2', False), corpus_index_sha256=meta.get('corpusIndexSha256'),
                     comparison_run=None, target_ratio=report['targetRatio'])
     if (PERF / 'trends.csv').exists():
         with (PERF / 'trends.csv').open() as handle:
@@ -243,6 +336,7 @@ def record(report, destination_root, run_id, kind, notes):
     (destination / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
     write_csv(destination / 'raw.csv', RAW_COLUMNS, raw)
     write_csv(destination / 'summary.csv', SUMMARY_COLUMNS, summary)
+    write_csv(destination / 'families.csv', FAMILY_COLUMNS, family_breakdown(summary))
     (destination / 'correctness.json').write_text(json.dumps(correctness, indent=2) + '\n')
     (destination / 'notes.md').write_text(
         f"# {kind} {run_id}\n\n{notes}\n\n- Ratio = median(npegged ns/parse) / median(handwritten ns/parse), "

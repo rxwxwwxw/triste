@@ -22,6 +22,17 @@ appends `trends.csv`, and regenerates `latest.md`. Progress notes go in `progres
 non-default backend carry it in the `kind` column (for example `baseline[direct]`); compare only runs of the same backend.
 The current reference is the `direct` baseline.
 
+## Corpora and families (Q2)
+
+`python3 scripts/performance_gate.py --q2 --build-timeout 1500` also times the G7 corpora listed in
+`performance/corpora/index.tsv` (written by `performance/scripts/corpus_index.py`, called from `make_corpora.py`) and the
+`JSON.family.<family>.<Case>` cases (lex_utf8, failure, pathological). Corpus cases are `<Family>.corpus.<label>.<name>`
+with label real | synthetic | learned | adversarial; files that are not present (large entries live in
+`build/corpora-large`, regenerate with `make_corpora.py`) are skipped by the runner. Inputs that are not valid UTF-8 are
+exported as `\u00XX` escapes with `"inputLatin1": true`. Every case has a handwritten twin; a case without one reports
+`N/A`. `families.csv` in each run directory and the `latest.md` table give per-family/label counts. Q2 runs have more
+workloads than earlier runs, so compare them with earlier runs by workload id, not by the headline counts.
+
 ## Reading results
 
 - `raw.csv`: every sample, ns per parse. `summary.csv`: median/p95 over all pooled samples (21).

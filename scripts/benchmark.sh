@@ -107,7 +107,7 @@ fi
   examples/numbers.d third-party/Pegged/examples/numbers/src/pegged/examples/numbers.d \
   benchmark/json_grammar.d benchmark/json_npegged.d benchmark/json_pegged.d \
   benchmark/ambiguous_npegged.d benchmark/ambiguous_pegged.d \
-  benchmark/options.d benchmark/measurement.d \
+  benchmark/options.d benchmark/corpus_index.d benchmark/measurement.d \
   benchmark/json_output.d benchmark/json_comparison.d benchmark/workload_grammars.d benchmark/workload_output.d benchmark/scalar_output.d \
   benchmark/runner.d \
   "${output[@]}"

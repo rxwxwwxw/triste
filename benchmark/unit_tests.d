@@ -5,3 +5,4 @@ import benchmark.workload_output;
 import benchmark.options;
 import benchmark.measurement;
 import benchmark.test_output;
+import benchmark.corpus_index;

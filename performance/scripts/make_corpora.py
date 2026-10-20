@@ -13,6 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 ROOT = Path(__file__).resolve().parents[2]
 SYNTHETIC = ROOT / 'performance/corpora/synthetic'
 LARGE = ROOT / 'build/corpora-large'
@@ -78,6 +80,8 @@ def main():
                           'large entries are not committed: regenerate and compare sha256; '
                           f'committed synthetic budget {BUDGET_COMMITTED_BYTES} bytes')
     manifest_path.write_text(json.dumps(manifest, indent=1) + '\n')
+    import corpus_index
+    corpus_index.main()
     print(f'{len(generated)} generated entries ({committed_bytes} bytes committed), {len(real)} real files')
 
 

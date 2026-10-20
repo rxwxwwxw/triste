@@ -83,6 +83,8 @@ def main():
                         default=['validation', 'spans', 'tree'])
     parser.add_argument('--target-ratio', type=float, default=1.5,
                         help='Target maximum ratio against handwritten baseline (default: 1.5)')
+    parser.add_argument('--q2', action='store_true',
+                        help='also time the G7 corpora (performance/corpora/index.tsv) and the Q2 family cases')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/performance-acceptance.json')
     args = parser.parse_args()
     if args.samples < 7 or args.runs < 3 or len(set(args.modes)) != len(args.modes):
@@ -93,7 +95,9 @@ def main():
     environment = os.environ.copy()
     compiler = Path(environment.get('DC', 'ldc2')).name
     build_started = time.monotonic()
-    build = run(['bash', 'scripts/benchmark.sh', '--export-corpus'], env=environment,
+    json_extra = ['--corpus-index=performance/corpora/index.tsv', '--families'] if args.q2 else []
+    work_extra = ['--corpus-index=performance/corpora/index.tsv'] if args.q2 else []
+    build = run(['bash', 'scripts/benchmark.sh', '--export-corpus', *json_extra], env=environment,
                 timeout=args.build_timeout)
     build_seconds = time.monotonic() - build_started
     corpus = json.loads(build.stdout)
@@ -114,20 +118,20 @@ def main():
             except (RuntimeError, ValueError):
                 pass
     workload_corpora = {}
-    jobs = [('json-ambiguity', mode, names, []) for mode in args.modes]
+    jobs = [('json-ambiguity', mode, names, json_extra) for mode in args.modes]
     for mode in dict.fromkeys(['validation', *args.modes]):
-        workload_corpus = json.loads(run([binary, '--workloads', '--export-corpus',
+        workload_corpus = json.loads(run([binary, '--workloads', '--export-corpus', *work_extra,
                                          f'--mode={mode}'], env=environment, timeout=120).stdout)
         workload_names = [case['name'] for case in workload_corpus if case['timed']]
         if not workload_names:
             raise ValueError(f'Missing handwritten workload corpus: {mode}')
         workload_corpora[mode] = workload_corpus
-        jobs.append(('handwritten-workloads', mode, workload_names, ['--workloads']))
+        jobs.append(('handwritten-workloads', mode, workload_names, ['--workloads', *work_extra]))
     for repeat in range(args.runs):
         for suite, mode, case_names, extra in jobs:
             measured = json.loads(run([binary, '--target-engines', '--json', '--memory',
                                        f'--mode={mode}', f'--iterations={args.iterations}',
-                                       f'--samples={args.samples}', *extra], env=environment, timeout=120).stdout)
+                                       f'--samples={args.samples}', *extra], env=environment, timeout=300 if args.q2 else 120).stdout)
             paired = paired_ratios(measured, case_names, mode)
             for row in paired:
                 row['run'] = repeat + 1
@@ -151,6 +155,8 @@ def main():
               'metadata': {'cpu': cpu, 'platform': platform.platform(),
                            'compiler': compiler, 'buildLog': build.stderr,
                            'backend': environment.get('PARSER_BACKEND', 'combinators'),
+                           'q2': args.q2,
+                           'corpusIndexSha256': hashlib.sha256((ROOT / 'performance/corpora/index.tsv').read_bytes()).hexdigest() if args.q2 else None,
                            'buildAndExportSeconds': build_seconds,
                            'binaryBytes': Path(binary).stat().st_size,
                            'textBytes': text_bytes,
