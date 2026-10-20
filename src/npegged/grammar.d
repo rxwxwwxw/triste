@@ -2112,6 +2112,70 @@ package struct Frontend {
 
     /// Lower rule-local recognition control flow without intermediate aggregate results.
     /// Terminals, scanners, predicates and unsupported operators retain their contracts.
+    /// O2: can evaluating `index` (direct cursor, records mode) leave records in the buffer?
+    private bool mayEmitRecords(ref GrammarAnalysis graph, size_t index, size_t depth = 0) nothrow {
+        if (depth >= 64 || index >= graph.expressions.length)
+            return true;
+        auto node = graph.expressions[index];
+        if (node.kind == ExpressionKind.reference) {
+            const target = graph.referenceRule(node);
+            return target >= recordKinds.length || recordKinds[target] != uint.max
+                || target >= recordSubtrees.length || recordSubtrees[target];
+        }
+        if (node.kind == ExpressionKind.unknown)
+            return true;
+        if (node.kind == ExpressionKind.terminal)
+            return false;
+        if (node.combinator == "dfaToken" && node.arguments.length == 4) {
+            string inner = node.arguments[3];
+            while (inner.length && (inner[0] == ' ' || inner[0] == '\t'))
+                inner = inner[1 .. $];
+            if (inner == "false")
+                return false;
+        }
+        foreach (child; node.children)
+            if (mayEmitRecords(graph, child, depth + 1))
+                return true;
+        return false;
+    }
+
+    /// O2: when `index` fails (or exhausts a limit), it provably leaves no record behind, so an enclosing loop
+    /// needs neither the per-iteration checkpoint nor the rollback. Proven only for shapes whose failure is
+    /// rolled back by their own rule boundary: a sequence whose single record-emitting child is its last one
+    /// (nothing after it can fail or tick), choices all of whose arms qualify, loops (they roll back or elide
+    /// their own iteration), and non-emitting expressions. Everything else keeps the checkpoint.
+    private bool failureLeavesNoOutput(ref GrammarAnalysis graph, size_t index, size_t depth = 0) nothrow {
+        if (depth >= 64 || index >= graph.expressions.length)
+            return false;
+        if (!mayEmitRecords(graph, index))
+            return true;
+        auto node = graph.expressions[index];
+        if (node.kind == ExpressionKind.reference) {
+            const target = graph.referenceRule(node);
+            return target < scalarRules.length && scalarRules[target];
+        }
+        const op = node.combinator;
+        if (op == "and") {
+            foreach (i, child; node.children) {
+                if (!mayEmitRecords(graph, child, depth + 1))
+                    continue;
+                return i + 1 == node.children.length && failureLeavesNoOutput(graph, child, depth + 1);
+            }
+            return true;
+        }
+        if (op == "or" || op == "predictiveChoice") {
+            foreach (child; node.children)
+                if (!failureLeavesNoOutput(graph, child, depth + 1))
+                    return false;
+            return true;
+        }
+        if (op == "branch" || op == "named" || op == "defined" || op == "keep" || op == "drop" || op == "propagate")
+            return node.children.length == 1 && failureLeavesNoOutput(graph, node.children[0], depth + 1);
+        if (op == "zeroOrMore" || op == "oneOrMore" || op == "option")
+            return true;
+        return false;
+    }
+
     private string emitDirect(ref GrammarAnalysis graph, size_t index, string start, string target,
             ref size_t serial, size_t depth = 0, int outputMode = 1) nothrow {
         auto expression = graph.expressions[index];
@@ -2299,7 +2363,9 @@ package struct Frontend {
             const next = "_d" ~ number(serial++);
             const count = "_count" ~ number(serial++);
             code ~= "size_t " ~ count ~ " = 0; while (" ~ (op == "option" ? count ~ " < 1 && " : "") ~ "_tick()) {\n";
-            if (outputMode == 2)
+            const keepCheckpoint = outputMode == 2 && !failureLeavesNoOutput(graph, expression
+                    .children[0]);
+            if (keepCheckpoint)
                 code ~= "const size_t " ~ checkpoint ~ " = s.outputCheckpoint();\n";
             const guard = llActive && llGuardTicks(graph, expression.children[0])
                 && llRuleCertified() ? llGuardTicks(graph, expression.children[0]) : 0;
@@ -2329,7 +2395,7 @@ package struct Frontend {
                 code ~= emitDirect(graph, expression.children[0], target ~ "End", next, serial, depth + 1,
                         outputMode);
             code ~= "if (!" ~ next ~ "Ok) {\n";
-            if (outputMode == 2)
+            if (keepCheckpoint)
                 code ~= "s.rollbackOutput(" ~ checkpoint ~ ");\n";
             if (op == "oneOrMore")
                 code ~= "if (!" ~ count ~ ") { " ~ target ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = "
@@ -3387,6 +3453,37 @@ unittest {
     assert(args.length == 2);
     auto selected = grammar!(Memoization.selective)("Nested: A <- '(' A ')' / 'x'");
     assert(selected.length);
+}
+
+version (unittest) private uint checkpointTag(string name) @nogc nothrow pure {
+    return name.length >= 5 && name[$ - 5 .. $] == ".Item" ? 1 : uint.max;
+}
+
+nothrow unittest {
+    // O2: a loop keeps its per-iteration checkpoint exactly when a failed iteration could leave a record.
+    static size_t checkpoints(string definition) nothrow {
+        auto direct = generate!(Memoization.selective, checkpointTag, ParserBackend.direct)(definition);
+        assert(direct.status == Status.ok);
+        return Frontend.countOf(direct.source, "outputCheckpoint()");
+    }
+
+    // Only `Item` is selected as a record. Without loops there is no checkpoint at all.
+    const base = checkpoints("O2: Root <- Item eoi Item <- 'a'");
+    assert(base == 0);
+    // Record child last: proven, so the loop takes no checkpoint.
+    assert(checkpoints("O2: Root <- (Sep Item)* eoi Sep <- ',' Item <- 'a'") == base);
+    assert(checkpoints("O2: Root <- (!'z' Item)+ eoi Item <- 'a'") == base);
+    assert(checkpoints("O2: Root <- (Sep Item)? eoi Sep <- ',' Item <- 'a'") == base);
+    // Record child followed by an element that can fail or tick: not proven.
+    assert(checkpoints("O2: Root <- (Item Sep)* eoi Sep <- ',' Item <- 'a'") > base);
+    assert(checkpoints("O2: Root <- (Sep Item Mark?)* eoi Sep <- ',' Item <- 'a' Mark <- '!'") > base);
+    // Unselected rules emit nothing, so any shape qualifies.
+    assert(checkpoints("O2: Root <- (Plain Sep)* eoi Sep <- ',' Plain <- 'a'") == base);
+    // A choice qualifies only when every arm does.
+    const choice = checkpoints("O2: Root <- Sep (Item / Other) eoi Sep <- ',' Item <- 'a' Other <- 'b'");
+    assert(choice > base);
+    assert(checkpoints("O2: Root <- (Sep (Item / Other))* eoi Sep <- ',' Item <- 'a' Other <- 'b'") == choice);
+    assert(checkpoints("O2: Root <- (Sep Item / Item Sep)* eoi Sep <- ',' Item <- 'a'") > choice);
 }
 
 version (unittest) private uint compactTag(string name) @nogc nothrow pure {

@@ -7,13 +7,17 @@ private uint selected(string name) @nogc nothrow pure {
     return name.length ? 1 : uint.max;
 }
 
-private struct Pair(string rules, Memoization policy) {
+private uint selectedItems(string name) @nogc nothrow pure {
+    return name.length >= 5 && name[$ - 5 .. $] == ".Item" ? 1 : uint.max;
+}
+
+private struct Pair(string rules, Memoization policy, alias Selector = selected) {
     struct Reference {
-        mixin(grammar!(policy, selected)(rules));
+        mixin(grammar!(policy, Selector)(rules));
     }
 
     struct Candidate {
-        mixin(grammar!(policy, selected, ParserBackend.direct)(rules));
+        mixin(grammar!(policy, Selector, ParserBackend.direct)(rules));
     }
 }
 
@@ -100,8 +104,8 @@ private ParseTree observeAction(bool CT)(ref State!CT state, ParseTree tree) @no
     return tree;
 }
 
-private void assertSameParse(alias Reference, alias Candidate)(string input,
-        ParseContext context = ParseContext.init, size_t outputLimit = 256 * 1024 * 1024) @nogc nothrow {
+private void assertSameParse(alias Reference, alias Candidate, alias Selector = selected)(
+        string input, ParseContext context = ParseContext.init, size_t outputLimit = 256 * 1024 * 1024) @nogc nothrow {
     version (NPeggedDependencyTrace) {
         MemoTraceEvent[64] dependencyStorage;
         MemoTrace dependencyTrace = MemoTrace(dependencyStorage[]);
@@ -120,7 +124,7 @@ private void assertSameParse(alias Reference, alias Candidate)(string input,
                     else static if (mode == "full tree")
                         auto a = parse!Reference(context, input);
                     else
-                        auto a = parseRecords!(Reference, selected, mode == "owned records")(
+                        auto a = parseRecords!(Reference, Selector, mode == "owned records")(
                                 context, input, outputLimit);
                     context.userData = &eventsB;
                     static if (mode == "recognition")
@@ -128,7 +132,7 @@ private void assertSameParse(alias Reference, alias Candidate)(string input,
                     else static if (mode == "full tree")
                         auto b = parse!Candidate(context, input);
                     else
-                        auto b = parseRecords!(Candidate, selected, mode == "owned records")(
+                        auto b = parseRecords!(Candidate, Selector, mode == "owned records")(
                                 context, input, outputLimit);
                     static foreach (field; ["status", "successful", "end", "failEnd"])
                         require(__traits(getMember, a, field) == __traits(getMember, b, field),
@@ -187,6 +191,19 @@ private enum operators = `Fixture:
     Op <- '==' / '=' / '<=' / '<' / '<<'
 `;
 
+// O2: loop bodies whose failure provably leaves no record (record child last) drop their checkpoint; the
+// others (record child followed by a failing or ticking element, emitting middle child) keep it.
+private enum loops = `Fixture:
+    Root <- (Sep Item)* Tail* Pairs Opt More eoi
+    Item <- 'a'+
+    Sep <- ','
+    Tail <- ';' Item
+    Pairs <- (Item Sep)*
+    Opt <- (Sep Item Mark?)?
+    More <- (Sep Item / Item Sep Sep)+ / (!'q' Item)*
+    Mark <- '!'
+`;
+
 int main() @nogc nothrow {
     static foreach (policy; [Memoization.yes, Memoization.selective]) {
         {
@@ -238,6 +255,31 @@ int main() @nogc nothrow {
                                     input, context, limit);
                         }
                     }
+                }
+            }
+        }
+    }
+    // O2: only Item is a record, so `(Sep Item)*`-shaped loops drop their checkpoint while `(Item Sep)*` keeps it.
+    static foreach (policy; [Memoization.yes, Memoization.selective]) {
+        {
+            alias Q = Pair!(loops, policy, selectedItems);
+            foreach (input; [
+                "", ",a", ",a,a;a", "a,a,,a", ",a!,a", ",a,a,,", ";a;", ",aa,a,a!;a,", "a,",
+                ",,", "a,a,", ",a,a,a,a,a"
+            ]) {
+                assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall, selectedItems)(
+                        input);
+                foreach (limit; 0 .. 120) {
+                    ParseContext dense;
+                    dense.stepLimit = limit;
+                    assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall, selectedItems)(
+                            input, dense);
+                    ParseContext shallow;
+                    shallow.depthLimit = limit % 10;
+                    assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall, selectedItems)(
+                            input, shallow);
+                    assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall, selectedItems)(
+                            input, ParseContext.init, limit % 12);
                 }
             }
         }
