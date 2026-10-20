@@ -978,9 +978,11 @@ struct State(bool CT, int Check = 0) {
             status = Status.resourceLimit;
             return node(pos, pos, false);
         }
+        // Direct cursors keep their own depth in a register and may leave `depth` stale: restore, never decrement.
+        const savedDepth = depth;
         ++depth;
         auto candidate = body(this, pos);
-        --depth;
+        depth = savedDepth;
         static if (!Check)
             candidate.name = name;
         if (context.trace !is null)
@@ -996,9 +998,10 @@ struct State(bool CT, int Check = 0) {
             status = Status.resourceLimit;
             return node(pos, pos, false);
         }
+        const savedDepth = depth;
         ++depth;
         scope (exit)
-            --depth;
+            depth = savedDepth;
 
         auto current = Base(this, pos);
         if (!current.successful) {
@@ -1274,9 +1277,10 @@ struct State(bool CT, int Check = 0) {
             failEnd = pos;
             return false;
         }
+        const savedDepth = depth;
         ++depth;
-        const successful = body(this, end, failEnd);
-        --depth;
+        const successful = body(this, end, failEnd, depth);
+        depth = savedDepth;
         static if (Trace)
             if (context.trace !is null)
                 context.trace(name, pos, successful, context.userData);
@@ -1297,9 +1301,10 @@ struct State(bool CT, int Check = 0) {
             failEnd = pos;
             return false;
         }
+        const savedDepth = depth;
         ++depth;
-        const successful = body(this, end, failEnd);
-        --depth;
+        const successful = body(this, end, failEnd, depth);
+        depth = savedDepth;
         version (NPeggedRuleMetrics)
             if (context.ruleReport !is null)
                 context.ruleReport.record(name, successful);
@@ -1311,7 +1316,7 @@ struct State(bool CT, int Check = 0) {
 
     @nogc nothrow unittest {
         static if (!CT && Check == 1) {
-            static bool advance(ref State state, ref size_t end, ref size_t failure) @nogc nothrow {
+            static bool advance(ref State state, ref size_t end, ref size_t failure, size_t depth) @nogc nothrow {
                 ++end;
                 failure = end;
                 return true;
@@ -1328,6 +1333,25 @@ struct State(bool CT, int Check = 0) {
             state.context.userData = &calls;
             assert(state.recognizeRule!(advance, "test")(end, failure));
             assert(end == 1 && failure == 1 && state.depth == 0 && calls == 1);
+            // Cursors keep depth in a register and may leave `depth` stale: the boundary must restore, not decrement.
+            static bool leavesStaleDepth(ref State s, ref size_t at, ref size_t fail, size_t depth) @nogc nothrow {
+                assert(depth == s.depth);
+                s.depth = 99;
+                ++at;
+                fail = at;
+                return true;
+            }
+
+            end = failure = 0;
+            state.context.trace = null;
+            const before = state.depth;
+            assert(state.recognizeRule!(leavesStaleDepth, "stale")(end, failure) && state.depth == before);
+            end = failure = 0;
+            state.steps = 0;
+            assert(state.recognizeRuleTicked!(leavesStaleDepth, "stale", false)(end, failure) && state
+                    .depth == before);
+            state.context.trace = &trace;
+            state.context.userData = &calls;
             end = failure = 0;
             state.context.depthLimit = 0;
             assert(!state.recognizeRule!(advance, "test")(end, failure));
@@ -1400,7 +1424,7 @@ struct State(bool CT, int Check = 0) {
 
     @nogc nothrow unittest {
         static if (!CT && Check == 2) {
-            static bool advance(ref State state, ref size_t end, ref size_t failure) @nogc nothrow {
+            static bool advance(ref State state, ref size_t end, ref size_t failure, size_t depth) @nogc nothrow {
                 ++end;
                 failure = end;
                 return true;
@@ -1437,13 +1461,13 @@ struct State(bool CT, int Check = 0) {
 
             // A rule without a record of its own rolls back what its body emitted when it fails, and the
             // `Ticked` entry (work unit taken by the caller) is the same transaction without its own tick.
-            static bool emitThenFail(ref State inner, ref size_t at, ref size_t fail) @nogc nothrow {
+            static bool emitThenFail(ref State inner, ref size_t at, ref size_t fail, size_t depth) @nogc nothrow {
                 inner.records.put(CompactNode(9, at, at + 1, inner.records.parent));
                 fail = at + 1;
                 return false;
             }
 
-            static bool emitThenAdvance(ref State inner, ref size_t at, ref size_t fail) @nogc nothrow {
+            static bool emitThenAdvance(ref State inner, ref size_t at, ref size_t fail, size_t depth) @nogc nothrow {
                 inner.records.put(CompactNode(9, at, at + 1, inner.records.parent));
                 ++at;
                 fail = at;
@@ -1680,9 +1704,10 @@ struct State(bool CT, int Check = 0) {
         version (NPeggedDependencyTrace)
             scope (exit)
                 currentMemo = previousMemo;
+        const savedDepth = depth;
         ++depth;
         scope (exit)
-            --depth;
+            depth = savedDepth;
         do {
             version (NPeggedDependencyTrace)
                 traceMemo(MemoTraceKind.iteration, entry);

@@ -812,18 +812,18 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
         alias byteMatches = Original.byteMatches;
         alias byteSteps = Original.byteSteps;
     }
-    /// Cursor entry (S4). `steps`/`live` are the caller's register-resident counters. A scan the table settles
+    /// Cursor entry (S4, S5). `steps`/`live` and `depth` are the caller's register-resident counters (`s.depth` may be stale). A scan the table settles
     /// consumes exactly the work units `opCall` charges and never touches `s.steps` or `s.status`; every other
     /// outcome syncs the shared state and replays through `opCall`, so end, failEnd, status and steps are
     /// identical to `s.steps = steps; opCall(s, pos); steps = s.steps; live = s.status == Status.ok`.
     pragma(inline, true) static bool cursor(bool CT, int Check = 0)(ref State!(CT, Check) s,
-            size_t pos, ref size_t steps, ref bool live, out size_t end, out size_t failEnd) nothrow {
+            size_t pos, ref size_t steps, ref bool live, const size_t depth, out size_t end, out size_t failEnd) nothrow {
         version (NPeggedScannerMetrics) {
         } else static if ((Check == 1 || (Check == 2 && !HasInnerRecords)) && Table.valid) {
             const limit = s.context.stepLimit;
             if (live && steps < limit && pos <= s.input.length && (!ReferenceDepth
-                    || s.context.trace is null && s.depth <= s.context.depthLimit
-                    && ReferenceDepth <= s.context.depthLimit - s.depth)) {
+                    || s.context.trace is null && depth <= s.context.depthLimit
+                    && ReferenceDepth <= s.context.depthLimit - depth)) {
                 const remaining = limit - steps - 1;
                 const available = s.input.length - pos;
                 const stop = pos + (remaining < available ? remaining : available);
@@ -861,6 +861,7 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
             }
         }
         s.steps = steps;
+        s.depth = depth;
         const replay = opCall(s, pos);
         steps = s.steps;
         live = s.status == Status.ok;
@@ -871,7 +872,8 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
 
     /// The cursor entry for bodies whose counters live in the shared state (`withSharedSteps`).
     pragma(inline, true) static bool cursorShared(bool CT, int Check = 0)(ref State!(CT, Check) s,
-            size_t pos, out size_t end, out size_t failEnd) nothrow {
+            size_t pos, const size_t depth, out size_t end, out size_t failEnd) nothrow {
+        s.depth = depth;
         const result = opCall(s, pos);
         end = result.end;
         failEnd = result.failEnd;
@@ -1005,25 +1007,29 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
         foreach (limit; 0 .. 9)
             foreach (depthLimit; 0 .. 4)
                 foreach (input; inputs)
-                    foreach (start; 0 .. input.length + 1) {
-                        ParseContext context;
-                        context.stepLimit = limit;
-                        context.depthLimit = depthLimit;
-                        State!(false, 1) reference;
-                        State!(false, 1) cursor;
-                        reference.context = context;
-                        cursor.context = context;
-                        reference.input = cursor.input = input;
-                        size_t steps = 0;
-                        bool live = true;
-                        size_t end, failEnd;
-                        const expected = Token(reference, start);
-                        const ok = Token.cursor(cursor, start, steps, live, end, failEnd);
-                        assert(ok == expected.successful && end == expected.end && failEnd == expected
-                                .failEnd);
-                        assert(steps == reference.steps && live == (reference.status == Status.ok));
-                        assert(cursor.status == reference.status);
-                    }
+                    foreach (start; 0 .. input.length + 1)
+                        foreach (depth; 0 .. 5) {
+                            ParseContext context;
+                            context.stepLimit = limit;
+                            context.depthLimit = depthLimit;
+                            State!(false, 1) reference;
+                            State!(false, 1) cursor;
+                            reference.context = context;
+                            cursor.context = context;
+                            reference.input = cursor.input = input;
+                            reference.depth = depth;
+                            // The cursor's depth lives in the caller; its shared copy may be stale.
+                            cursor.depth = 99;
+                            size_t steps = 0;
+                            bool live = true;
+                            size_t end, failEnd;
+                            const expected = Token(reference, start);
+                            const ok = Token.cursor(cursor, start, steps, live, depth, end, failEnd);
+                            assert(ok == expected.successful && end == expected.end && failEnd == expected
+                                    .failEnd);
+                            assert(steps == reference.steps && live == (reference.status == Status.ok));
+                            assert(cursor.status == reference.status);
+                        }
     }
 
     sweep!token();

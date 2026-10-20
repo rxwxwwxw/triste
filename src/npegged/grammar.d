@@ -2058,13 +2058,14 @@ package struct Frontend {
     /// The same cursor body with `steps`/`status` accessed in the shared state (what the code did before S1).
     private static string withSharedSteps(string code) nothrow {
         code = replaceAll(code, ".cursor(s, ", ".cursorShared(s, ");
-        code = replaceAll(code, ", _steps, _live, ", ", ");
+        code = replaceAll(code, ", _steps, _live, _depth, ", ", _depth, ");
         code = replaceAll(code, "s.steps = _steps; ", "");
         code = replaceAll(code, " _steps = s.steps; _live = s.status == Status.ok;", "");
         code = replaceAll(code, "_steps = s.steps; _live = s.status == Status.ok;", "");
         code = replaceAll(code, "_tick()", "s.tick()");
         code = replaceAll(code, "!_live", "s.status != Status.ok");
         code = replaceAll(code, "_live", "s.status == Status.ok");
+        code = replaceAll(code, "_depthLimit", "s.context.depthLimit");
         code = replaceAll(code, "_limit", "s.context.stepLimit");
         return replaceAll(code, "_steps", "s.steps");
     }
@@ -2072,7 +2073,7 @@ package struct Frontend {
     /// Step accounting held in locals inside a cursor function (register resident). `s.steps` and `s.status` are
     /// synchronized around every call that can tick (rules, scanners, combinators) and written back on exit,
     /// so the work-unit count and resource-limit behavior stay exactly those of `State.tick`.
-    enum llLocals = "size_t _steps = s.steps; const size_t _limit = s.context.stepLimit; bool _live = s.status == Status.ok;\n" ~ "pragma(inline, true) bool _tick() @nogc nothrow { if (!_live) return false; if (_steps >= _limit) { s.status = Status.resourceLimit; _live = false; return false; } ++_steps; return true; }\n";
+    enum llLocals = "size_t _steps = s.steps; const size_t _limit = s.context.stepLimit; const size_t _depthLimit = s.context.depthLimit; bool _live = s.status == Status.ok;\n" ~ "pragma(inline, true) bool _tick() @nogc nothrow { if (!_live) return false; if (_steps >= _limit) { s.status = Status.resourceLimit; _live = false; return false; } ++_steps; return true; }\n";
 
     /// L3: is the rule being emitted in a region the cheap FIRST/FOLLOW certifier accepts? Computed once, on first
     /// need. (The full L1 classification is too slow under CTFE; the cheap test certifies a subset of it.)
@@ -2234,16 +2235,15 @@ package struct Frontend {
                 entry = "recognizeRule";
                 tag = ", false";
             }
-            if (entry == "recognizeRule") // The work unit comes from the register counter; the callee skips its own tick (same failure result).
-                code ~= "if (!_tick()) { " ~ target ~ "Fail = " ~ target ~ "End; " ~ target
-                    ~ "Ok = false; } else { s.steps = _steps; " ~ target
-                    ~ "Ok = s.recognizeRuleTicked!(_cursor_" ~ expression.reference ~ ", " ~ quoted(
-                            name ~ "." ~ expression.reference) ~ tag ~ ")(" ~ target ~ "End, " ~ target
-                    ~ "Fail); _steps = s.steps; _live = s.status == Status.ok; }\n";
+            if (entry == "recognizeRule") // Work unit and depth come from the registers (S2b, S5); cursors run only without trace.
+                code ~= "if (!_tick()) { " ~ target ~ "Fail = " ~ target ~ "End; " ~ target ~ "Ok = false; } else if (_depth >= _depthLimit) { s.steps = _steps; s.status = Status.resourceLimit; _steps = s.steps; _live = s.status == Status.ok; " ~ target ~ "Fail = " ~ target ~ "End; " ~ target ~ "Ok = false; } else { s.steps = _steps; " ~ target ~ "Ok = _cursor_" ~ expression
+                    .reference ~ "(s, " ~ target ~ "End, " ~ target
+                    ~ "Fail, _depth + 1); _steps = s.steps; _live = s.status == Status.ok; }\n";
             else
-                code ~= "s.steps = _steps; " ~ target ~ "Ok = s." ~ entry ~ "!(_cursor_" ~ expression
-                    .reference ~ ", " ~ quoted(name ~ "." ~ expression.reference) ~ tag ~ ")(" ~ target
-                    ~ "End, " ~ target ~ "Fail); _steps = s.steps; _live = s.status == Status.ok;\n";
+                code ~= "s.steps = _steps; s.depth = _depth; " ~ target ~ "Ok = s." ~ entry
+                    ~ "!(_cursor_" ~ expression.reference ~ ", " ~ quoted(
+                            name ~ "." ~ expression.reference) ~ tag ~ ")(" ~ target ~ "End, " ~ target
+                    ~ "Fail); _steps = s.steps; _live = s.status == Status.ok;\n";
         } else if (outputMode == 2 && op == "dfaToken" && expression.arguments.length == 4) {
             string innerRecords = expression.arguments[3];
             while (innerRecords.length && (innerRecords[0] == ' ' || innerRecords[0] == '\t'))
@@ -2262,8 +2262,8 @@ package struct Frontend {
                 }
             } else
                 code ~= "size_t " ~ next ~ "End, " ~ next ~ "Fail; const bool " ~ next ~ "Ok = "
-                    ~ expression.source
-                    ~ ".cursor(s, " ~ position ~ ", _steps, _live, " ~ next ~ "End, " ~ next ~ "Fail);\n";
+                    ~ expression.source ~ ".cursor(s, "
+                    ~ position ~ ", _steps, _live, _depth, " ~ next ~ "End, " ~ next ~ "Fail);\n";
             if (innerRecords == "true")
                 code ~= target ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target
                     ~ "Ok = " ~ next ~ "Ok;\n";
@@ -2274,7 +2274,8 @@ package struct Frontend {
             const next = "_d" ~ number(serial++);
             code ~= "size_t " ~ next ~ "End, " ~ next ~ "Fail; const bool " ~ next ~ "Ok = "
                 ~ expression.source ~ ".cursor(s, "
-                ~ position ~ ", _steps, _live, " ~ next ~ "End, " ~ next ~ "Fail);\n" ~ target ~ "End = "
+                ~ position ~ ", _steps, _live, _depth, " ~ next ~ "End, " ~ next ~ "Fail);\n" ~ target
+                ~ "End = "
                 ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target ~ "Ok = " ~ next ~ "Ok;\n";
         } else if (lower && (op == "discard" || op == "fuse" || op == "keep" || op == "drop"
                 || op == "propagate" || op == "named" || op == "defined")) {
@@ -2288,8 +2289,8 @@ package struct Frontend {
                 ~ "Ok = " ~ next ~ "Ok;\n";
             if (scanner) {
                 const scanned = "_scanned" ~ number(serial++);
-                code ~= "} else { s.steps = _steps; auto " ~ scanned ~ " = " ~ expression.source
-                    ~ "(s, "
+                code ~= "} else { s.steps = _steps; s.depth = _depth; auto " ~ scanned ~ " = "
+                    ~ expression.source ~ "(s, "
                     ~ position ~ "); _steps = s.steps; _live = s.status == Status.ok; " ~ target
                     ~ "End = " ~ scanned ~ ".end; " ~ target ~ "Fail = " ~ scanned ~ ".failEnd; "
                     ~ target ~ "Ok = " ~ scanned ~ ".successful; }\n";
@@ -2455,8 +2456,8 @@ package struct Frontend {
                 ~ "Ok = false; s.recordFailure(s.node(" ~ position ~ ", " ~ position ~ ", false)); }\n";
         } else {
             const next = "_node" ~ number(serial++);
-            code ~= "s.steps = _steps; auto " ~ next ~ " = " ~ expression.source ~ "(s, " ~ position
-                ~ "); _steps = s.steps; _live = s.status == Status.ok; "
+            code ~= "s.steps = _steps; s.depth = _depth; auto " ~ next ~ " = " ~ expression.source
+                ~ "(s, " ~ position ~ "); _steps = s.steps; _live = s.status == Status.ok; "
                 ~ target ~ "End = " ~ next ~ ".end; " ~ target ~ "Fail = " ~ next ~ ".failEnd; " ~ target
                 ~ "Ok = " ~ next ~ ".successful;\n";
         }
@@ -2867,11 +2868,11 @@ package struct Frontend {
                         || countOf(cursorBody, "_live") >= localLiveSites;
                     ruleOut ~= directDeclarations;
                     ruleOut ~= (useDirect || check == 2 && directRecords ? "" : "pragma(inline, true) ") ~ "private static bool _cursor_" ~ r ~ "(ref State!(false, " ~ number(
-                            check) ~ ") s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ (
+                            check) ~ ") s, ref size_t cursor, ref size_t failure, const size_t _depth) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ (
                             localSteps ? llLocals ~ cursorBody ~ "s.steps = _steps; " : withSharedSteps(
                             cursorBody)) ~ "cursor = _resultEnd; failure = _resultFail; return _resultOk; }\n";
                 }
-                ruleOut ~= "pragma(inline, true) private static State!(CT, Check).Node _direct_" ~ r ~ "(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; " ~ "const successful = _cursor_" ~ r ~ "(s, end, failure); " ~ "auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }\n";
+                ruleOut ~= "pragma(inline, true) private static State!(CT, Check).Node _direct_" ~ r ~ "(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; " ~ "const successful = _cursor_" ~ r ~ "(s, end, failure, s.depth); " ~ "auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }\n";
                 // S3: reference-free DFA success needs neither State nor finish replay.
                 version (NPeggedLeanEntry)
                     if (!cache && op == "dfaToken") {
@@ -3017,6 +3018,8 @@ nothrow unittest {
     assert(eligible.status == Status.ok);
     version (NPeggedLeanEntry) {
         assert(Frontend.countOf(eligible.source, "npeggedTryCheck") != 0);
+        // S5: cursor-to-cursor calls pass the depth in a register and check the limit inline.
+        assert(Frontend.countOf(eligible.source, "const size_t _depth)") != 0);
         assert(Frontend.countOf(eligible.source, "private static bool _cursor_Root(ref ParseContext") != 0);
     } else
         assert(Frontend.countOf(eligible.source, "npeggedTryCheck") == 0);
