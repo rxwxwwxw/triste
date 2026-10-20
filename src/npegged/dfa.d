@@ -812,6 +812,72 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
         alias byteMatches = Original.byteMatches;
         alias byteSteps = Original.byteSteps;
     }
+    /// Cursor entry (S4). `steps`/`live` are the caller's register-resident counters. A scan the table settles
+    /// consumes exactly the work units `opCall` charges and never touches `s.steps` or `s.status`; every other
+    /// outcome syncs the shared state and replays through `opCall`, so end, failEnd, status and steps are
+    /// identical to `s.steps = steps; opCall(s, pos); steps = s.steps; live = s.status == Status.ok`.
+    pragma(inline, true) static bool cursor(bool CT, int Check = 0)(ref State!(CT, Check) s,
+            size_t pos, ref size_t steps, ref bool live, out size_t end, out size_t failEnd) nothrow {
+        version (NPeggedScannerMetrics) {
+        } else static if ((Check == 1 || (Check == 2 && !HasInnerRecords)) && Table.valid) {
+            const limit = s.context.stepLimit;
+            if (live && steps < limit && pos <= s.input.length && (!ReferenceDepth
+                    || s.context.trace is null && s.depth <= s.context.depthLimit
+                    && ReferenceDepth <= s.context.depthLimit - s.depth)) {
+                const remaining = limit - steps - 1;
+                const available = s.input.length - pos;
+                const stop = pos + (remaining < available ? remaining : available);
+                size_t examined;
+                size_t lastEofEnd;
+                const scanned = scanDFA!Table(s.input[0 .. stop], pos, examined, lastEofEnd);
+                const settled = examined < stop || stop == s.input.length;
+                if (scanned != size_t.max && settled) {
+                    steps += examined - pos + 1;
+                    if (examined > scanned)
+                        s.recordFailure(s.node(pos, examined, false));
+                    end = failEnd = scanned;
+                    return true;
+                }
+                static if (Table.requireEnd) {
+                    if (settled && lastEofEnd != size_t.max) {
+                        steps += examined - pos + 1;
+                        end = lastEofEnd;
+                        failEnd = examined > lastEofEnd ? examined : lastEofEnd;
+                        auto failed = s.node(pos, end, false);
+                        failed.failEnd = failEnd;
+                        s.recordFailure(failed);
+                        return false;
+                    }
+                } else {
+                    if (settled) {
+                        steps += examined - pos + 1;
+                        end = failEnd = examined;
+                        auto failed = s.node(pos, examined, false);
+                        failed.failEnd = examined;
+                        s.recordFailure(failed);
+                        return false;
+                    }
+                }
+            }
+        }
+        s.steps = steps;
+        const replay = opCall(s, pos);
+        steps = s.steps;
+        live = s.status == Status.ok;
+        end = replay.end;
+        failEnd = replay.failEnd;
+        return replay.successful;
+    }
+
+    /// The cursor entry for bodies whose counters live in the shared state (`withSharedSteps`).
+    pragma(inline, true) static bool cursorShared(bool CT, int Check = 0)(ref State!(CT, Check) s,
+            size_t pos, out size_t end, out size_t failEnd) nothrow {
+        const result = opCall(s, pos);
+        end = result.end;
+        failEnd = result.failEnd;
+        return result.successful;
+    }
+
     pragma(inline, true) static State!(CT, Check).Node opCall(bool CT, int Check = 0)(ref State!(CT,
             Check) s, size_t pos) nothrow {
         version (NPeggedScannerMetrics) {
@@ -910,6 +976,58 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
         } else
             return Original(s, pos);
     }
+}
+
+/// S4: the cursor entry is `opCall` with the counters held by the caller, for every step limit.
+@nogc nothrow unittest {
+    import npegged.peg : oneOrMore, digit;
+
+    enum Digits = () {
+        CharSetMask mask;
+        mask.addRange('0', '9');
+        return compileDFA([
+            RegularExpression(RegularKind.bytes, mask),
+            RegularExpression(RegularKind.repetition, CharSetMask.init, [0]),
+            RegularExpression(RegularKind.sequence, CharSetMask.init, [0, 1])
+        ], 2);
+    }();
+    struct DigitsTable {
+        enum automaton = Digits;
+        enum valid = Digits.valid;
+        enum requireEnd = Digits.requireEnd;
+        enum diagnosticName = "Unit.Digits/_dfa_Digits";
+    }
+
+    alias token = dfaToken!(oneOrMore!digit, DigitsTable);
+    alias deep = dfaToken!(oneOrMore!digit, DigitsTable, 2, false);
+    static immutable string[5] inputs = ["", "x", "7", "1234", "12x"];
+    static void sweep(Token)() @nogc nothrow {
+        foreach (limit; 0 .. 9)
+            foreach (depthLimit; 0 .. 4)
+                foreach (input; inputs)
+                    foreach (start; 0 .. input.length + 1) {
+                        ParseContext context;
+                        context.stepLimit = limit;
+                        context.depthLimit = depthLimit;
+                        State!(false, 1) reference;
+                        State!(false, 1) cursor;
+                        reference.context = context;
+                        cursor.context = context;
+                        reference.input = cursor.input = input;
+                        size_t steps = 0;
+                        bool live = true;
+                        size_t end, failEnd;
+                        const expected = Token(reference, start);
+                        const ok = Token.cursor(cursor, start, steps, live, end, failEnd);
+                        assert(ok == expected.successful && end == expected.end && failEnd == expected
+                                .failEnd);
+                        assert(steps == reference.steps && live == (reference.status == Status.ok));
+                        assert(cursor.status == reference.status);
+                    }
+    }
+
+    sweep!token();
+    sweep!deep();
 }
 
 @nogc nothrow unittest {

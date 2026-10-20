@@ -2051,6 +2051,8 @@ package struct Frontend {
 
     /// The same cursor body with `steps`/`status` accessed in the shared state (what the code did before S1).
     private static string withSharedSteps(string code) nothrow {
+        code = replaceAll(code, ".cursor(s, ", ".cursorShared(s, ");
+        code = replaceAll(code, ", _steps, _live, ", ", ");
         code = replaceAll(code, "s.steps = _steps; ", "");
         code = replaceAll(code, " _steps = s.steps; _live = s.status == Status.ok;", "");
         code = replaceAll(code, "_steps = s.steps; _live = s.status == Status.ok;", "");
@@ -2184,14 +2186,21 @@ package struct Frontend {
                         ~ position ~ "; s.context.scannerReport.record(" ~ event ~ "); }\n";
                 }
             } else
-                code ~= "s.steps = _steps; auto " ~ next ~ " = " ~ expression.source ~ "(s, "
-                    ~ position ~ "); _steps = s.steps; _live = s.status == Status.ok;\n";
+                code ~= "size_t " ~ next ~ "End, " ~ next ~ "Fail; const bool " ~ next ~ "Ok = "
+                    ~ expression.source
+                    ~ ".cursor(s, " ~ position ~ ", _steps, _live, " ~ next ~ "End, " ~ next ~ "Fail);\n";
             if (innerRecords == "true")
                 code ~= target ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target
                     ~ "Ok = " ~ next ~ "Ok;\n";
             else
-                code ~= target ~ "End = " ~ next ~ ".end; " ~ target ~ "Fail = " ~ next ~ ".failEnd; "
-                    ~ target ~ "Ok = " ~ next ~ ".successful;\n";
+                code ~= target ~ "End = " ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target
+                    ~ "Ok = " ~ next ~ "Ok;\n";
+        } else if (outputMode != 2 && op == "dfaToken" && expression.arguments.length == 4) {
+            const next = "_d" ~ number(serial++);
+            code ~= "size_t " ~ next ~ "End, " ~ next ~ "Fail; const bool " ~ next ~ "Ok = "
+                ~ expression.source ~ ".cursor(s, "
+                ~ position ~ ", _steps, _live, " ~ next ~ "End, " ~ next ~ "Fail);\n" ~ target ~ "End = "
+                ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target ~ "Ok = " ~ next ~ "Ok;\n";
         } else if (lower && (op == "discard" || op == "fuse" || op == "keep" || op == "drop"
                 || op == "propagate" || op == "named" || op == "defined")) {
             const next = "_d" ~ number(serial++);
