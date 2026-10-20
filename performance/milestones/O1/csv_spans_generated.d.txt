@@ -1,0 +1,511 @@
+struct BenchCSV {
+enum string[] compactRuleNames = ["BenchCSV.Root", "BenchCSV.Sep", "BenchCSV.Field"];
+enum uint[] compactRuleKinds = [4294967295, 4294967295, 1];
+version (NPeggedSharedOutput) enum npeggedSharedOutputEligible = false;
+alias Spacing = npegged.peg.spacing;
+struct _dfa_Root { enum automaton = compileDFA([
+regularByte(0x100000200UL, 0x0UL, 0x0UL, 0x0UL), // node 0
+regularNode(RegularKind.repetition, [0]), // node 1
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 2
+regularNode(RegularKind.sequence, [2]), // node 3
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 4
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 5
+regularNode(RegularKind.sequence, [4, 5]), // node 6
+regularByte(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL), // node 7
+regularNode(RegularKind.choice, [6, 7]), // node 8
+regularNode(RegularKind.repetition, [8]), // node 9
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 10
+regularNode(RegularKind.sequence, [10]), // node 11
+regularNode(RegularKind.sequence, [3, 9, 11]), // node 12
+regularByte(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL), // node 13
+regularNode(RegularKind.repetition, [13]), // node 14
+regularNode(RegularKind.sequence, [13, 14]), // node 15
+regularNode(RegularKind.choice, [12, 15]), // node 16
+regularByte(0x100000200UL, 0x0UL, 0x0UL, 0x0UL), // node 17
+regularNode(RegularKind.repetition, [17]), // node 18
+regularNode(RegularKind.sequence, [16, 18]), // node 19
+regularNode(RegularKind.optional, [19]), // node 20
+regularNode(RegularKind.sequence, [1, 20]), // node 21
+regularByte(0x100000000000UL, 0x0UL, 0x0UL, 0x0UL), // node 22
+regularNode(RegularKind.sequence, [22]), // node 23
+regularByte(0x2000UL, 0x0UL, 0x0UL, 0x0UL), // node 24
+regularNode(RegularKind.sequence, [24]), // node 25
+regularByte(0x400UL, 0x0UL, 0x0UL, 0x0UL), // node 26
+regularNode(RegularKind.sequence, [26]), // node 27
+regularNode(RegularKind.optional, [27]), // node 28
+regularNode(RegularKind.sequence, [25, 28]), // node 29
+regularByte(0x400UL, 0x0UL, 0x0UL, 0x0UL), // node 30
+regularNode(RegularKind.sequence, [30]), // node 31
+regularNode(RegularKind.choice, [23, 29, 31]), // node 32
+regularByte(0x100000200UL, 0x0UL, 0x0UL, 0x0UL), // node 33
+regularNode(RegularKind.repetition, [33]), // node 34
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 35
+regularNode(RegularKind.sequence, [35]), // node 36
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 37
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 38
+regularNode(RegularKind.sequence, [37, 38]), // node 39
+regularByte(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL), // node 40
+regularNode(RegularKind.choice, [39, 40]), // node 41
+regularNode(RegularKind.repetition, [41]), // node 42
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 43
+regularNode(RegularKind.sequence, [43]), // node 44
+regularNode(RegularKind.sequence, [36, 42, 44]), // node 45
+regularByte(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL), // node 46
+regularNode(RegularKind.repetition, [46]), // node 47
+regularNode(RegularKind.sequence, [46, 47]), // node 48
+regularNode(RegularKind.choice, [45, 48]), // node 49
+regularByte(0x100000200UL, 0x0UL, 0x0UL, 0x0UL), // node 50
+regularNode(RegularKind.repetition, [50]), // node 51
+regularNode(RegularKind.sequence, [49, 51]), // node 52
+regularNode(RegularKind.optional, [52]), // node 53
+regularNode(RegularKind.sequence, [34, 53]), // node 54
+regularNode(RegularKind.sequence, [32, 54]), // node 55
+regularNode(RegularKind.repetition, [55]), // node 56
+regularNode(RegularKind.sequence, [21, 56]), // node 57
+], 57, true); enum valid = automaton.valid; enum requireEnd = automaton.requireEnd; }
+pragma(inline, true) private static bool _cursor_Root(ref State!(false, 1) s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;
+size_t _resultEnd = p, _resultFail = p; bool _resultOk = s.status == Status.ok; { const size_t _p0 = p;
+do {
+size_t _d2End, _d2Fail; const bool _d2Ok = dfaToken!(and!(Field, zeroOrMore!(and!(Sep, Field)), eoi), _dfa_Root, 1, true).cursorShared(s, _p0, _d2End, _d2Fail);
+_resultEnd = _d2End; _resultFail = _d2Fail; _resultOk = _d2Ok;
+} while (false);
+}
+cursor = _resultEnd; failure = _resultFail; return _resultOk; }
+private static bool _cursor_Root(ref State!(false, 2) s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;
+size_t _steps = s.steps; const size_t _limit = s.context.stepLimit; bool _live = s.status == Status.ok;
+pragma(inline, true) bool _tick() @nogc nothrow { if (!_live) return false; if (_steps >= _limit) { s.status = Status.resourceLimit; _live = false; return false; } ++_steps; return true; }
+size_t _resultEnd = p, _resultFail = p; bool _resultOk = _live; { const size_t _p0 = p;
+do {
+size_t _d2End = _p0, _d2Fail = _p0; bool _d2Ok = _live; { const size_t _p3 = _p0;
+do {
+if (!_tick()) { _d2End = _p3; _d2Fail = _p3; _d2Ok = false; break; }
+size_t _d5End = _d2End, _d5Fail = _d2End; bool _d5Ok = _live; { const size_t _p6 = _d2End;
+do {
+s.steps = _steps; _d5Ok = s.recognizeRecordedRule!(_cursor_Field, "BenchCSV.Field", 4294967297L)(_d5End, _d5Fail); _steps = s.steps; _live = s.status == Status.ok;
+} while (false);
+}
+if (!_d5Ok) { _d2Ok = false; _d2Fail = _d5Fail; break; } _d2End = _d5End;
+if (!_tick()) { _d2End = _p3; _d2Fail = _p3; _d2Ok = false; break; }
+size_t _d8End = _d2End, _d8Fail = _d2End; bool _d8Ok = _live; { const size_t _p9 = _d2End;
+do {
+size_t _count12 = 0; while (_tick()) {
+const size_t _checkpoint10 = s.outputCheckpoint();
+size_t _d11End = _d8End, _d11Fail = _d8End; bool _d11Ok = _live; { const size_t _p13 = _d8End;
+do {
+if (!_tick()) { _d11End = _p13; _d11Fail = _p13; _d11Ok = false; break; }
+size_t _d15End = _d11End, _d15Fail = _d11End; bool _d15Ok = _live; { const size_t _p16 = _d11End;
+do {
+s.steps = _steps; _d15Ok = s.recognizeRecordedRule!(_cursor_Sep, "BenchCSV.Sep", -3L)(_d15End, _d15Fail); _steps = s.steps; _live = s.status == Status.ok;
+} while (false);
+}
+if (!_d15Ok) { _d11Ok = false; _d11Fail = _d15Fail; break; } _d11End = _d15End;
+if (!_tick()) { _d11End = _p13; _d11Fail = _p13; _d11Ok = false; break; }
+size_t _d18End = _d11End, _d18Fail = _d11End; bool _d18Ok = _live; { const size_t _p19 = _d11End;
+do {
+s.steps = _steps; _d18Ok = s.recognizeRecordedRule!(_cursor_Field, "BenchCSV.Field", 4294967297L)(_d18End, _d18Fail); _steps = s.steps; _live = s.status == Status.ok;
+} while (false);
+}
+if (!_d18Ok) { _d11Ok = false; _d11Fail = _d18Fail; break; } _d11End = _d18End;
+} while (false);
+}
+if (!_d11Ok) {
+s.rollbackOutput(_checkpoint10);
+break; } ++_count12; if (_d11End == _d8End) break; _d8End = _d11End; }
+if (!_live) _d8Ok = false;
+} while (false);
+}
+if (!_d8Ok) { _d2Ok = false; _d2Fail = _d8Fail; break; } _d2End = _d8End;
+if (!_tick()) { _d2End = _p3; _d2Fail = _p3; _d2Ok = false; break; }
+size_t _d21End = _d2End, _d21Fail = _d2End; bool _d21Ok = _live; { const size_t _p22 = _d2End;
+do {
+if (_p22 != s.input.length) { _d21Ok = false; s.recordFailure(s.node(_p22, _p22, false)); }
+} while (false);
+}
+if (!_d21Ok) { _d2Ok = false; _d2Fail = _d21Fail; break; } _d2End = _d21End;
+} while (false);
+}
+_resultEnd = _d2End; _resultFail = _d2Fail; _resultOk = _d2Ok;
+} while (false);
+}
+s.steps = _steps; cursor = _resultEnd; failure = _resultFail; return _resultOk; }
+pragma(inline, true) private static State!(CT, Check).Node _direct_Root(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; const successful = _cursor_Root(s, end, failure); auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }
+private static State!(CT, Check).Node _Root(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow { static if (!CT && ((Check == 1 && false) || (Check == 2 && true))) { if (s.context.trace is null) return defined!(_direct_Root!(CT, Check), "BenchCSV.Root")(s,p); } return defined!(dfaToken!(and!(Field, zeroOrMore!(and!(Sep, Field)), eoi), _dfa_Root, 1, true), "BenchCSV.Root")(s,p); }
+static State!(false, false).Node Root(ref State!(false, false) s, size_t p) @nogc nothrow { return s.rule!(_Root!(false, false), "BenchCSV.Root", false, -2L)(p); }
+static State!(true, false).Node Root(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow { return s.rule!(_Root!(true, false), "BenchCSV.Root", false, -2L)(p); }
+static State!(false, true).Node Root(ref State!(false, true) s, size_t p) @nogc nothrow { return s.rule!(_Root!(false, true), "BenchCSV.Root", false, -2L)(p); }
+static State!(true, true).Node Root(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow { return s.rule!(_Root!(true, true), "BenchCSV.Root", false, -2L)(p); }
+static State!(false, 2).Node Root(ref State!(false, 2) s, size_t p) @nogc nothrow { return s.rule!(_Root!(false, 2), "BenchCSV.Root", false, -2L)(p); }
+static State!(true, 2).Node Root(CompileTime = void)(ref State!(true, 2) s, size_t p) nothrow { return s.rule!(_Root!(true, 2), "BenchCSV.Root", false, -2L)(p); }
+static ParseResult Root(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(Root)(ctx,input); }
+static ParseTree Root(Input)(Input input) nothrow if (is(Input == string)) { return parseCT!(Root)(input); }
+private static bool _cursor_Sep(ref State!(false, 1) s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;
+size_t _steps = s.steps; const size_t _limit = s.context.stepLimit; bool _live = s.status == Status.ok;
+pragma(inline, true) bool _tick() @nogc nothrow { if (!_live) return false; if (_steps >= _limit) { s.status = Status.resourceLimit; _live = false; return false; } ++_steps; return true; }
+size_t _resultEnd = p, _resultFail = p; bool _resultOk = _live; { const size_t _p0 = p;
+do {
+if (!_tick()) { _resultOk = false; break; }
+alias _choice2 = predictiveChoice!(branch!(literal!(","),  0x100000000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(and!(literal!("\r"), option!(literal!("\n"))),  0x2000UL,  0x0UL,  0x0UL,  0x0UL), branch!(literal!("\n"),  0x400UL,  0x0UL,  0x0UL,  0x0UL));
+const ubyte _choice2Selected = _p0 < s.input.length ? _choice2.branchTable[cast(ubyte)s.input[_p0]] : cast(ubyte)_choice2.fallback; switch (_choice2Selected) {
+case 1: {
+size_t _d3End = _p0, _d3Fail = _p0; bool _d3Ok = _live; { const size_t _p4 = _p0;
+do {
+if (!_tick()) { _d3Ok = false; break; }
+enum _literal6 = ",";
+if (_p4 <= s.input.length && _literal6.length <= s.input.length - _p4 && s.input[_p4 .. _p4 + _literal6.length] == _literal6) { _d3End += _literal6.length; _d3Fail = _d3End; } else { size_t _matched7; while (_matched7 < _literal6.length && _p4 + _matched7 < s.input.length && s.input[_p4 + _matched7] == _literal6[_matched7]) ++_matched7; _d3Ok = false; _d3Fail += _matched7; s.recordFailure(s.node(_p4, _d3Fail, false)); }
+} while (false);
+}
+_resultEnd = _d3End; _resultFail = _d3Fail; _resultOk = _d3Ok;
+break; }
+case 2: {
+size_t _d8End = _p0, _d8Fail = _p0; bool _d8Ok = _live; { const size_t _p9 = _p0;
+do {
+if (!_tick()) { _d8End = _p9; _d8Fail = _p9; _d8Ok = false; break; }
+size_t _d11End = _d8End, _d11Fail = _d8End; bool _d11Ok = _live; { const size_t _p12 = _d8End;
+do {
+if (!_tick()) { _d11Ok = false; break; }
+enum _literal14 = "\r";
+if (_p12 <= s.input.length && _literal14.length <= s.input.length - _p12 && s.input[_p12 .. _p12 + _literal14.length] == _literal14) { _d11End += _literal14.length; _d11Fail = _d11End; } else { size_t _matched15; while (_matched15 < _literal14.length && _p12 + _matched15 < s.input.length && s.input[_p12 + _matched15] == _literal14[_matched15]) ++_matched15; _d11Ok = false; _d11Fail += _matched15; s.recordFailure(s.node(_p12, _d11Fail, false)); }
+} while (false);
+}
+if (!_d11Ok) { _d8Ok = false; _d8Fail = _d11Fail; break; } _d8End = _d11End;
+if (!_tick()) { _d8End = _p9; _d8Fail = _p9; _d8Ok = false; break; }
+size_t _d16End = _d8End, _d16Fail = _d8End; bool _d16Ok = _live; { const size_t _p17 = _d8End;
+do {
+size_t _count20 = 0; while (_count20 < 1 && _tick()) {
+size_t _d19End = _d16End, _d19Fail = _d16End; bool _d19Ok = _live; { const size_t _p21 = _d16End;
+do {
+if (!_tick()) { _d19Ok = false; break; }
+enum _literal23 = "\n";
+if (_p21 <= s.input.length && _literal23.length <= s.input.length - _p21 && s.input[_p21 .. _p21 + _literal23.length] == _literal23) { _d19End += _literal23.length; _d19Fail = _d19End; } else { size_t _matched24; while (_matched24 < _literal23.length && _p21 + _matched24 < s.input.length && s.input[_p21 + _matched24] == _literal23[_matched24]) ++_matched24; _d19Ok = false; _d19Fail += _matched24; s.recordFailure(s.node(_p21, _d19Fail, false)); }
+} while (false);
+}
+if (!_d19Ok) {
+break; } ++_count20; if (_d19End == _d16End) break; _d16End = _d19End; }
+if (!_live) _d16Ok = false;
+} while (false);
+}
+if (!_d16Ok) { _d8Ok = false; _d8Fail = _d16Fail; break; } _d8End = _d16End;
+} while (false);
+}
+_resultEnd = _d8End; _resultFail = _d8Fail; _resultOk = _d8Ok;
+break; }
+case 3: {
+size_t _d25End = _p0, _d25Fail = _p0; bool _d25Ok = _live; { const size_t _p26 = _p0;
+do {
+if (!_tick()) { _d25Ok = false; break; }
+enum _literal28 = "\n";
+if (_p26 <= s.input.length && _literal28.length <= s.input.length - _p26 && s.input[_p26 .. _p26 + _literal28.length] == _literal28) { _d25End += _literal28.length; _d25Fail = _d25End; } else { size_t _matched29; while (_matched29 < _literal28.length && _p26 + _matched29 < s.input.length && s.input[_p26 + _matched29] == _literal28[_matched29]) ++_matched29; _d25Ok = false; _d25Fail += _matched29; s.recordFailure(s.node(_p26, _d25Fail, false)); }
+} while (false);
+}
+_resultEnd = _d25End; _resultFail = _d25Fail; _resultOk = _d25Ok;
+break; }
+default: { auto failed = s.failure(_p0, "choice"); _resultEnd = failed.end; _resultFail = failed.failEnd; _resultOk = failed.successful; break; } }
+} while (false);
+}
+s.steps = _steps; cursor = _resultEnd; failure = _resultFail; return _resultOk; }
+private static bool _cursor_Sep(ref State!(false, 2) s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;
+size_t _steps = s.steps; const size_t _limit = s.context.stepLimit; bool _live = s.status == Status.ok;
+pragma(inline, true) bool _tick() @nogc nothrow { if (!_live) return false; if (_steps >= _limit) { s.status = Status.resourceLimit; _live = false; return false; } ++_steps; return true; }
+size_t _resultEnd = p, _resultFail = p; bool _resultOk = _live; { const size_t _p0 = p;
+const size_t _checkpoint1 = s.outputCheckpoint();
+do {
+if (!_tick()) { _resultOk = false; break; }
+alias _choice2 = predictiveChoice!(branch!(literal!(","),  0x100000000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(and!(literal!("\r"), option!(literal!("\n"))),  0x2000UL,  0x0UL,  0x0UL,  0x0UL), branch!(literal!("\n"),  0x400UL,  0x0UL,  0x0UL,  0x0UL));
+const ubyte _choice2Selected = _p0 < s.input.length ? _choice2.branchTable[cast(ubyte)s.input[_p0]] : cast(ubyte)_choice2.fallback; switch (_choice2Selected) {
+case 1: {
+size_t _d3End = _p0, _d3Fail = _p0; bool _d3Ok = _live; { const size_t _p4 = _p0;
+do {
+if (!_tick()) { _d3Ok = false; break; }
+enum _literal6 = ",";
+if (_p4 <= s.input.length && _literal6.length <= s.input.length - _p4 && s.input[_p4 .. _p4 + _literal6.length] == _literal6) { _d3End += _literal6.length; _d3Fail = _d3End; } else { size_t _matched7; while (_matched7 < _literal6.length && _p4 + _matched7 < s.input.length && s.input[_p4 + _matched7] == _literal6[_matched7]) ++_matched7; _d3Ok = false; _d3Fail += _matched7; s.recordFailure(s.node(_p4, _d3Fail, false)); }
+} while (false);
+}
+_resultEnd = _d3End; _resultFail = _d3Fail; _resultOk = _d3Ok;
+break; }
+case 2: {
+size_t _d8End = _p0, _d8Fail = _p0; bool _d8Ok = _live; { const size_t _p9 = _p0;
+do {
+if (!_tick()) { _d8End = _p9; _d8Fail = _p9; _d8Ok = false; break; }
+size_t _d11End = _d8End, _d11Fail = _d8End; bool _d11Ok = _live; { const size_t _p12 = _d8End;
+do {
+if (!_tick()) { _d11Ok = false; break; }
+enum _literal14 = "\r";
+if (_p12 <= s.input.length && _literal14.length <= s.input.length - _p12 && s.input[_p12 .. _p12 + _literal14.length] == _literal14) { _d11End += _literal14.length; _d11Fail = _d11End; } else { size_t _matched15; while (_matched15 < _literal14.length && _p12 + _matched15 < s.input.length && s.input[_p12 + _matched15] == _literal14[_matched15]) ++_matched15; _d11Ok = false; _d11Fail += _matched15; s.recordFailure(s.node(_p12, _d11Fail, false)); }
+} while (false);
+}
+if (!_d11Ok) { _d8Ok = false; _d8Fail = _d11Fail; break; } _d8End = _d11End;
+if (!_tick()) { _d8End = _p9; _d8Fail = _p9; _d8Ok = false; break; }
+size_t _d16End = _d8End, _d16Fail = _d8End; bool _d16Ok = _live; { const size_t _p17 = _d8End;
+do {
+size_t _count20 = 0; while (_count20 < 1 && _tick()) {
+const size_t _checkpoint18 = s.outputCheckpoint();
+size_t _d19End = _d16End, _d19Fail = _d16End; bool _d19Ok = _live; { const size_t _p21 = _d16End;
+do {
+if (!_tick()) { _d19Ok = false; break; }
+enum _literal23 = "\n";
+if (_p21 <= s.input.length && _literal23.length <= s.input.length - _p21 && s.input[_p21 .. _p21 + _literal23.length] == _literal23) { _d19End += _literal23.length; _d19Fail = _d19End; } else { size_t _matched24; while (_matched24 < _literal23.length && _p21 + _matched24 < s.input.length && s.input[_p21 + _matched24] == _literal23[_matched24]) ++_matched24; _d19Ok = false; _d19Fail += _matched24; s.recordFailure(s.node(_p21, _d19Fail, false)); }
+} while (false);
+}
+if (!_d19Ok) {
+s.rollbackOutput(_checkpoint18);
+break; } ++_count20; if (_d19End == _d16End) break; _d16End = _d19End; }
+if (!_live) _d16Ok = false;
+} while (false);
+}
+if (!_d16Ok) { _d8Ok = false; _d8Fail = _d16Fail; break; } _d8End = _d16End;
+} while (false);
+}
+_resultEnd = _d8End; _resultFail = _d8Fail; _resultOk = _d8Ok;
+break; }
+case 3: {
+size_t _d25End = _p0, _d25Fail = _p0; bool _d25Ok = _live; { const size_t _p26 = _p0;
+do {
+if (!_tick()) { _d25Ok = false; break; }
+enum _literal28 = "\n";
+if (_p26 <= s.input.length && _literal28.length <= s.input.length - _p26 && s.input[_p26 .. _p26 + _literal28.length] == _literal28) { _d25End += _literal28.length; _d25Fail = _d25End; } else { size_t _matched29; while (_matched29 < _literal28.length && _p26 + _matched29 < s.input.length && s.input[_p26 + _matched29] == _literal28[_matched29]) ++_matched29; _d25Ok = false; _d25Fail += _matched29; s.recordFailure(s.node(_p26, _d25Fail, false)); }
+} while (false);
+}
+_resultEnd = _d25End; _resultFail = _d25Fail; _resultOk = _d25Ok;
+break; }
+default: { auto failed = s.failure(_p0, "choice"); _resultEnd = failed.end; _resultFail = failed.failEnd; _resultOk = failed.successful; break; } }
+} while (false);
+}
+s.steps = _steps; cursor = _resultEnd; failure = _resultFail; return _resultOk; }
+pragma(inline, true) private static State!(CT, Check).Node _direct_Sep(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; const successful = _cursor_Sep(s, end, failure); auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }
+private static State!(CT, Check).Node _Sep(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow { if (s.context.trace !is null) return defined!(or!(literal!(","), and!(literal!("\r"), option!(literal!("\n"))), literal!("\n")), "BenchCSV.Sep")(s,p); static if (!CT && ((Check == 1 && true) || (Check == 2 && true))) { if (s.context.trace is null) return defined!(_direct_Sep!(CT, Check), "BenchCSV.Sep")(s,p); } return defined!(predictiveChoice!(branch!(literal!(","),  0x100000000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(and!(literal!("\r"), option!(literal!("\n"))),  0x2000UL,  0x0UL,  0x0UL,  0x0UL), branch!(literal!("\n"),  0x400UL,  0x0UL,  0x0UL,  0x0UL)), "BenchCSV.Sep")(s,p); }
+static State!(false, false).Node Sep(ref State!(false, false) s, size_t p) @nogc nothrow { return s.rule!(_Sep!(false, false), "BenchCSV.Sep", false, -3L)(p); }
+static State!(true, false).Node Sep(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow { return s.rule!(_Sep!(true, false), "BenchCSV.Sep", false, -3L)(p); }
+static State!(false, true).Node Sep(ref State!(false, true) s, size_t p) @nogc nothrow { return s.rule!(_Sep!(false, true), "BenchCSV.Sep", false, -3L)(p); }
+static State!(true, true).Node Sep(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow { return s.rule!(_Sep!(true, true), "BenchCSV.Sep", false, -3L)(p); }
+static State!(false, 2).Node Sep(ref State!(false, 2) s, size_t p) @nogc nothrow { return s.rule!(_Sep!(false, 2), "BenchCSV.Sep", false, -3L)(p); }
+static State!(true, 2).Node Sep(CompileTime = void)(ref State!(true, 2) s, size_t p) nothrow { return s.rule!(_Sep!(true, 2), "BenchCSV.Sep", false, -3L)(p); }
+static ParseResult Sep(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(Sep)(ctx,input); }
+static ParseTree Sep(Input)(Input input) nothrow if (is(Input == string)) { return parseCT!(Sep)(input); }
+struct _dfa_Field { enum automaton = compileDFA([
+regularByte(0x100000200UL, 0x0UL, 0x0UL, 0x0UL), // node 0
+regularNode(RegularKind.repetition, [0]), // node 1
+], 1, false); enum valid = automaton.valid; enum requireEnd = automaton.requireEnd; }
+struct _dfa_Field_1 { enum automaton = compileDFA([
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 0
+regularNode(RegularKind.sequence, [0]), // node 1
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 2
+regularByte(0x400000000UL, 0x0UL, 0x0UL, 0x0UL), // node 3
+regularNode(RegularKind.sequence, [2, 3]), // node 4
+regularByte(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL), // node 5
+regularNode(RegularKind.choice, [4, 5]), // node 6
+regularNode(RegularKind.repetition, [6]), // node 7
+regularNode(RegularKind.sequence, [1, 7]), // node 8
+], 8, false); enum valid = automaton.valid; enum requireEnd = automaton.requireEnd; }
+struct _dfa_Field_2 { enum automaton = compileDFA([
+regularByte(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL), // node 0
+regularNode(RegularKind.repetition, [0]), // node 1
+regularNode(RegularKind.sequence, [0, 1]), // node 2
+], 2, false); enum valid = automaton.valid; enum requireEnd = automaton.requireEnd; }
+struct _dfa_Field_3 { enum automaton = compileDFA([
+regularByte(0x100000200UL, 0x0UL, 0x0UL, 0x0UL), // node 0
+regularNode(RegularKind.repetition, [0]), // node 1
+], 1, false); enum valid = automaton.valid; enum requireEnd = automaton.requireEnd; }
+private struct _Empty_Field_p0_1 { size_t cost; bool diagnostic, valid; }
+private enum _empty_Field_p0_1_byte = () { State!(true, 1) state; state.context.stepLimit = 65536; state.input = "\n"; auto matched = and!(dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field, 0, false), option!(and!(predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)), dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false))))(state, 0); auto failure = state.checkpointFailure(); return _Empty_Field_p0_1(state.steps, failure.present, state.status == Status.ok && matched.successful && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();
+private enum _empty_Field_p0_1_eof = () { State!(true, 1) state; state.context.stepLimit = 65536; state.input = ""; auto matched = and!(dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field, 0, false), option!(and!(predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)), dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false))))(state, 0); auto failure = state.checkpointFailure(); return _Empty_Field_p0_1(state.steps, failure.present, state.status == Status.ok && matched.successful && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();
+private struct _Empty_Field_p7_1 { size_t cost; bool diagnostic, valid; }
+private enum _empty_Field_p7_1_byte = () { State!(true, 1) state; state.context.stepLimit = 65536; state.input = "\t"; auto matched = option!(and!(predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)), dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false)))(state, 0); auto failure = state.checkpointFailure(); return _Empty_Field_p7_1(state.steps, failure.present, state.status == Status.ok && matched.successful && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();
+private enum _empty_Field_p7_1_eof = () { State!(true, 1) state; state.context.stepLimit = 65536; state.input = ""; auto matched = option!(and!(predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)), dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false)))(state, 0); auto failure = state.checkpointFailure(); return _Empty_Field_p7_1(state.steps, failure.present, state.status == Status.ok && matched.successful && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();
+private static bool _cursor_Field(ref State!(false, 1) s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;
+size_t _steps = s.steps; const size_t _limit = s.context.stepLimit; bool _live = s.status == Status.ok;
+pragma(inline, true) bool _tick() @nogc nothrow { if (!_live) return false; if (_steps >= _limit) { s.status = Status.resourceLimit; _live = false; return false; } ++_steps; return true; }
+size_t _resultEnd = p, _resultFail = p; bool _resultOk = _live; { const size_t _p0 = p;
+do {
+static if (_empty_Field_p0_1_byte.valid && _empty_Field_p0_1_byte.cost >= 3) { if (_live && s.context.trace is null && _p0 < s.input.length && !CharSetMask([0xffffefffffffdbffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL]).contains(cast(ubyte)s.input[_p0]) && _steps < _limit && _limit - _steps > _empty_Field_p0_1_byte.cost) { _steps += _empty_Field_p0_1_byte.cost; static if (_empty_Field_p0_1_byte.diagnostic) s.recordFailure(s.node(_p0, _p0, false)); _resultEnd = _p0; _resultFail = _p0; _resultOk = true; break; } }
+static if (_empty_Field_p0_1_eof.valid && _empty_Field_p0_1_eof.cost >= 3) { if (_live && s.context.trace is null && _p0 == s.input.length && _steps < _limit && _limit - _steps > _empty_Field_p0_1_eof.cost) { _steps += _empty_Field_p0_1_eof.cost; static if (_empty_Field_p0_1_eof.diagnostic) s.recordFailure(s.node(_p0, _p0, false)); _resultEnd = _p0; _resultFail = _p0; _resultOk = true; break; } }
+if (!_tick()) { _resultEnd = _p0; _resultFail = _p0; _resultOk = false; break; }
+size_t _d2End = _resultEnd, _d2Fail = _resultEnd; bool _d2Ok = _live; { const size_t _p3 = _resultEnd;
+do {
+size_t _d5End, _d5Fail; const bool _d5Ok = dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field, 0, false).cursor(s, _p3, _steps, _live, _d5End, _d5Fail);
+_d2End = _d5End; _d2Fail = _d5Fail; _d2Ok = _d5Ok;
+} while (false);
+}
+if (!_d2Ok) { _resultOk = false; _resultFail = _d2Fail; break; } _resultEnd = _d2End;
+if (!_tick()) { _resultEnd = _p0; _resultFail = _p0; _resultOk = false; break; }
+size_t _d6End = _resultEnd, _d6Fail = _resultEnd; bool _d6Ok = _live; { const size_t _p7 = _resultEnd;
+do {
+static if (_empty_Field_p7_1_byte.valid && _empty_Field_p7_1_byte.cost >= 3) { if (_live && s.context.trace is null && _p7 < s.input.length && !CharSetMask([0xffffeffeffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL]).contains(cast(ubyte)s.input[_p7]) && _steps < _limit && _limit - _steps > _empty_Field_p7_1_byte.cost) { _steps += _empty_Field_p7_1_byte.cost; static if (_empty_Field_p7_1_byte.diagnostic) s.recordFailure(s.node(_p7, _p7, false)); _d6End = _p7; _d6Fail = _p7; _d6Ok = true; break; } }
+static if (_empty_Field_p7_1_eof.valid && _empty_Field_p7_1_eof.cost >= 3) { if (_live && s.context.trace is null && _p7 == s.input.length && _steps < _limit && _limit - _steps > _empty_Field_p7_1_eof.cost) { _steps += _empty_Field_p7_1_eof.cost; static if (_empty_Field_p7_1_eof.diagnostic) s.recordFailure(s.node(_p7, _p7, false)); _d6End = _p7; _d6Fail = _p7; _d6Ok = true; break; } }
+size_t _count10 = 0; while (_count10 < 1 && _tick()) {
+size_t _d9End = _d6End, _d9Fail = _d6End; bool _d9Ok = _live; { const size_t _p11 = _d6End;
+do {
+if (!_tick()) { _d9End = _p11; _d9Fail = _p11; _d9Ok = false; break; }
+size_t _d13End = _d9End, _d13Fail = _d9End; bool _d13Ok = _live; { const size_t _p14 = _d9End;
+do {
+if (!_tick()) { _d13Ok = false; break; }
+alias _choice16 = predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL));
+const ubyte _choice16Selected = _p14 < s.input.length ? _choice16.branchTable[cast(ubyte)s.input[_p14]] : cast(ubyte)_choice16.fallback; switch (_choice16Selected) {
+case 1: {
+size_t _d17End = _p14, _d17Fail = _p14; bool _d17Ok = _live; { const size_t _p18 = _p14;
+do {
+if (!_tick()) { _d17End = _p18; _d17Fail = _p18; _d17Ok = false; break; }
+size_t _d20End = _d17End, _d20Fail = _d17End; bool _d20Ok = _live; { const size_t _p21 = _d17End;
+do {
+size_t _d23End, _d23Fail; const bool _d23Ok = dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false).cursor(s, _p21, _steps, _live, _d23End, _d23Fail);
+_d20End = _d23End; _d20Fail = _d23Fail; _d20Ok = _d23Ok;
+} while (false);
+}
+if (!_d20Ok) { _d17Ok = false; _d17Fail = _d20Fail; break; } _d17End = _d20End;
+if (!_tick()) { _d17End = _p18; _d17Fail = _p18; _d17Ok = false; break; }
+size_t _d24End = _d17End, _d24Fail = _d17End; bool _d24Ok = _live; { const size_t _p25 = _d17End;
+do {
+if (!_tick()) { _d24Ok = false; break; }
+enum _literal27 = "\"";
+if (_p25 <= s.input.length && _literal27.length <= s.input.length - _p25 && s.input[_p25 .. _p25 + _literal27.length] == _literal27) { _d24End += _literal27.length; _d24Fail = _d24End; } else { size_t _matched28; while (_matched28 < _literal27.length && _p25 + _matched28 < s.input.length && s.input[_p25 + _matched28] == _literal27[_matched28]) ++_matched28; _d24Ok = false; _d24Fail += _matched28; s.recordFailure(s.node(_p25, _d24Fail, false)); }
+} while (false);
+}
+if (!_d24Ok) { _d17Ok = false; _d17Fail = _d24Fail; break; } _d17End = _d24End;
+} while (false);
+}
+_d13End = _d17End; _d13Fail = _d17Fail; _d13Ok = _d17Ok;
+break; }
+case 2: {
+size_t _d29End = _p14, _d29Fail = _p14; bool _d29Ok = _live; { const size_t _p30 = _p14;
+do {
+size_t _d32End, _d32Fail; const bool _d32Ok = dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false).cursor(s, _p30, _steps, _live, _d32End, _d32Fail);
+_d29End = _d32End; _d29Fail = _d32Fail; _d29Ok = _d32Ok;
+} while (false);
+}
+_d13End = _d29End; _d13Fail = _d29Fail; _d13Ok = _d29Ok;
+break; }
+default: { auto failed = s.failure(_p14, "choice"); _d13End = failed.end; _d13Fail = failed.failEnd; _d13Ok = failed.successful; break; } }
+} while (false);
+}
+if (!_d13Ok) { _d9Ok = false; _d9Fail = _d13Fail; break; } _d9End = _d13End;
+if (!_tick()) { _d9End = _p11; _d9Fail = _p11; _d9Ok = false; break; }
+size_t _d33End = _d9End, _d33Fail = _d9End; bool _d33Ok = _live; { const size_t _p34 = _d9End;
+do {
+size_t _d36End, _d36Fail; const bool _d36Ok = dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false).cursor(s, _p34, _steps, _live, _d36End, _d36Fail);
+_d33End = _d36End; _d33Fail = _d36Fail; _d33Ok = _d36Ok;
+} while (false);
+}
+if (!_d33Ok) { _d9Ok = false; _d9Fail = _d33Fail; break; } _d9End = _d33End;
+} while (false);
+}
+if (!_d9Ok) {
+break; } ++_count10; if (_d9End == _d6End) break; _d6End = _d9End; }
+if (!_live) _d6Ok = false;
+} while (false);
+}
+if (!_d6Ok) { _resultOk = false; _resultFail = _d6Fail; break; } _resultEnd = _d6End;
+} while (false);
+}
+s.steps = _steps; cursor = _resultEnd; failure = _resultFail; return _resultOk; }
+private struct _Empty_Field_p0_2 { size_t cost; bool diagnostic, valid; }
+private enum _empty_Field_p0_2_byte = () { State!(true, 2) state; import npegged.records : RecordBuffer; Arena owner; state.arena = &owner; RecordBuffer output; output.arena = &owner; state.attachRecords(output); state.context.stepLimit = 65536; state.input = "\n"; auto matched = and!(dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field, 0, false), option!(and!(predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)), dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false))))(state, 0); auto failure = state.checkpointFailure(); return _Empty_Field_p0_2(state.steps, failure.present, state.status == Status.ok && matched.successful && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();
+private enum _empty_Field_p0_2_eof = () { State!(true, 2) state; import npegged.records : RecordBuffer; Arena owner; state.arena = &owner; RecordBuffer output; output.arena = &owner; state.attachRecords(output); state.context.stepLimit = 65536; state.input = ""; auto matched = and!(dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field, 0, false), option!(and!(predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)), dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false))))(state, 0); auto failure = state.checkpointFailure(); return _Empty_Field_p0_2(state.steps, failure.present, state.status == Status.ok && matched.successful && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();
+private struct _Empty_Field_p7_2 { size_t cost; bool diagnostic, valid; }
+private enum _empty_Field_p7_2_byte = () { State!(true, 2) state; import npegged.records : RecordBuffer; Arena owner; state.arena = &owner; RecordBuffer output; output.arena = &owner; state.attachRecords(output); state.context.stepLimit = 65536; state.input = "\t"; auto matched = option!(and!(predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)), dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false)))(state, 0); auto failure = state.checkpointFailure(); return _Empty_Field_p7_2(state.steps, failure.present, state.status == Status.ok && matched.successful && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();
+private enum _empty_Field_p7_2_eof = () { State!(true, 2) state; import npegged.records : RecordBuffer; Arena owner; state.arena = &owner; RecordBuffer output; output.arena = &owner; state.attachRecords(output); state.context.stepLimit = 65536; state.input = ""; auto matched = option!(and!(predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)), dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false)))(state, 0); auto failure = state.checkpointFailure(); return _Empty_Field_p7_2(state.steps, failure.present, state.status == Status.ok && matched.successful && matched.end == 0 && matched.failEnd == 0 && (!failure.present || failure.failEnd == 0)); }();
+private static bool _cursor_Field(ref State!(false, 2) s, ref size_t cursor, ref size_t failure) @nogc nothrow { enum CT = false; const size_t p = cursor;
+size_t _steps = s.steps; const size_t _limit = s.context.stepLimit; bool _live = s.status == Status.ok;
+pragma(inline, true) bool _tick() @nogc nothrow { if (!_live) return false; if (_steps >= _limit) { s.status = Status.resourceLimit; _live = false; return false; } ++_steps; return true; }
+size_t _resultEnd = p, _resultFail = p; bool _resultOk = _live; { const size_t _p0 = p;
+do {
+static if (_empty_Field_p0_2_byte.valid && _empty_Field_p0_2_byte.cost >= 3) { if (_live && s.context.trace is null && _p0 < s.input.length && !CharSetMask([0xffffefffffffdbffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL]).contains(cast(ubyte)s.input[_p0]) && _steps < _limit && _limit - _steps > _empty_Field_p0_2_byte.cost) { _steps += _empty_Field_p0_2_byte.cost; static if (_empty_Field_p0_2_byte.diagnostic) s.recordFailure(s.node(_p0, _p0, false)); _resultEnd = _p0; _resultFail = _p0; _resultOk = true; break; } }
+static if (_empty_Field_p0_2_eof.valid && _empty_Field_p0_2_eof.cost >= 3) { if (_live && s.context.trace is null && _p0 == s.input.length && _steps < _limit && _limit - _steps > _empty_Field_p0_2_eof.cost) { _steps += _empty_Field_p0_2_eof.cost; static if (_empty_Field_p0_2_eof.diagnostic) s.recordFailure(s.node(_p0, _p0, false)); _resultEnd = _p0; _resultFail = _p0; _resultOk = true; break; } }
+if (!_tick()) { _resultEnd = _p0; _resultFail = _p0; _resultOk = false; break; }
+size_t _d2End = _resultEnd, _d2Fail = _resultEnd; bool _d2Ok = _live; { const size_t _p3 = _resultEnd;
+do {
+size_t _d5End, _d5Fail; const bool _d5Ok = dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field, 0, false).cursor(s, _p3, _steps, _live, _d5End, _d5Fail);
+_d2End = _d5End; _d2Fail = _d5Fail; _d2Ok = _d5Ok;
+} while (false);
+}
+if (!_d2Ok) { _resultOk = false; _resultFail = _d2Fail; break; } _resultEnd = _d2End;
+if (!_tick()) { _resultEnd = _p0; _resultFail = _p0; _resultOk = false; break; }
+size_t _d6End = _resultEnd, _d6Fail = _resultEnd; bool _d6Ok = _live; { const size_t _p7 = _resultEnd;
+do {
+static if (_empty_Field_p7_2_byte.valid && _empty_Field_p7_2_byte.cost >= 3) { if (_live && s.context.trace is null && _p7 < s.input.length && !CharSetMask([0xffffeffeffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL]).contains(cast(ubyte)s.input[_p7]) && _steps < _limit && _limit - _steps > _empty_Field_p7_2_byte.cost) { _steps += _empty_Field_p7_2_byte.cost; static if (_empty_Field_p7_2_byte.diagnostic) s.recordFailure(s.node(_p7, _p7, false)); _d6End = _p7; _d6Fail = _p7; _d6Ok = true; break; } }
+static if (_empty_Field_p7_2_eof.valid && _empty_Field_p7_2_eof.cost >= 3) { if (_live && s.context.trace is null && _p7 == s.input.length && _steps < _limit && _limit - _steps > _empty_Field_p7_2_eof.cost) { _steps += _empty_Field_p7_2_eof.cost; static if (_empty_Field_p7_2_eof.diagnostic) s.recordFailure(s.node(_p7, _p7, false)); _d6End = _p7; _d6Fail = _p7; _d6Ok = true; break; } }
+size_t _count10 = 0; while (_count10 < 1 && _tick()) {
+const size_t _checkpoint8 = s.outputCheckpoint();
+size_t _d9End = _d6End, _d9Fail = _d6End; bool _d9Ok = _live; { const size_t _p11 = _d6End;
+do {
+if (!_tick()) { _d9End = _p11; _d9Fail = _p11; _d9Ok = false; break; }
+size_t _d13End = _d9End, _d13Fail = _d9End; bool _d13Ok = _live; { const size_t _p14 = _d9End;
+const size_t _checkpoint15 = s.outputCheckpoint();
+do {
+if (!_tick()) { _d13Ok = false; break; }
+alias _choice16 = predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL));
+const ubyte _choice16Selected = _p14 < s.input.length ? _choice16.branchTable[cast(ubyte)s.input[_p14]] : cast(ubyte)_choice16.fallback; switch (_choice16Selected) {
+case 1: {
+size_t _d17End = _p14, _d17Fail = _p14; bool _d17Ok = _live; { const size_t _p18 = _p14;
+do {
+if (!_tick()) { _d17End = _p18; _d17Fail = _p18; _d17Ok = false; break; }
+size_t _d20End = _d17End, _d20Fail = _d17End; bool _d20Ok = _live; { const size_t _p21 = _d17End;
+do {
+size_t _d23End, _d23Fail; const bool _d23Ok = dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false).cursor(s, _p21, _steps, _live, _d23End, _d23Fail);
+_d20End = _d23End; _d20Fail = _d23Fail; _d20Ok = _d23Ok;
+} while (false);
+}
+if (!_d20Ok) { _d17Ok = false; _d17Fail = _d20Fail; break; } _d17End = _d20End;
+if (!_tick()) { _d17End = _p18; _d17Fail = _p18; _d17Ok = false; break; }
+size_t _d24End = _d17End, _d24Fail = _d17End; bool _d24Ok = _live; { const size_t _p25 = _d17End;
+do {
+if (!_tick()) { _d24Ok = false; break; }
+enum _literal27 = "\"";
+if (_p25 <= s.input.length && _literal27.length <= s.input.length - _p25 && s.input[_p25 .. _p25 + _literal27.length] == _literal27) { _d24End += _literal27.length; _d24Fail = _d24End; } else { size_t _matched28; while (_matched28 < _literal27.length && _p25 + _matched28 < s.input.length && s.input[_p25 + _matched28] == _literal27[_matched28]) ++_matched28; _d24Ok = false; _d24Fail += _matched28; s.recordFailure(s.node(_p25, _d24Fail, false)); }
+} while (false);
+}
+if (!_d24Ok) { _d17Ok = false; _d17Fail = _d24Fail; break; } _d17End = _d24End;
+} while (false);
+}
+_d13End = _d17End; _d13Fail = _d17Fail; _d13Ok = _d17Ok;
+break; }
+case 2: {
+size_t _d29End = _p14, _d29Fail = _p14; bool _d29Ok = _live; { const size_t _p30 = _p14;
+do {
+size_t _d32End, _d32Fail; const bool _d32Ok = dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false).cursor(s, _p30, _steps, _live, _d32End, _d32Fail);
+_d29End = _d32End; _d29Fail = _d32Fail; _d29Ok = _d32Ok;
+} while (false);
+}
+_d13End = _d29End; _d13Fail = _d29Fail; _d13Ok = _d29Ok;
+break; }
+default: { auto failed = s.failure(_p14, "choice"); _d13End = failed.end; _d13Fail = failed.failEnd; _d13Ok = failed.successful; break; } }
+} while (false);
+}
+if (!_d13Ok) { _d9Ok = false; _d9Fail = _d13Fail; break; } _d9End = _d13End;
+if (!_tick()) { _d9End = _p11; _d9Fail = _p11; _d9Ok = false; break; }
+size_t _d33End = _d9End, _d33Fail = _d9End; bool _d33Ok = _live; { const size_t _p34 = _d9End;
+do {
+size_t _d36End, _d36Fail; const bool _d36Ok = dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false).cursor(s, _p34, _steps, _live, _d36End, _d36Fail);
+_d33End = _d36End; _d33Fail = _d36Fail; _d33Ok = _d36Ok;
+} while (false);
+}
+if (!_d33Ok) { _d9Ok = false; _d9Fail = _d33Fail; break; } _d9End = _d33End;
+} while (false);
+}
+if (!_d9Ok) {
+s.rollbackOutput(_checkpoint8);
+break; } ++_count10; if (_d9End == _d6End) break; _d6End = _d9End; }
+if (!_live) _d6Ok = false;
+} while (false);
+}
+if (!_d6Ok) { _resultOk = false; _resultFail = _d6Fail; break; } _resultEnd = _d6End;
+} while (false);
+}
+s.steps = _steps; cursor = _resultEnd; failure = _resultFail; return _resultOk; }
+pragma(inline, true) private static State!(CT, Check).Node _direct_Field(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; const successful = _cursor_Field(s, end, failure); auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }
+private static State!(CT, Check).Node _Field(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow { if (s.context.trace !is null) return defined!(and!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), option!(and!(or!(and!(literal!("\""), zeroOrMore!(or!(literal!("\"\""), and!(negLookahead!(literal!("\"")), any))), literal!("\"")), oneOrMore!(and!(negLookahead!(charClass!(0x100500002600UL, 0x0UL, 0x0UL, 0x0UL)), any))), zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL))))), "BenchCSV.Field")(s,p); static if (!CT && ((Check == 1 && true) || (Check == 2 && true))) { if (s.context.trace is null) return defined!(_direct_Field!(CT, Check), "BenchCSV.Field")(s,p); } return defined!(and!(dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field, 0, false), option!(and!(predictiveChoice!(branch!(and!(dfaToken!(and!(literal!("\""), zeroOrMore!(predictiveChoice!(branch!(literal!("\"\""),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(charClass!(0xfffffffbffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL),  0xfffffffbffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)))), _dfa_Field_1, 0, false), literal!("\"")),  0x400000000UL,  0x0UL,  0x0UL,  0x0UL), branch!(dfaToken!(oneOrMore!(charClass!(0xffffeffaffffd9ffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL, 0xffffffffffffffffUL)), _dfa_Field_2, 0, false),  0xffffeffaffffd9ffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL,  0xffffffffffffffffUL)), dfaToken!(zeroOrMore!(charClass!(0x100000200UL, 0x0UL, 0x0UL, 0x0UL)), _dfa_Field_3, 0, false)))), "BenchCSV.Field")(s,p); }
+static State!(false, false).Node Field(ref State!(false, false) s, size_t p) @nogc nothrow { return s.rule!(_Field!(false, false), "BenchCSV.Field", false, 4294967297L)(p); }
+static State!(true, false).Node Field(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow { return s.rule!(_Field!(true, false), "BenchCSV.Field", false, 4294967297L)(p); }
+static State!(false, true).Node Field(ref State!(false, true) s, size_t p) @nogc nothrow { return s.rule!(_Field!(false, true), "BenchCSV.Field", false, 4294967297L)(p); }
+static State!(true, true).Node Field(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow { return s.rule!(_Field!(true, true), "BenchCSV.Field", false, 4294967297L)(p); }
+static State!(false, 2).Node Field(ref State!(false, 2) s, size_t p) @nogc nothrow { return s.rule!(_Field!(false, 2), "BenchCSV.Field", false, 4294967297L)(p); }
+static State!(true, 2).Node Field(CompileTime = void)(ref State!(true, 2) s, size_t p) nothrow { return s.rule!(_Field!(true, 2), "BenchCSV.Field", false, 4294967297L)(p); }
+static ParseResult Field(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(Field)(ctx,input); }
+static ParseTree Field(Input)(Input input) nothrow if (is(Input == string)) { return parseCT!(Field)(input); }
+static State!(false, false).Node opCall(ref State!(false, false) s, size_t p) @nogc nothrow { auto t = Root(s,p); t.name = "BenchCSV"; return t; }
+static State!(true, false).Node opCall(CompileTime = void)(ref State!(true, false) s, size_t p) nothrow { auto t = Root(s,p); t.name = "BenchCSV"; return t; }
+static State!(false, true).Node opCall(ref State!(false, true) s, size_t p) @nogc nothrow { auto t = Root(s,p); return t; }
+static State!(true, true).Node opCall(CompileTime = void)(ref State!(true, true) s, size_t p) nothrow { auto t = Root(s,p); return t; }
+static State!(false, 2).Node opCall(ref State!(false, 2) s, size_t p) @nogc nothrow { auto t = Root(s,p); return t; }
+static State!(true, 2).Node opCall(CompileTime = void)(ref State!(true, 2) s, size_t p) nothrow { auto t = Root(s,p); return t; }
+static ParseResult opCall(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(opCall)(ctx,input); }
+static ParseTree opCall(Input)(Input input) nothrow if (is(Input == string)) { return parseCT!(opCall)(input); }
+}

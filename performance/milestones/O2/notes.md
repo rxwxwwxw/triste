@@ -7,7 +7,7 @@ record-emitting child is its LAST child (nothing after it can fail or tick, so l
 a record either); choices all of whose arms qualify; loops. Everything else keeps `outputCheckpoint()` and
 `rollbackOutput()`. `(Field Sep)*`, `(Sep Item Mark?)*`, and emitting-middle shapes stay unproven.
 
-Ceiling (unsound: drop all loop checkpoints; `ceil-*.json`, vs the S4 runner): CSV.Flat/spans -9.4%,
+Ceiling (unsound: drop all loop checkpoints; `ceiling-*.json`, vs the S4 runner): CSV.Flat/spans -9.4%,
 CSV.MultiLine -8.8%, PEGGrammar.ManyRules -8.7%, Arithmetic spans -4..-6%. Above the 3% threshold, so implemented.
 (CSV.LongField +49% in that unsound variant is an artifact of its wrong output; not used.)
 
