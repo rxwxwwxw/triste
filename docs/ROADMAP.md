@@ -1,6 +1,6 @@
 # NPegged Development Roadmap — Agent Execution Plan
 
-**Status:** Proposed work queue; no milestone is marked complete by this document.  
+**Status:** Work queue. This document marks no milestone complete; progress lives in `performance/latest.md` and `performance/progress.md`. Phase 1 (A–G, S1/S2b) is largely done; **Phase 2 (§10) is the next phase.**  
 **Audience:** A locally running coding agent with access to the full repository, DMD, LDC, test/build scripts, and benchmark machines.  
 **Objective:** Preserve the exact observable behavior of NPegged while moving generated parsers toward handwritten D lexer/parser performance. Target **≤1.5× handwritten execution time per equal-output benchmark workload**.  
 **Priority order:** Make it work → make it correct → make it fast.  
@@ -127,7 +127,7 @@ Use *existing* repository workloads first. Add missing families with separate te
 
 ## 2. Milestone overview and dependency order
 
-**Sequence:** Foundations (**A**) → FIRST/FOLLOW (**F**) → **BITES and NEXTBITES (**B**, after F is complete)** → compile-time specialization (**P**, some independent) → grammar extraction (**L**) → generation/fuzzing (**G**) → advanced backends (**X**). Performance/safety tasks apply throughout.
+**Sequence:** Foundations (**A**) → FIRST/FOLLOW (**F**) → **BITES and NEXTBITES (**B**, after F is complete)** → compile-time specialization (**P**, some independent) → grammar extraction (**L**) → generation/fuzzing (**G**) → advanced backends (**X**). Performance/safety tasks apply throughout. S1 (register-resident step accounting) and S2b (rule-call tick from the register counter) were added during Phase 1 and are recorded in `performance/milestones/S1`, `S2b`. **Phase 2** (§10) adds the Q, S3–S8, O, W, C and D milestones; its table is in §10.3.
 
 | ID | Priority | Prerequisite | Work product | Relative size |
 |---|---|---|---|---|
@@ -540,7 +540,286 @@ Combine certified token patterns and deterministic region dispatch while preserv
 
 Use results in `performance/` to choose between direct, DFA, predictive, memoized, LL, and specialized scanner implementations per rule. Never gather microbenchmarks during production parsing. Freeze decisions by profile/target architecture; fall back conservatively when the profile does not match. Guard against compilation time/code-size blowup and overfitting to synthetic inputs.
 
-## 10. Standard acceptance checklist for every milestone
+## 10. Phase 2 — closing the residual gap (Q, S, O, W, C, D milestones)
+
+**Status when written (2026-10-19):** A1–A5, F1–F4, B1–B8, P1, P2, P6, L1–L3, G1–G7, S1 and S2b are done (see `performance/latest.md`). Baseline for this phase: run `20261020T001203Z-6e7a5966f` (`milestones/S2b`, `PARSER_BACKEND=direct`, LDC 1.43, Apple M1): **99/171 within 1.5×, p90 2.04, geomean 1.32, worst 2.71×**. P3–P5, P7, P8, L4–L6 and X1–X3 are still open; this phase says where each one fits.
+
+### 10.1 Where the remaining gap is
+
+Grouping the 72 over-target workloads in the S2b `summary.csv`:
+
+| Cluster | Over 1.5× | Shape of the gap |
+|---|---|---|
+| Tiny inputs (median < 100 ns): `Numbers.*Empty/Invalid/Truncated`, `CSV.Empty/Trailing/…`, `Arithmetic.Empty/Trailing/…`, `PEGGrammar.Empty/Permissive/…` | **40** | Fixed cost per parse, mostly on the **rejection path**: 34 of the 40 are registry `invalid` inputs. Median absolute gap is 13.4 ns (6–43 ns). Taking a uniform 6 ns off would bring 24 of them under target; 10 ns would bring 31. |
+| CSV records (`spans`, `tree`) | 10 | `CSV.Flat` validation is **0.75×** (828 ns), but spans is **2.09×** (12.1 µs, against 5.8 µs handwritten). Records mode costs about 12 ns more per field than the handwritten writer, and both use the same `RecordBuffer`. |
+| PEGGrammar spans/tree/validation (≥ 100 ns) | 12 | Heavy use of lookahead (`!TopBoundary Prefix Sp`, `&DefHeaderGuard`, `&ParamGuard ParamAhead`), small rules, and many rule boundaries. |
+| JSON ≥ 100 ns (`DeepNesting`, `InvalidTruncated`, `Small/tree`) | 9 | Recursion depth and rule-boundary cost. |
+| Arithmetic validation (`Flat` 1.82×; `Unary` 1.99× is tiny) | 1 (+tiny) | Cost per node in an LL(1) expression grammar. P8 applies. |
+
+What the generated `direct` code shows (output of `grammar!(Memoization.selective, …, ParserBackend.direct)` for the benchmark grammars):
+
+1. **The entry path is deep and generic.** `check!` builds a `CheckResult` that holds an `Arena`, then copies the whole `ParseContext` into `State` (`state.context = context`). It then calls `Root` → `s.rule!` → `ruleBody` (tick, depth check, trace check) → `_Root` (a second trace check) → `defined!` → `_direct_Root` → `_cursor_Root` → `node` → `finish`. A rule whose whole body is one DFA (`BenchNumbers.Scientific`) never takes its `_direct_` path at all: `_Scientific` is `defined!(dfaToken!(…))`, so the generic `dfaToken` prologue runs as well.
+2. **Records mode loses whole-body DFAs.** In validation mode the entire CSV `Root` becomes one `_dfa_Root`. In records mode, `Field` is a *leaf* record (its compiled kind has the leaf bit, so it has no selected descendants), but its cursor still runs node by node: two empty-match guards, three separate `dfaToken` calls (each syncs `s.steps` and reloads `s.status`), a `predictiveChoice` and a literal. The `(Sep Field)*` loop also takes `outputCheckpoint()` on every iteration.
+3. **Every PEG node still ticks.** S1/S2b moved the counter into registers, but each tick is still a compare and branch, plus `_live` propagation into every `_dN{End,Fail,Ok}` triple. The register counter is written back to `s.steps` around every rule or scanner call. S2 measured depth accounting at about 9% and the rule-level tick at about 7% of `Arithmetic.Flat`.
+4. **The proofs are never used.** The B7 study proves 14,482 of 25,520 choice pairs BITES-disjoint, and BITES resolves 340 FIRST conflicts. B6 lists Proposition 6 commit sites, and L1 classifies `certifiedLL1` regions. No code-generation path consumes any of this except the opt-in `ll1` backend, which was exact but gave no gain.
+5. **No public result exposes the step counter.** `ParseResult`, `CheckResult` and `CompactResult` have no field for it. Ticks are visible only through *whether and where* `Status.resourceLimit` fires. So if analysis proves a limit unreachable, ticking can be removed without changing any output.
+6. **On full-input success, `failEnd` is already known.** Every failure position is ≤ `input.length`. If the root succeeds with `end == input.length`, `finish` therefore yields `failEnd == input.length`, whatever happened along the way. Failure bookkeeping matters only on rejection, or when the root does not have to consume all input.
+7. **The default backend is still `combinators`.** `grammar!`'s default is `ParserBackend.combinators`, although `direct` is the measured baseline and wins broadly (L3: 79 vs 60 within target).
+
+### 10.2 Principles specific to this phase
+
+- **Two clones, one cheap guard.** Most ideas here specialize on a fact that is cheap to check at entry or at a region head: limits that cannot be reached, `trace is null`, success that consumed the whole input. Emit a fast clone and keep the exact clone. A guard picks the fast clone only when its proof premises hold, and exactness is argued separately for each clone. Builds with `NPeggedRuleMetrics` or `NPeggedMetrics` always use the exact clone.
+- **Run a ceiling experiment first.** As S1/S2 did, start each S, O and C milestone with a throwaway, explicitly *unsound* experiment that bounds the possible gain. Record it in the milestone notes, never commit it, and drop the milestone if the ceiling is below about 3% on its target cluster.
+- **Optimize the clusters, not the mean.** Report each milestone's effect per cluster from §10.1. A tiny-input win must not be bought with a regression on large inputs, or the other way round. S2 is the cautionary example: no single threshold served both.
+- **Watch code size.** Clones multiply cursor code, so every clone milestone reports A5 deltas (generated bytes, binary size, LDC compile time). Clone only rules reachable from hot entries, or set a size budget per grammar.
+- **Contract changes are not agent decisions.** Changing when `resourceLimit` fires (the work-unit model), changing the default backend, or adding a public API mode needs explicit approval from the maintainer (D milestones). Until then, use only exact techniques.
+
+### 10.3 Milestones
+
+| ID | Priority | Prerequisite | Work product | Size | Primary cluster |
+|---|---|---|---|---|---|
+| Q1 | P0 | — | Fixed-cost ladder and harness floor | S | tiny |
+| Q2 | P0 | G7 | G7 corpora and missing families wired into the timing runner | M | all (adversarial cover) |
+| Q3 | P1 | Q1 | Cycle attribution for the 10 worst workloads (arm64) | S | all |
+| S3 | P0 | Q1 | Lean entry path and direct entry for whole-DFA roots | M | tiny |
+| S4 | P0 | S3 | Scanner calls native to the cursor (no `s.steps`/`s.status` round trip) | S | CSV, JSON, tiny |
+| O1 | P0 | A4 | Whole-body DFA for regular leaf-record rules | M | CSV records |
+| O2 | P1 | O1 | Checkpoint elision in record loops (specializes P4) | S | CSV, JSON, PEG records |
+| O3 | P1 | O1 | `RecordBuffer` fast path for compiled leaf kinds | S | records |
+| W1 | P1 | L1, B6 | Static work and depth bounds (report-only) | M | analysis |
+| W2 | P1 | W1, A5 | Limit-free clones selected at entry | M | all valid inputs |
+| W3 | P1 | W1 | Depth checks only at heads of recursive cycles | M | JSON, Arithmetic, PEG |
+| S5 | P1 | S4 | Depth as a cursor parameter (realizes part of P5) | M | rule-boundary-heavy |
+| S6 | P1 | S4, D2 | Tick regions guarded by slack | M | all |
+| S7 | P2 | Q3 | Cursor results returned in registers (realizes part of P5) | S | rule-boundary-heavy |
+| S8 | P1 | Q1 | Furthest failure held in a register; cheaper rejection path | S | tiny invalid |
+| C1 | P1 | W2, D3 | `accept` mode, and optimistic `check` with exact replay | M | valid inputs |
+| C2 | P2 | C1, B4, F4 | BITES-guarded dispatch in the accept clone | M | PEG, JSON |
+| C3 | P2 | C1, B6 | Proposition 6 cuts in the accept clone (promotes B6) | M | backtracking-heavy |
+| C4 | P2 | C1, B7 | Redundant-predicate elimination in the accept clone | S | PEGGrammar |
+| O4 | P3 | O1, O3 | Tagged-DFA lowering of regular regions that emit records (research) | L | CSV, JSON lexemes |
+| D1 | P1 | A4, A5 | **Decision:** make `direct` the default backend | S | all |
+| D2 | P1 | — | **Decision:** work-unit contract (exact today, or coarser) | S | all |
+| D3 | P1 | — | **Decision:** whether to add a public `accept` output mode | S | valid inputs |
+
+Recommended order: **Q1 → S3 → S8** (ceiling first; most tiny cases are rejections) **→ S4 → O1 → O2/O3 → Q2 → W1 → W2/W3 → S5 → S6** (after D2) **→ C1** (after D3) **→ C2–C4**. Put D1 to the maintainer as soon as Q1 is done. S7 and O4 go ahead only if Q3 attribution or a ceiling experiment supports them. P8 (iterative expressions) stays the main lever for `Arithmetic` and can run in parallel with the W milestones.
+
+How existing milestones map onto this phase:
+- P3: still open. F4 stayed off by default because one case regressed 14%; C2 is the BITES-based successor.
+- P4: becomes O2.
+- P5: splits into S5 and S7.
+- P7: unchanged.
+- P8: unchanged and recommended.
+- X1: stays gated on P6/Q3 profiles.
+- X2: O4 is its regular-region subset.
+- X3: consumes Q2/Q3 data.
+
+#### Q1 — Fixed-cost ladder and harness floor
+
+**Files:** `benchmark/`, `performance/scripts/`.  
+**Tasks:** Add microbenchmarks that time each layer of the entry path in isolation on empty and one-byte input, so the ~13 ns tiny-input gap is split into measured parts:
+1. An empty function returning an `Observation` (the harness floor).
+2. The handwritten twin.
+3. `CheckResult` and `Arena` construction plus destruction.
+4. Plus `State` setup and the `ParseContext` copy.
+5. Plus `s.rule!`/`ruleBody`.
+6. Plus `defined!`/`dfaToken` prologue.
+7. The full `check!`.
+
+Report each ratio both raw and with the harness floor subtracted, as extra columns. **The gate keeps using raw ratios.**  
+**Tests:** every ladder rung returns the same `Observation` as the full path; the harness rejects a rung whose output differs.  
+**Exit:** a per-layer cost table in `performance/milestones/Q1/` that S3 targets item by item.
+
+#### Q2 — Corpora and missing families in the timing runner
+
+**Files:** `benchmark/runner.d`, `performance/workloads.json`, `performance/corpora/manifest.json`.  
+**Tasks:** Time the G7 corpora (real, synthetic, learned, adversarial), which `performance/latest.md` notes are "not yet wired into the timing runner". Add registry entries for the families `workloads.json` lists as missing: `lex_utf8`, `failure`, `pathological`, `nested_expr`. Every W and C milestone needs adversarial workloads where its proof does *not* apply, such as exponential backtracking, limit-boundary inputs, and invalid inputs that force replay.  
+**Tests:** checksum and validity checks from G7, output parity before timing, and a new family that has no handwritten twin must report `N/A`.  
+**Exit:** the dashboard shows real vs synthetic labels and per-family counts. Earlier runs stay comparable on the original 171 workloads.
+
+#### Q3 — Cycle attribution
+
+**Files:** `performance/scripts/`, `performance/milestones/Q3/`.  
+**Tasks:** For the 10 worst workloads, record where cycles go: `xctrace` CPU Counters or `sample` on macOS, `perf` on Linux. Attribute them to entry, tick/branch, depth, scanner prologue, record put/rollback, failure recording, and memo. Keep this run separate from clean timing runs. If the tooling is unavailable, record that as **not run**.  
+**Exit:** attribution tables that justify (or rule out) S7, S8 and X1, with the rejection path attributed separately from the acceptance path.
+
+#### S3 — Lean entry path
+
+**Files:** `src/npegged/peg.d` (`check`, `parseRecords`, `State`), `src/npegged/grammar.d` (rule emission).  
+**Tasks** (one sub-PR each, each measured against the Q1 ladder):
+- **(a) Whole-DFA roots.** When a rule body is exactly one `dfaToken` with `ReferenceDepth == 0` (for example `BenchNumbers.Scientific`), emit a `_cursor_` that calls the scanner directly, and route the public entries through it. This skips `rule → ruleBody → defined → dfaToken`. Work units stay the same: one rule tick plus `examined − pos + 1`.
+- **(b) Lean `State` setup.** Copy only the `ParseContext` fields hot paths read, or hold a `const(ParseContext)*`. Leave memo bucket and entry storage untouched until the first memoized call.
+- **(c) `finish` fast path when `!hasFailure`.**
+- **(d) Hoist entry-invariant checks.** Check `trace is null` and `status == ok` once at entry, not again in `_Root`.
+
+**Tests:** empty input; `stepLimit` 0, 1 and exactly the DFA cost; `depthLimit` 0; `memoryLimit` 0; a trace callback set (must take the old path); and validation, spans and tree modes. Each check must hold for both backends under A4.  
+**Benchmarks:** the tiny cluster, plus all 171 workloads to catch large-input regressions.  
+**Exit:** the measured per-layer reduction. The hypothesis to confirm or refute is that ≥ 15 of the 40 tiny workloads move under 1.5×.
+
+#### S4 — Scanner calls native to the cursor
+
+**Files:** `src/npegged/dfa.d`, `src/npegged/grammar.d`.  
+**Tasks:** Add a `dfaToken` entry that takes the cursor's `_steps`, `_limit` and `_live` by `ref`. It is inlined, so these stay in registers. This removes the `s.steps = _steps; …; _steps = s.steps; _live = s.status == Status.ok;` round trip around each scanner call. It also drops prologue checks the cursor has already established (`_live`, `_steps < _limit`, and `pos <= input.length`, which holds by construction). Failure replay still calls the original combinator; the exact path syncs first.  
+**Tests:** step-limit sweeps across a scanner boundary (limit inside, at and after the scan), the replay path, and scanners inside lookahead.  
+**Exit:** identical work units under A4 dense sweeps, and measured gains on CSV, JSON and tiny inputs.
+
+#### O1 — Whole-body DFA for regular leaf-record rules
+
+**Files:** `src/npegged/grammar.d` (records-mode planning), `src/npegged/dfa.d`.  
+**Observation:** `CSV.Flat` takes 0.83 µs in validation and 12.1 µs in spans. The difference is almost all inside `Field`, which validation compiles into `_dfa_Root` and records mode does not.  
+**Tasks:** When a rule's compiled `RecordKind` has the leaf bit, and its body is regular under the same eligibility rules validation uses (`dfaToken` `Table.valid`, no inner records), emit a single `dfaToken` over the whole body. The record is then opened and finished once around the scan result. Apply this identically in both backends. Note that scanner work units (`examined − pos + 1`) replace the per-node ticks of that body, so the step limit at which records mode returns `resourceLimit` changes. This is the same contract P6 used for validation-mode DFAs; record it in the milestone notes. If the maintainer considers it a contract change, gate it on D2.  
+**Tests:**
+- Leaf containing quoted fields with escapes.
+- Empty field.
+- Field at EOF.
+- Field failing after partial progress (record rollback).
+- A leaf whose body is non-regular (must keep the cursor path).
+- A rule that has a selected descendant (must not be treated as a leaf).
+- Tree mode with a non-leaf parent.
+- A4 parity for records/spans/tree.
+
+**Benchmarks:** CSV spans/tree, JSON spans/tree, PEG spans/tree.  
+**Exit:** CSV records close to the 1.5× target, or a recorded reason why not (for example, the record put itself dominates, which leads to O3).
+
+#### O2 — Checkpoint elision in record loops
+
+**Files:** `src/npegged/grammar.d`, `src/npegged/analysis.d`.  
+**Tasks:** Add a static fact, `emitsOnlyAfterLastFailurePoint(e)`: every record `e` emits is opened after the last position where `e` can still fail. Examples are a sequence whose only record-emitting child is last and is a leaf, or a body made of non-emitting children. Where it is proven, the per-iteration `outputCheckpoint()` and `rollbackOutput` in repetitions and option arms are dead, so drop them.  
+**Tests:** `(Sep Field)*` (proven), `(Field Sep)*` with Sep able to fail (not proven), nested option with an emitting middle child (not proven), and rollback at EOF.  
+**Exit:** equal records; checkpoint and rollback counts in the instrumented build drop as predicted.
+
+#### O3 — `RecordBuffer` fast path for compiled leaf kinds
+
+**Files:** `src/npegged/records.d`, `src/npegged/peg.d`.  
+**Tasks:**
+- Add a `putLeaf(kind, begin, end)` for compiled leaf kinds. It skips the selector, `kind == uint.max`, `suppressed` (handled at the caller) and the `parent >= _length` validation, all of which hold by construction. It leaves a single capacity branch.
+- Optionally reserve capacity from `min(estimate, remaining output limit)`, where the estimate comes from input length times record density (G5 can supply densities).
+- Before changing reservation, check whether `Arena` counters (`allocationCalls`, `requestedBytes`, `used`) are part of any comparison contract. `recognize` copies them into `Observation`. The reservation must never make `resourceLimit` or `outOfMemory` fire where the old code would not.
+
+**Tests:** output limit 0, exactly at limit, and growth across the slab boundary.  
+**Exit:** measured put cost relative to the handwritten writer, which uses the same buffer.
+
+#### W1 — Static work and depth bounds (report-only)
+
+**Files:** `src/npegged/analysis.d` (or a new cold module), with the report next to `eligibilityReport`.  
+**Tasks:** Per entry rule, compute a sound affine bound `ticks(n) ≤ a·n + b` for the *exact* clone's work-unit model. Report `unknown` when any premise is missing. Premises:
+- No re-reading of consumed input in the reference evaluation. The sources are `certifiedLL1` regions, predictive choices whose unselected arms provably fail without consuming, and B6 Proposition 6 sites.
+- Loops make progress (the existing non-progress check).
+- DFA tokens charge at most `bytes + 1`.
+- Selective-memo rules are charged once per `(rule, pos)` only if the memo makes that true.
+
+Compute the depth bound separately: the longest acyclic call chain `Dacyc`, plus a per-cycle consumption fact (every recursive cycle consumes at least one byte before re-entering).  
+**Tests:**
+- Known LL(1) grammar.
+- A grammar with exponential backtracking (must be `unknown`).
+- A nullable loop body.
+- Left recursion (`unknown`).
+- Memoized and non-memoized variants.
+- An empirical check that instrumented `steps` from A2 are ≤ the bound on every Q2 corpus input. This is extra evidence, not the proof.
+
+**Exit:** bounds and tightness (measured/bound) for every benchmark grammar. Codegen does not change.
+
+#### W2 — Limit-free clones
+
+**Files:** `src/npegged/grammar.d`, `src/npegged/peg.d`.  
+**Tasks:** For entries with a W1 bound, emit a cursor family with tick and depth checks compiled out. At entry, select it only if all of these hold:
+- `trace is null`;
+- `stepLimit ≥ a·n + b`;
+- the depth premise holds (W3 covers grammars where it does not);
+- no metrics version is enabled.
+
+Steps are not in any public result (§10.1 item 5), and the bound guarantees no check could fire, so outputs are identical. Memory limits are unaffected because both clones make the same allocations.  
+**Tests:** `stepLimit` equal to the bound and to bound − 1 (the second must take the exact clone); unknown-bound grammars; an exponential grammar that keeps exact `resourceLimit` behaviour; A4 dense sweeps run against the exact clone; and a forced-fast-clone test mode that proves the clones agree whenever the guard passes.  
+**Benchmarks:** all workloads, plus A5 code size and compile time.  
+**Exit:** enable by default only if the gain is reproducible and the size cost acceptable. Otherwise keep it opt-in, as F4 was.
+
+#### W3 — Depth checks at recursive-cycle heads only
+
+**Files:** `src/npegged/grammar.d`, `src/npegged/analysis.d`.  
+**Tasks:** Find the strongly connected components of the rule call graph. A non-recursive call chain adds at most `Dacyc` depth. At each entry to an SCC head, emit the guard `depth + Dacyc ≤ depthLimit`. While it holds, no depth check before the next head can fail, so the callees' checks can be dropped. When it fails, take the exact path. The point where the limit fires stays the same.  
+**Tests:** `depthLimit` at, below and above nesting depth (`JSON.DeepNesting`, nested Arithmetic, `nestedPeg`); mutual recursion; and a non-recursive deep chain longer than `Dacyc` for a misconfigured guard (a negative test).  
+**Exit:** S2's ~9% depth cost recovered on `Arithmetic.Flat` (hypothesis), with exact sweeps.
+
+#### S5 — Depth as a cursor parameter
+
+Pass `depth` by value through `_cursor_*` signatures. Synchronize `s.depth` only at boundaries into combinators, memoized rules and trace. S2 skipped this because callees read `s.depth` from shared state; a parameter removes that memory traffic for cursor-to-cursor calls. Use it where W3 does not apply, or combine the two. Tests and exit are the same as for S1 (dense depth-limit sweeps).
+
+#### S6 — Tick regions guarded by slack
+
+**Prerequisite:** decision D2, because a coarser work-unit model would make this redundant.  
+**Tasks:** For maximal straight-line regions of a cursor (no loops, rule calls or scanners), compute the static maximum tick count `K_R`. Emit `if (_limit - _steps >= K_R) { unchecked increments } else { exact region }`. When the guard holds, no tick inside the region can fail. That removes the obstacle S2 recorded for fusing adjacent ticks, where the two failure paths of a fused pair had different `end`/`failEnd` values and needed a 3-way result. Choose regions by a structural criterion, not a size threshold, because S2 showed thresholds help tiny PEG cases and hurt Arithmetic.  
+**Tests:** limit inside a region, at `K_R`, and at `K_R − 1`; nested choice arms; predicates inside regions.  
+**Exit:** exact dense sweeps and a measured gain per cluster.
+
+#### S7 — Cursor results returned in registers (only if Q3 supports it)
+
+For cursors that are not inlined, return `(end | okBit, failEnd)` as a 16-byte struct (x0/x1 under AAPCS64, rax/rdx under SysV) instead of `ref` out-parameters. `end ≤ input.length < 2^63` leaves room for the bit. Measure on both architectures if available, and keep the change only if it beats the `ref` form. This matches P5's goal of a cheaper internal calling convention.
+
+#### S8 — Furthest failure held in a register; cheaper rejection path (only if a ceiling experiment supports it)
+
+S1 found that removing failure recording made no difference on valid `Arithmetic.Flat`. However, 34 of the 40 tiny over-target workloads are rejections, so the failure path deserves its own ceiling experiment. Targets: `Numbers.*Invalid`, `CSV.Trailing`, `PEGGrammar.Truncated`. Candidate costs on that path are `recordFailure(s.node(…))` stores, the `predictiveChoice` default arm's `s.failure(pos, "choice")`, the `finish` merge, and the `dfaToken` fast-failure branch. Keep `furthestFailure.failEnd` and `hasFailure` in cursor locals, synced the way S1 syncs steps. Drop the milestone if the ceiling is < 3% on that cluster.
+
+#### C1 — `accept` mode and optimistic `check`
+
+**Prerequisite:** decision D3, which covers the public API.  
+**Tasks:**
+- **(a)** Add `accept!(parser)(context, input)`, returning `bool` plus `Status` and no `failEnd`. This is the same obligation as the handwritten twins, which return `bool`. Register it as a **new output mode with its own workloads**. It never replaces `validation`, and the gate reports it separately.
+- **(b)** Optionally run `check!` optimistically on full-input-anchored roots. Run the W2 fast clone with no failure recording. If it accepts the whole input, the result is exact (§10.1 item 6). If it rejects, re-run the exact clone.
+
+C1(b) costs roughly fast pass plus exact pass on every invalid input, and 34 of the 40 tiny over-target workloads are invalid inputs. So it must be opt-in or chosen per grammar profile (X3). Report its rejection-path regression openly.  
+**Tests:** valid, invalid, truncated and limit-boundary inputs; a root without `eoi` (optimistic `check` must not apply); and agreement between `accept` and `check(…).successful && end == length` across A4 fixtures and G6 fuzzing.  
+**Exit:** `accept` workloads measured against the handwritten `bool` twins. A replay policy is enabled only where profiles show it pays.
+
+#### C2 — BITES-guarded dispatch (accept clone only)
+
+For choices whose FIRST sets overlap but whose alternatives are proven BITES-disjoint (B4), dispatch on the shortest prefix test that separates the BITES languages. Reuse the F4/P3 two-byte dispatch machinery when that test is at most 2 bytes; report other cases. Skipping an alternative can change `failEnd` and tick counts. So the dispatch is legal only in the C1/W2 clone, where neither is observable, and the exact clone keeps ordered choice.  
+**Tests:** the keyword/identifier guards from B7, `'ab' / 'ac'`, nullable alternatives (must not be dispatched), and dynamic or unknown predicates (fall back).  
+**Exit:** number of choices dispatched, measured per workload, and A4 parity in accept mode.
+
+#### C3 — Proposition 6 cuts (accept clone only)
+
+Promote B6 from report-only. At proven Proposition 6 sites (pure, nonnullable, disjoint choices), stop trying alternatives once a failed alternative has bitten, but only inside the accept or optimistic clone. This is exact for recognition, by the theorem, and because diagnostics and ticks are not observable there. Related practice: cut operators in packrat parsers (Mizushima et al., §13). Use B6's existing test list, plus agreement with the exact clone on every G6 fuzz seed.
+
+#### C4 — Redundant-predicate elimination (accept clone only)
+
+Rewrite `!X Y` to `Y` when `Y` is nonnullable and `MAYSUCC(X) ∩ BITES(Y) = ∅`, using the B7 upper approximation. Argument: if `Y` succeeds it bites, so the input is in `BITES(Y)`, so `X` fails and `!X` succeeds. If `Y` fails, both forms fail. Recognition is unchanged, but ticks and diagnostics change, so this applies only inside the accept clone. The main target is the `!TopBoundary Prefix` / `!SequenceBoundary Prefix` pattern that PEGGrammar evaluates per element. Report how many predicates each grammar loses.  
+**Tests:** a proven-redundant guard, a necessary guard (`!'"' .`), `!X` with unknown `X`, and nested predicates.
+
+#### O4 — Tagged-DFA lowering of record-emitting regular regions (research, split before coding)
+
+Some regions are regular and emit only leaf records; CSV `Root <- Field (Sep Field)* eoi` with `Field` records is one. Such a region could be compiled into a single deterministic automaton that carries *tag* actions to open and finish records. See Laurikari's TNFA→TDFA construction and Trofimovich's TDFA with lookahead (§13). PEG priority and possessive repetition must follow the existing DFA compiler's determinization rules. Split it as:
+- **(a)** A report-only count of eligible regions across the 105-grammar B7 corpus. Stop here if it is rare.
+- **(b)** A generated recognizer with tag replay checked against the cursor path.
+- **(c)** Records parity, including rollback on late failure.
+
+#### D1 — Decision: make `direct` the default backend
+
+Present the maintainer with the following:
+- The L3 and S2b numbers.
+- A4 parity over all fixtures and G6 seeds.
+- A5 generated-size and compile-time deltas.
+- DMD status: blocked on this host, where `dmd` segfaults, so it must be recorded as not run, or run on another machine.
+- The list of grammars, if any, where `combinators` is faster.
+
+Flip the `grammar!` default only on explicit approval.
+
+#### D2 — Decision: work-unit contract
+
+Write down the current model: one tick per evaluated node; DFA scanners charge `examined − pos + 1`; the rule tick is taken by the caller (S2b). Then ask whether a coarser model is acceptable, for example one unit per rule entry, per loop iteration and per consumed byte. It would still bound runtime, because unbounded work must pass through rule calls or loops, but `resourceLimit` would fire at different points than today. If it is approved, most of S6 and part of W2 become simple codegen changes. If not, this phase uses only the exact two-clone techniques.
+
+#### D3 — Decision: public `accept` mode
+
+Adding `accept!` widens the public API and adds a fourth workload mode. Ask before implementing C1(a).
+
+### 10.4 Phase exit
+
+The phase ends when its milestones are done or explicitly closed with a recorded NO-GO, as S2 and C01–C03 were. Report the following against the S2b baseline: per-cluster over-target counts from §10.1, workloads within 1.5×, p90, geomean, worst case, A5 size and compile-time deltas, and every reproducible regression above 5%. Targets to check, not predictions:
+- the tiny cluster at ≤ 20 over-target;
+- CSV records at ≤ 1.5×;
+- p90 ≤ 1.6;
+- no unchanged workload slower by more than 5% without disclosure.
+
+## 11. Standard acceptance checklist for every milestone
 
 A milestone is **complete** only when all applicable checks are true:
 
@@ -582,7 +861,7 @@ Parser generation / compile time / binary size / RSS: <deltas or N/A>
 Known blockers / next milestone: <items>
 ```
 
-## 11. Agent startup instructions
+## 12. Agent startup instructions
 
 1. **Read `AGENTS.md` and inspect the actual repository.** Locate compiler commands, test runners, benchmarks, handwritten parsers, existing output modes and generated-code entry points. Do not assume unseen files exist.
 2. Begin **A1** unless an equivalent, reproducible `performance/` system already exists. If one exists, adapt it to the output contract rather than duplicating it.
@@ -592,14 +871,18 @@ Known blockers / next milestone: <items>
 6. Track changes in the ≤1.5× workload count, p90 slowdown and worst regressions. If progress stalls, add an isolating benchmark **before** broadening the optimization.
 7. Pursue certified LL extraction and generation/fuzzing on isolated branches after the critical correctness/measurement work. Split larger milestones before implementation.
 8. At the end of every session, leave the repo in a reproducible state and update a small progress section in `performance/latest.md` or the repository's existing task tracker. Never mark the next milestone complete merely because its design is written.
+9. **Phase 2:** start at **Q1**, then follow the order in §10.3. Ask the maintainer for decisions D1–D3 before any work that depends on them. Never resolve a D milestone on your own.
 
-## 12. Research references
+## 13. Research references
 
 1. Roman R. Redziejowski (2011). **BITES Instead of FIRST for Parsing Expression Grammar.** *Fundamenta Informaticae* 109(3), 323–337. DOI: [10.3233/FI-2011-514](https://doi.org/10.3233/FI-2011-514). Full text: <https://www.romanredz.se/papers/FI2011.pdf>. **Primary technical source for B1–B8; use its proofs and stated restrictions.**
 2. Fabio Mascarenhas, Sérgio Medeiros, Roberto Ierusalimschy (2014). **On the Relation between Context-Free Grammars and Parsing Expression Grammars.** *Science of Computer Programming* 89, 235–250. <https://arxiv.org/abs/1304.3177>. Relevant to qualified CFG/PEG equivalence and LL-family transformations.
 3. Bryan Ford (2004). **Parsing Expression Grammars: A Recognition-Based Syntactic Foundation.** POPL. <https://bford.info/pub/lang/peg/>. Foundational operational semantics.
 4. Bryan Ford, PEG/packrat bibliography: <https://pdos.csail.mit.edu/~baford/packrat/>. Reference index for selective packrat and left-recursion work.
 5. Sérgio Medeiros, Fabio Mascarenhas, Roberto Ierusalimschy (2014). **Left recursion in Parsing Expression Grammars.** *Science of Computer Programming* 96, 177–190. <https://doi.org/10.1016/j.scico.2014.01.013>. Background for distinguishing classical PEG proofs from implementations supporting left recursion.
+6. Kota Mizushima, Atusi Maeda, Yoshinori Yamaguchi (2010). **Packrat Parsers Can Handle Practical Grammars in Mostly Constant Space.** PASTE '10. Cut operators and when inserting them is safe; background for C3.
+7. Ville Laurikari (2000). **NFAs with Tagged Transitions, their Conversion to Deterministic Automata and Application to Regular Expressions.** SPIRE 2000. Tagged DFAs; background for O4.
+8. Ulya Trofimovich (2017). **Tagged Deterministic Finite Automata with Lookahead.** <https://arxiv.org/abs/1907.08837>. Practical TDFA construction (re2c); background for O4.
 
 ---
 
