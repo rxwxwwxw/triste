@@ -590,8 +590,8 @@ What the generated `direct` code shows (output of `grammar!(Memoization.selectiv
 | ID | Priority | Prerequisite | Work product | Size | Primary cluster |
 |---|---|---|---|---|---|
 | Q1 (complete; `performance/milestones/Q1/`) | P0 | — | Fixed-cost ladder and harness floor | S | tiny |
-| Q2 | P0 | G7 | G7 corpora and missing families wired into the timing runner | M | all (adversarial cover) |
-| Q3 | P1 | Q1 | Cycle attribution for the 10 worst workloads (arm64) | S | all |
+| Q2 (complete; `performance/milestones/Q2/`) | P0 | G7 | G7 corpora and missing families wired into the timing runner | M | all (adversarial cover) |
+| Q3 (complete; function-level; `performance/milestones/Q3/`) | P1 | Q1 | Cycle attribution for the 10 worst workloads (arm64) | S | all |
 | S3 (complete; opt-in; default NO-GO) | P0 | Q1 | Lean entry path and direct entry for whole-DFA roots | M | tiny |
 | S4 (complete; `performance/milestones/S4/`) | P0 | S3 | Scanner calls native to the cursor (no `s.steps`/`s.status` round trip) | S | CSV, JSON, tiny |
 | O1 (NO-GO; `performance/milestones/O1/`) | P0 | A4 | Whole-body DFA for regular leaf-record rules | M | CSV records |
@@ -602,12 +602,12 @@ What the generated `direct` code shows (output of `grammar!(Memoization.selectiv
 | W3 (NO-GO: superseded by S5) | P1 | W1 | Depth checks only at heads of recursive cycles | M | JSON, Arithmetic, PEG |
 | S5 (complete; `performance/milestones/S5/`) | P1 | S4 | Depth as a cursor parameter (realizes part of P5) | M | rule-boundary-heavy |
 | S6 (closed: superseded by D2) | P1 | S4, D2 | Tick regions guarded by slack | M | all |
-| S7 | P2 | Q3 | Cursor results returned in registers (realizes part of P5) | S | rule-boundary-heavy |
+| S7 (NO-GO: Q3 does not support it) | P2 | Q3 | Cursor results returned in registers (realizes part of P5) | S | rule-boundary-heavy |
 | S8 (NO-GO; `performance/milestones/S8/`) | P1 | Q1 | Furthest failure held in a register; cheaper rejection path | S | tiny invalid |
 | C1 ((a) complete, (b) NO-GO; `performance/milestones/C1/`) | P1 | W2, D3 | `accept` mode, and optimistic `check` with exact replay | M | valid inputs |
-| C2 | P2 | C1, B4, F4 | BITES-guarded dispatch in the accept clone | M | PEG, JSON |
-| C3 | P2 | C1, B6 | Proposition 6 cuts in the accept clone (promotes B6) | M | backtracking-heavy |
-| C4 | P2 | C1, B7 | Redundant-predicate elimination in the accept clone | S | PEGGrammar |
+| C2 (NO-GO; `performance/milestones/C2/`) | P2 | C1, B4, F4 | BITES-guarded dispatch in the accept clone | M | PEG, JSON |
+| C3 (NO-GO; same notes) | P2 | C1, B6 | Proposition 6 cuts in the accept clone (promotes B6) | M | backtracking-heavy |
+| C4 (NO-GO; same notes) | P2 | C1, B7 | Redundant-predicate elimination in the accept clone | S | PEGGrammar |
 | O4 | P3 | O1, O3 | Tagged-DFA lowering of regular regions that emit records (research) | L | CSV, JSON lexemes |
 | D1 (decided: keep `combinators`) | P1 | A4, A5 | **Decision:** make `direct` the default backend | S | all |
 | D2 (decided: coarser model, implemented; `performance/milestones/D2/`) | P1 | — | **Decision:** work-unit contract (exact today, or coarser) | S | all |
@@ -641,14 +641,18 @@ Report each ratio both raw and with the harness floor subtracted, as extra colum
 **Tests:** every ladder rung returns the same `Observation` as the full path; the harness rejects a rung whose output differs.  
 **Exit:** a per-layer cost table in `performance/milestones/Q1/` that S3 targets item by item.
 
-#### Q2 — Corpora and missing families in the timing runner
+#### Q2 — Corpora and missing families in the timing runner — COMPLETE
+
+**Result:** `--corpus-index`, `--families`, `families.csv` and the dashboard table; 264 workloads in validation/spans/tree plus the new `accept` mode. See `performance/milestones/Q2/notes-q2.md`.
 
 **Files:** `benchmark/runner.d`, `performance/workloads.json`, `performance/corpora/manifest.json`.  
 **Tasks:** Time the G7 corpora (real, synthetic, learned, adversarial), which `performance/latest.md` notes are "not yet wired into the timing runner". Add registry entries for the families `workloads.json` lists as missing: `lex_utf8`, `failure`, `pathological`, `nested_expr`. Every W and C milestone needs adversarial workloads where its proof does *not* apply, such as exponential backtracking, limit-boundary inputs, and invalid inputs that force replay.  
 **Tests:** checksum and validity checks from G7, output parity before timing, and a new family that has no handwritten twin must report `N/A`.  
 **Exit:** the dashboard shows real vs synthetic labels and per-family counts. Earlier runs stay comparable on the original 171 workloads.
 
-#### Q3 — Cycle attribution
+#### Q3 — Cycle attribution — COMPLETE (function-level)
+
+**Result:** `sample` profiles of single-engine harnesses plus the ceiling matrix; record growth is the largest non-parser category in records modes (17-30%). `xctrace` counters not run. See `performance/milestones/Q3/notes.md`.
 
 **Files:** `performance/scripts/`, `performance/milestones/Q3/`.  
 **Tasks:** For the 10 worst workloads, record where cycles go: `xctrace` CPU Counters or `sample` on macOS, `perf` on Linux. Attribute them to entry, tick/branch, depth, scanner prologue, record put/rollback, failure recording, and memo. Keep this run separate from clean timing runs. If the tooling is unavailable, record that as **not run**.  
@@ -780,7 +784,9 @@ Pass `depth` by value through `_cursor_*` signatures. Synchronize `s.depth` only
 **Tests:** limit inside a region, at `K_R`, and at `K_R − 1`; nested choice arms; predicates inside regions.  
 **Exit:** exact dense sweeps and a measured gain per cluster.
 
-#### S7 — Cursor results returned in registers (only if Q3 supports it)
+#### S7 — Cursor results returned in registers (only if Q3 supports it) — CLOSED NO-GO
+
+**Result:** the Q3 profiles show no call-boundary hot spot (two or three inlined functions per workload). See `performance/milestones/Q3/notes.md`.
 
 For cursors that are not inlined, return `(end | okBit, failEnd)` as a 16-byte struct (x0/x1 under AAPCS64, rax/rdx under SysV) instead of `ref` out-parameters. `end ≤ input.length < 2^63` leaves room for the bit. Measure on both architectures if available, and keep the change only if it beats the `ref` form. This matches P5's goal of a cheaper internal calling convention.
 
@@ -803,17 +809,23 @@ C1(b) costs roughly fast pass plus exact pass on every invalid input, and 34 of 
 **Tests:** valid, invalid, truncated and limit-boundary inputs; a root without `eoi` (optimistic `check` must not apply); and agreement between `accept` and `check(…).successful && end == length` across A4 fixtures and G6 fuzzing.  
 **Exit:** `accept` workloads measured against the handwritten `bool` twins. A replay policy is enabled only where profiles show it pays.
 
-#### C2 — BITES-guarded dispatch (accept clone only)
+#### C2 — BITES-guarded dispatch (accept clone only) — CLOSED NO-GO
+
+**Result:** `bitesImprovesFirst` is 0 in all five benchmark grammars; nothing to dispatch. Evidence for C2-C4: `performance/milestones/C2/notes.md`.
 
 For choices whose FIRST sets overlap but whose alternatives are proven BITES-disjoint (B4), dispatch on the shortest prefix test that separates the BITES languages. Reuse the F4/P3 two-byte dispatch machinery when that test is at most 2 bytes; report other cases. Skipping an alternative can change `failEnd` and tick counts. So the dispatch is legal only in the C1/W2 clone, where neither is observable, and the exact clone keeps ordered choice.  
 **Tests:** the keyword/identifier guards from B7, `'ab' / 'ac'`, nullable alternatives (must not be dispatched), and dynamic or unknown predicates (fall back).  
 **Exit:** number of choices dispatched, measured per workload, and A4 parity in accept mode.
 
-#### C3 — Proposition 6 cuts (accept clone only)
+#### C3 — Proposition 6 cuts (accept clone only) — CLOSED NO-GO
+
+**Result:** candidate sites are choices that are already FIRST-disjoint and dispatched; no retry exists to cut. See C2 notes.
 
 Promote B6 from report-only. At proven Proposition 6 sites (pure, nonnullable, disjoint choices), stop trying alternatives once a failed alternative has bitten, but only inside the accept or optimistic clone. This is exact for recognition, by the theorem, and because diagnostics and ticks are not observable there. Related practice: cut operators in packrat parsers (Mizushima et al., §13). Use B6's existing test list, plus agreement with the exact clone on every G6 fuzz seed.
 
-#### C4 — Redundant-predicate elimination (accept clone only)
+#### C4 — Redundant-predicate elimination (accept clone only) — CLOSED NO-GO
+
+**Result:** the one provable site is already a single FIRST-mask test; elimination would also weaken the accept == check contract. See C2 notes.
 
 Rewrite `!X Y` to `Y` when `Y` is nonnullable and `MAYSUCC(X) ∩ BITES(Y) = ∅`, using the B7 upper approximation. Argument: if `Y` succeeds it bites, so the input is in `BITES(Y)`, so `X` fails and `!X` succeeds. If `Y` fails, both forms fail. Recognition is unchanged, but ticks and diagnostics change, so this applies only inside the accept clone. The main target is the `!TopBoundary Prefix` / `!SequenceBoundary Prefix` pattern that PEGGrammar evaluates per element. Report how many predicates each grammar loses.  
 **Tests:** a proven-redundant guard, a necessary guard (`!'"' .`), `!X` with unknown `X`, and nested predicates.
