@@ -4482,6 +4482,65 @@ nothrow unittest {
             .length);
 }
 
+/// O4(a): regular regions that mention rule references (what a record-emitting selector would turn into regions with inner
+/// records, which the scanner cannot take). Report-only count per grammar; see performance/milestones/O4.
+struct TagRegionResult {
+    Status status = Status.invalidInput;
+    Diagnostic diagnostic;
+    size_t rules, regions, composedRegions, rulesWithComposed;
+}
+
+TagRegionResult tagRegionReport(string definition) nothrow {
+    TagRegionResult result;
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    frontend.prepareAnalysis();
+    result.rules = frontend.rules.length;
+    foreach (index, rule; frontend.rules) {
+        const saved = frontend.analyzed.expressions.length;
+        size_t root = frontend.analyzed.roots[index];
+        if (rule.body != frontend.analyzed.expressions[root].source) {
+            root = frontend.expressionNode(frontend.analyzed, rule.body);
+            frontend.analyzed.appendFacts(root);
+        }
+        size_t count;
+        string declarations;
+        const 
+        body = frontend.emitTokens(frontend.analyzed, root, rule.name, count, declarations);
+        const parsed = frontend.expressionNode(frontend.analyzed, body);
+        size_t composed;
+        foreach (node; frontend.analyzed.expressions[saved .. $])
+            if (node.combinator == "dfaToken" && node.arguments.length == 4) {
+                string flag = node.arguments[3];
+                while (flag.length && (flag[0] == ' ' || flag[0] == '\t'))
+                    flag = flag[1 .. $];
+                ++result.regions;
+                if (flag == "true")
+                    ++composed;
+            }
+        result.composedRegions += composed;
+        result.rulesWithComposed += composed != 0;
+        frontend.analyzed.truncate(saved);
+    }
+    result.status = Status.ok;
+    return result;
+}
+
+nothrow unittest {
+    // A regular region that calls a rule is a composed region; a pure token rule is a plain scanner region.
+    const composed = tagRegionReport("T: Root <- Field (',' Field)* eoi Field <- [a-z]+");
+    assert(composed.status == Status.ok && composed.composedRegions >= 1 && composed
+            .rulesWithComposed >= 1);
+    const plain = tagRegionReport("T: Root <- [a-z]+ eoi");
+    assert(plain.status == Status.ok && plain.composedRegions == 0);
+    assert(tagRegionReport("T: Root <-").status == Status.invalidInput);
+}
+
 /// Seeded candidate stream for a grammar's start rule (G1). Candidates are proposals, not known to be accepted;
 /// failures carry a status and reason and are never returned as candidates.
 struct CandidateStream {
