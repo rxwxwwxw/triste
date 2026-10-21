@@ -13,6 +13,7 @@ One work unit is charged for each of:
 | rule invocation (memoized or not, any output mode) | 1 |
 | repetition attempt (`zeroOrMore`, `oneOrMore`, `option`: every iteration attempt, including the one that fails) | 1 |
 | DFA scanner call | `examined - pos + 1` (unchanged) |
+| tagged region in records mode (O4) | `examined - pos + 1`, as the scanner above; the rules inside the region charge nothing, and the scan is attempted only when the budget shows the whole input, otherwise the region is walked rule by rule |
 | tree projection of a record (`projectRecords`) and failure-chain walks in tree mode | 1 each (unchanged) |
 
 Terminals (`literal`, `charClass`, `charRange`, `any`, case-insensitive literals), sequences, ordered and predictive choices

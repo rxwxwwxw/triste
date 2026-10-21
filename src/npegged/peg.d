@@ -414,6 +414,11 @@ struct State(bool CT, int Check = 0) {
     static if (Check == 2)
         private RecordBuffer* records;
     static if (Check == 2) {
+        /// The attached record builder, for the tagged scanners of `npegged.dfa`.
+        package(npegged) @property ref RecordBuffer output() return @nogc nothrow {
+            return *records;
+        }
+
         /// Non-owning backend setup; the builder and its arenas must outlive this state.
         void attachRecords(ref RecordBuffer output) @nogc nothrow {
             records = &output;
@@ -833,7 +838,7 @@ struct State(bool CT, int Check = 0) {
             records.rollback(checkpoint);
     }
 
-    private void syncOutput() nothrow {
+    package(npegged) void syncOutput() nothrow {
         static if (Check == 2)
             if (status == Status.ok && records.status != Status.ok)
                 status = records.status;

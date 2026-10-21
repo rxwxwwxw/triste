@@ -286,6 +286,8 @@ package struct Frontend {
     version (NPeggedPureIslands) private bool islandOmitAnonymous;
     bool[] recordLeaves;
     bool[] recordSubtrees;
+    /// O4 test hook: regions whose rules emit leaf records are walked rule by rule instead of using a tagged table.
+    bool walkRecordRegions;
     string[] parameterNames;
     private GrammarAnalysis analyzed;
     private bool hasAnalysis;
@@ -1544,8 +1546,20 @@ package struct Frontend {
     }
 
     private string regularTable(ref GrammarAnalysis graph, size_t root, out size_t references, out bool hasRecords) nothrow {
+        bool tagged;
+        string members;
+        return regularTable(graph, root, references, hasRecords, tagged, members);
+    }
+
+    /// `tagged`: every record the region's rules emit is a compiled leaf, so the region can produce them itself (O4);
+    /// `members` then holds the extra members of the generated `_dfa_` struct that build the tagged table.
+    private string regularTable(ref GrammarAnalysis graph, size_t root, out size_t references,
+            out bool hasRecords, out bool tagged, out string members) nothrow {
         references = 0;
         hasRecords = false;
+        tagged = false;
+        members = null;
+        bool taggable = true;
         GrammarAnalysis* regular = &graph;
         GrammarAnalysis stripped;
         bool requireEnd;
@@ -1567,14 +1581,33 @@ package struct Frontend {
             auto expression = regular.expressions[index];
             if (expression.kind == ExpressionKind.reference) {
                 const targetRule = graph.referenceRule(expression);
-                if (recordKinds.length == 0)
+                bool leaf;
+                if (recordKinds.length == 0) {
                     hasRecords = true;
-                else if (targetRule < recordKinds.length && (recordKinds[targetRule] != uint.max
-                        || (targetRule < recordSubtrees.length && recordSubtrees[targetRule])))
+                    taggable = false;
+                } else if (targetRule < recordKinds.length && (recordKinds[targetRule] != uint.max
+                        || (targetRule < recordSubtrees.length && recordSubtrees[targetRule]))) {
                     hasRecords = true;
+                    leaf = recordKinds[targetRule] != uint.max && targetRule < recordLeaves.length
+                        && recordLeaves[targetRule];
+                    taggable = taggable && leaf;
+                }
                 if (depth + 1 > references)
                     references = depth + 1;
-                return lower(graph.roots[targetRule], depth + 1);
+                if (!leaf)
+                    return lower(graph.roots[targetRule], depth + 1);
+                // A compiled leaf: remember where it starts, and finish the record where its body ends.
+                const open = nodes.length;
+                nodes ~= RegularExpression(RegularKind.mark, CharSetMask([0, 0, 0, 0]));
+                const 
+                body = lower(graph.roots[targetRule], depth + 1);
+                const close = nodes.length;
+                nodes ~= RegularExpression(RegularKind.mark,
+                        CharSetMask([cast(ulong)recordKinds[targetRule] + 1, 0, 0, 0]));
+                nodes ~= RegularExpression(RegularKind.sequence, CharSetMask.init, [
+                    open, body, close
+                ]);
+                return nodes.length - 1;
             }
             const escaped = regular.escapeLoop(index);
             if (escaped.known) {
@@ -1663,21 +1696,25 @@ package struct Frontend {
         }
 
         const index = lower(root);
-        bool repeated;
-        foreach (node; nodes)
+        bool repeated, marked;
+        foreach (node; nodes) {
             repeated = repeated || node.kind == RegularKind.repetition;
+            marked = marked || node.kind == RegularKind.mark;
+        }
         // Fixed terminals already use inlined literal/byte matching. A state
         // machine is useful here when it replaces a character-processing loop.
         if (!repeated)
             return null;
-        string source = "compileDFA([\n";
+        string source = "[\n";
         foreach (i, node; nodes) {
             if (node.kind == RegularKind.bytes) {
                 source ~= "regularByte(";
                 foreach (j, bits; node.bytes.bits)
                     source ~= (j ? ", " : "") ~ ulongHex(bits);
                 source ~= ")";
-            } else {
+            } else if (node.kind == RegularKind.mark)
+                source ~= "regularMark(" ~ number(cast(size_t)node.bytes.bits[0]) ~ ")";
+            else {
                 const kind = ["bytes", "sequence", "choice", "optional", "repetition", "endOfInput"][node
                         .kind];
                 source ~= "regularNode(RegularKind." ~ kind ~ ", [";
@@ -1687,7 +1724,14 @@ package struct Frontend {
             }
             source ~= ", // node " ~ number(i) ~ "\n";
         }
-        return source ~ "], " ~ number(index) ~ ", " ~ (requireEnd ? "true" : "false") ~ ")";
+        const flag = requireEnd ? "true" : "false";
+        tagged = hasRecords && taggable && marked && !walkRecordRegions;
+        if (tagged) {
+            members = "enum nodes = " ~ source ~ "]; enum tagged = compileTaggedDFA(nodes, " ~ number(
+                    index) ~ ", " ~ flag ~ "); ";
+            return "compileDFA(nodes, " ~ number(index) ~ ", " ~ flag ~ ")";
+        }
+        return "compileDFA(" ~ source ~ "], " ~ number(index) ~ ", " ~ flag ~ ")";
     }
 
     nothrow unittest {
@@ -1706,6 +1750,33 @@ package struct Frontend {
         assert(frontend.regularTable(frontend.analyzed, frontend.analyzed.roots[3], references)
                 .length);
         assert(frontend.emit().length);
+    }
+
+    /// O4: a region whose rules emit only compiled leaf records gets a tagged table; anything else is walked.
+    nothrow unittest {
+        static uint leafField(string name) @nogc nothrow pure {
+            return name == "T.Field" ? 5 : uint.max;
+        }
+
+        static uint nested(string name) @nogc nothrow pure {
+            return name == "T.Field" ? 5 : name == "T.Inner" ? 6 : uint.max;
+        }
+
+        enum text = "T: Root <- Field (',' Field)* eoi Field <- Inner* Inner <- [a-z]";
+        const tagged = grammar!(Memoization.selective, leafField, ParserBackend.direct)(text);
+        assert(countOf(tagged, "struct _dfa_Root { enum nodes") == 1 && countOf(tagged, ", 2)") >= 1);
+        assert(countOf(tagged, "static if ( _dfa_Root.tagged.valid)") >= 1);
+        // The test hook and a grammar without a compile-time selector both keep walking the region.
+        const walked = grammar!(Memoization.selective, leafField, ParserBackend.direct, false)(text);
+        assert(countOf(walked, "compileTaggedDFA") == 0);
+        assert(countOf(grammar!(Memoization.selective, void, ParserBackend.direct)(text), "compileTaggedDFA") == 0);
+        // Field contains a selected rule, so it is no compiled leaf: only the region inside Field is tagged.
+        const inner = grammar!(Memoization.selective, nested, ParserBackend.direct)(text);
+        assert(countOf(inner, "struct _dfa_Root { enum nodes") == 0 && countOf(inner, "compileTaggedDFA") >= 1);
+        // An unselected rule inside the region is transparent.
+        enum transparent = "T: Root <- Field (Sep Field)* eoi Sep <- ',' Field <- [a-z]*";
+        assert(countOf(grammar!(Memoization.selective, leafField,
+                ParserBackend.direct)(transparent), "struct _dfa_Root { enum nodes") == 1);
     }
 
     version (NPeggedScannerMetrics) {
@@ -1759,19 +1830,20 @@ package struct Frontend {
         }
         if (node.children.length && node.kind != ExpressionKind.reference && node.combinator != "branch") {
             size_t referenceDepth;
-            bool hasRecords;
-            const table = regularTable(graph, index, referenceDepth, hasRecords);
+            bool hasRecords, tagged;
+            string members;
+            const table = regularTable(graph, index, referenceDepth, hasRecords, tagged, members);
             if (table.length) {
                 const symbol = "_dfa_" ~ rule ~ (count ? "_" ~ number(count) : "");
                 ++count;
-                declarations ~= "struct " ~ symbol ~ " { enum automaton = " ~ table
+                declarations ~= "struct " ~ symbol ~ " { " ~ members ~ "enum automaton = " ~ table
                     ~ "; enum valid = automaton.valid; enum requireEnd = automaton.requireEnd;";
                 version (NPeggedScannerMetrics)
                     declarations ~= " enum diagnosticName = " ~ quoted(name ~ "." ~ rule ~ "/" ~ symbol) ~ ";";
                 declarations ~= " }\n";
                 return "dfaToken!(" ~ emitExpression(graph,
-                        index) ~ ", " ~ symbol ~ ", " ~ number(referenceDepth) ~ ", " ~ (hasRecords
-                        ? "true" : "false") ~ ")";
+                        index) ~ ", " ~ symbol ~ ", " ~ number(referenceDepth) ~ ", " ~ (tagged
+                        ? "2" : hasRecords ? "true" : "false") ~ ")";
             }
         }
         // Merge adjacent regular children before falling back to nonregular syntax.
@@ -2390,7 +2462,18 @@ package struct Frontend {
             while (innerRecords.length && (innerRecords[0] == ' ' || innerRecords[0] == '\t'))
                 innerRecords = innerRecords[1 .. $];
             const next = "_d" ~ number(serial++);
-            if (innerRecords == "true") {
+            if (innerRecords == "2") {
+                // O4: the table writes the leaf records itself; where it is too large for a tagged table the region is walked.
+                const walked = "_d" ~ number(serial++);
+                code ~= "size_t " ~ next ~ "End, " ~ next ~ "Fail; bool " ~ next ~ "Ok;\nstatic if ("
+                    ~ expression.arguments[1]
+                    ~ ".tagged.valid) { " ~ next ~ "Ok = " ~ expression.source ~ ".cursor(s, "
+                    ~ position ~ ", _steps, _live, _depth, " ~ next
+                    ~ "End, " ~ next ~ "Fail); } else {\n" ~ emitDirect(graph, expression.children[0],
+                            position, walked, serial, depth + 1, outputMode) ~ next ~ "End = "
+                    ~ walked ~ "End; "
+                    ~ next ~ "Fail = " ~ walked ~ "Fail; " ~ next ~ "Ok = " ~ walked ~ "Ok; }\n";
+            } else if (innerRecords == "true") {
                 code ~= emitDirect(graph, expression.children[0], position, next, serial, depth + 1, outputMode);
                 version (NPeggedScannerMetrics) {
                     const event = "_scannerEvent" ~ number(serial++);
@@ -3068,7 +3151,7 @@ package struct Frontend {
                     string inner = directGraph.expressions[directRoot].arguments[3];
                     while (inner.length && (inner[0] == ' ' || inner[0] == '\t'))
                         inner = inner[1 .. $];
-                    directRecords = inner == "true";
+                    directRecords = inner == "true" || inner == "2";
                 }
                 foreach (pass; [1, 2, 3]) {
                     // Pass 3 is the `accept` clone: recognition cursors without failure diagnostics (C1).
@@ -3507,9 +3590,10 @@ unittest {
 
 /// Returns D source for mixin() or cold runtime generation. Grammar errors become static diagnostics.
 string grammar(Memoization memo = Memoization.yes, alias Selector = void,
-        ParserBackend backend = ParserBackend.combinators)(string definition) nothrow {
+        ParserBackend backend = ParserBackend.combinators, bool TaggedRegions = true)(string definition) nothrow {
     Frontend frontend;
     frontend.input = definition;
+    frontend.walkRecordRegions = !TaggedRegions;
     frontend.memoize = memo != Memoization.no;
     frontend.selective = memo == Memoization.selective;
     frontend.backend = backend == ParserBackend.ll1 ? ParserBackend.direct : backend;
@@ -4487,7 +4571,7 @@ nothrow unittest {
 struct TagRegionResult {
     Status status = Status.invalidInput;
     Diagnostic diagnostic;
-    size_t rules, regions, composedRegions, rulesWithComposed;
+    size_t rules, regions, composedRegions, rulesWithComposed, taggedRegions;
 }
 
 TagRegionResult tagRegionReport(string definition) nothrow {
@@ -4520,8 +4604,10 @@ TagRegionResult tagRegionReport(string definition) nothrow {
                 while (flag.length && (flag[0] == ' ' || flag[0] == '\t'))
                     flag = flag[1 .. $];
                 ++result.regions;
-                if (flag == "true")
+                if (flag == "true" || flag == "2")
                     ++composed;
+                if (flag == "2")
+                    ++result.taggedRegions;
             }
         result.composedRegions += composed;
         result.rulesWithComposed += composed != 0;

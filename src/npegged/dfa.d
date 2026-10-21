@@ -3,6 +3,7 @@
 module npegged.dfa;
 
 import npegged.peg : CharSetMask, State, Status, ParseContext, CheckResult;
+import npegged.records : RecordBuffer;
 
 version (NPeggedScannerMetrics) import npegged.peg : ScannerEvent, ScannerReason;
 
@@ -14,7 +15,9 @@ enum RegularKind {
     choice,
     optional,
     repetition,
-    endOfInput
+    endOfInput,
+    /// O4: an output event on the path (`bytes.bits[0]`: 0 opens a leaf record, kind + 1 finishes it). Transparent to `compileDFA`.
+    mark
 }
 
 /// Children precede their parents; references and actions are deliberately absent.
@@ -32,6 +35,10 @@ RegularExpression regularByte(ulong b0, ulong b1, ulong b2, ulong b3) @nogc pure
 @nogc nothrow unittest {
     const node = regularByte(1, 2, 3, 4);
     assert(node.kind == RegularKind.bytes && node.bytes.bits == [1UL, 2UL, 3UL, 4UL]);
+}
+
+RegularExpression regularMark(ulong event) @nogc pure nothrow @safe {
+    return RegularExpression(RegularKind.mark, CharSetMask([event, 0, 0, 0]));
 }
 
 RegularExpression regularNode(RegularKind kind, size_t[] children) @nogc pure nothrow @safe {
@@ -82,7 +89,9 @@ Automaton compileDFA(const(RegularExpression)[] expressions, size_t root, bool r
         }
         alias states = stateBuf;
         auto node = expressions[index];
-        if (node.kind == RegularKind.sequence && node.children.length == 1) {
+        // Output events are invisible to the plain automaton: a mark is an empty sequence.
+        const kind = node.kind == RegularKind.mark ? RegularKind.sequence : node.kind;
+        if (kind == RegularKind.sequence && node.children.length == 1) {
             if (node.children[0] >= index) {
                 malformed = true;
                 return Fragment.init;
@@ -91,10 +100,10 @@ Automaton compileDFA(const(RegularExpression)[] expressions, size_t root, bool r
         }
         const begin = stateCount++;
         const end = stateCount++;
-        if (node.kind == RegularKind.bytes) {
+        if (kind == RegularKind.bytes) {
             states[begin].bytes = node.bytes;
             states[begin].target = end;
-        } else if (node.kind == RegularKind.endOfInput) {
+        } else if (kind == RegularKind.endOfInput) {
             hasEnd = true;
             malformed = node.children.length != 0;
             states[begin].eofEpsilon ~= end;
@@ -109,10 +118,10 @@ Automaton compileDFA(const(RegularExpression)[] expressions, size_t root, bool r
                 const part = build(child, depth + 1);
                 if (malformed)
                     return Fragment(begin, end);
-                if (node.kind == RegularKind.sequence) {
+                if (kind == RegularKind.sequence) {
                     states[previous].epsilon ~= part.begin;
                     previous = part.end;
-                } else if (node.kind == RegularKind.choice && part.begin == savedCount
+                } else if (kind == RegularKind.choice && part.begin == savedCount
                         && part.end == savedCount + 1 && stateCount == savedCount + 2
                         && states[part.begin].target == part.end
                         && !states[part.begin].epsilon.length
@@ -124,13 +133,13 @@ Automaton compileDFA(const(RegularExpression)[] expressions, size_t root, bool r
                 } else {
                     states[begin].epsilon ~= part.begin;
                     states[part.end].epsilon ~= end;
-                    if (node.kind == RegularKind.repetition)
+                    if (kind == RegularKind.repetition)
                         states[part.end].epsilon ~= part.begin;
                 }
             }
-            if (node.kind == RegularKind.sequence)
+            if (kind == RegularKind.sequence)
                 states[previous].epsilon ~= end;
-            else if (node.kind == RegularKind.optional || node.kind == RegularKind.repetition) {
+            else if (kind == RegularKind.optional || kind == RegularKind.repetition) {
                 if (node.children.length != 1)
                     malformed = true;
                 states[begin].epsilon ~= end;
@@ -339,6 +348,272 @@ unittest {
 
 }
 
+/// O4: a DFA whose transitions carry output events. Events run before the byte they are attached to is consumed,
+/// at the offset of that byte, and `tail` events run when the state accepts. Event 0 remembers the offset, event
+/// `k + 1` finishes a leaf record of kind `k` that began at the remembered offset.
+struct TaggedAutomaton {
+    Automaton base;
+    /// Event list id per (state, byte); list 0 is empty.
+    ubyte[256][] action;
+    /// Event list run when a state accepts, and when it accepts at the end of input.
+    ubyte[] tail, tailEof;
+    uint[] events;
+    size_t[] starts;
+    bool valid;
+}
+
+/// Like `compileDFA`, but follows the `mark` events of the path PEG takes. Threads are ordered by priority (earlier
+/// alternative, greedy repetition first). When threads that consume the same byte would fire different events, the
+/// first one wins and the others are dropped, as in an ordered choice that has committed. The result declines
+/// (`valid == false`) unless it scans exactly like the plain automaton of the same expressions: same transitions
+/// defined, same accepting states, byte for byte.
+TaggedAutomaton compileTaggedDFA(const(RegularExpression)[] expressions, size_t root,
+        bool requireEnd = false, size_t stateLimit = ubyte.max, size_t nfaLimit = 4096) pure {
+    TaggedAutomaton result;
+    const plain = compileDFA(expressions, root, requireEnd, stateLimit, nfaLimit);
+    if (!plain.valid)
+        return result;
+    static struct TaggedState {
+        size_t[] epsilon, eofEpsilon;
+        CharSetMask bytes;
+        size_t target = size_t.max;
+        size_t markTarget = size_t.max;
+        uint mark;
+    }
+
+    static struct Thread {
+        size_t state, sequence;
+    }
+
+    const maxStates = expressions.length * 4 + 4 < nfaLimit + 2 ? expressions.length * 4 + 4 : nfaLimit + 2;
+    auto states = new TaggedState[maxStates];
+    size_t stateCount;
+    struct Fragment {
+        size_t begin, end;
+    }
+
+    bool malformed, hasEnd;
+    Fragment build(size_t index, size_t depth = 0) {
+        if (stateCount > nfaLimit - 2 || stateCount + 2 > states.length || depth >= 128) {
+            malformed = true;
+            return Fragment.init;
+        }
+        auto node = expressions[index];
+        if (node.kind == RegularKind.sequence && node.children.length == 1) {
+            if (node.children[0] >= index) {
+                malformed = true;
+                return Fragment.init;
+            }
+            return build(node.children[0], depth + 1);
+        }
+        const begin = stateCount++;
+        const end = stateCount++;
+        if (node.kind == RegularKind.bytes) {
+            states[begin].bytes = node.bytes;
+            states[begin].target = end;
+        } else if (node.kind == RegularKind.mark) {
+            states[begin].markTarget = end;
+            states[begin].mark = cast(uint)node.bytes.bits[0];
+            malformed = node.children.length != 0 || node.bytes.bits[0] > uint.max;
+        } else if (node.kind == RegularKind.endOfInput) {
+            hasEnd = true;
+            malformed = node.children.length != 0;
+            states[begin].eofEpsilon ~= end;
+        } else {
+            size_t previous = begin;
+            foreach (child; node.children) {
+                if (child >= index) {
+                    malformed = true;
+                    return Fragment(begin, end);
+                }
+                const part = build(child, depth + 1);
+                if (malformed)
+                    return Fragment(begin, end);
+                if (node.kind == RegularKind.sequence) {
+                    states[previous].epsilon ~= part.begin;
+                    previous = part.end;
+                } else {
+                    // Edge order is priority: a repetition goes round again before it leaves.
+                    states[begin].epsilon ~= part.begin;
+                    if (node.kind == RegularKind.repetition)
+                        states[part.end].epsilon ~= part.begin;
+                    states[part.end].epsilon ~= end;
+                }
+            }
+            if (node.kind == RegularKind.sequence)
+                states[previous].epsilon ~= end;
+            else if (node.kind == RegularKind.optional || node.kind == RegularKind.repetition) {
+                if (node.children.length != 1)
+                    malformed = true;
+                states[begin].epsilon ~= end;
+            }
+        }
+        return Fragment(begin, end);
+    }
+
+    const fragment = build(root);
+    if (malformed)
+        return result;
+    const count = stateCount;
+    // Event sequences are interned; sequence 0 is empty.
+    uint[][] sequences = [null];
+    size_t intern(uint[] sequence) {
+        foreach (i, existing; sequences)
+            if (existing == sequence)
+                return i;
+        sequences ~= sequence;
+        return sequences.length - 1;
+    }
+
+    // Threads reachable without consuming, in priority order (depth-first, first edge first); the first path to a
+    // state decides the events it carries.
+    Thread[] closure(Thread[] starts, bool atEnd) {
+        Thread[] ordered;
+        auto seen = new bool[count];
+        Thread[] stack;
+        foreach_reverse (start; starts)
+            stack ~= start;
+        while (stack.length) {
+            const current = stack[$ - 1];
+            stack = stack[0 .. $ - 1];
+            if (seen[current.state])
+                continue;
+            seen[current.state] = true;
+            ordered ~= current;
+            const node = states[current.state];
+            if (node.markTarget != size_t.max)
+                stack ~= Thread(node.markTarget, intern(sequences[current.sequence] ~ node.mark));
+            if (atEnd)
+                foreach_reverse (next; node.eofEpsilon)
+                    stack ~= Thread(next, current.sequence);
+            foreach_reverse (next; node.epsilon)
+                stack ~= Thread(next, current.sequence);
+        }
+        return ordered;
+    }
+
+    size_t[] eventSequences = [0]; // action list id -> sequence id
+    size_t listOf(size_t sequence) {
+        foreach (i, existing; eventSequences)
+            if (existing == sequence)
+                return i;
+        eventSequences ~= sequence;
+        return eventSequences.length - 1;
+    }
+
+    Thread[][] subsets = [closure([Thread(fragment.begin, 0)], false)];
+    for (size_t current; current < subsets.length; ++current) {
+        ubyte[256] row = ubyte.max;
+        ubyte[256] actions = 0;
+        // Consumers that agree with the first one on the events to fire stay; the others are dropped (their futures
+        // are checked against the plain automaton below). Equal consumer sets share a successor.
+        size_t[][] keptSets;
+        size_t[] keptTargets;
+        foreach (byteValue; 0 .. 256) {
+            size_t[] kept;
+            size_t winnerSequence = size_t.max;
+            foreach (k, thread; subsets[current])
+                if (states[thread.state].target != size_t.max
+                        && states[thread.state].bytes.contains(cast(ubyte)byteValue)) {
+                    if (winnerSequence == size_t.max)
+                        winnerSequence = thread.sequence;
+                    if (thread.sequence == winnerSequence)
+                        kept ~= k;
+                }
+            if (!kept.length)
+                continue;
+            size_t known;
+            while (known < keptSets.length && keptSets[known] != kept)
+                ++known;
+            if (known == keptSets.length) {
+                Thread[] starts;
+                foreach (k; kept)
+                    starts ~= Thread(states[subsets[current][k].state].target, 0);
+                auto next = closure(starts, false);
+                size_t target;
+                while (target < subsets.length && subsets[target] != next)
+                    ++target;
+                if (target == subsets.length) {
+                    if (target == stateLimit)
+                        return TaggedAutomaton.init;
+                    subsets ~= next;
+                }
+                keptSets ~= kept;
+                keptTargets ~= target;
+            }
+            const list = listOf(winnerSequence);
+            if (list >= ubyte.max)
+                return TaggedAutomaton.init;
+            row[byteValue] = cast(ubyte)keptTargets[known];
+            actions[byteValue] = cast(ubyte)list;
+        }
+        result.base.transitions ~= row;
+        result.action ~= actions;
+        size_t accepts = size_t.max;
+        foreach (thread; subsets[current])
+            if (thread.state == fragment.end) {
+                accepts = thread.sequence;
+                break;
+            }
+        result.base.accepting ~= accepts != size_t.max;
+        const acceptList = accepts != size_t.max ? listOf(accepts) : 0;
+        if (acceptList >= ubyte.max)
+            return TaggedAutomaton.init;
+        result.tail ~= cast(ubyte)acceptList;
+        if (hasEnd) {
+            size_t eofAccepts = size_t.max;
+            foreach (thread; closure(subsets[current], true))
+                if (thread.state == fragment.end) {
+                    eofAccepts = thread.sequence;
+                    break;
+                }
+            result.base.eofAccepting ~= eofAccepts != size_t.max;
+            const eofList = eofAccepts != size_t.max ? listOf(eofAccepts) : 0;
+            if (eofList >= ubyte.max)
+                return TaggedAutomaton.init;
+            result.tailEof ~= cast(ubyte)eofList;
+        }
+    }
+    foreach (sequence; eventSequences) {
+        result.starts ~= result.events.length;
+        result.events ~= sequences[sequence];
+    }
+    result.starts ~= result.events.length;
+    result.base.valid = true;
+    result.base.requireEnd = requireEnd;
+
+    // The scanner must behave exactly like the plain one: walk both from the start and compare byte by byte.
+    bool eofOf(const Automaton automaton, size_t state) {
+        return automaton.eofAccepting.length ? automaton.eofAccepting[state] : automaton.accepting[state];
+    }
+
+    auto visited = new bool[result.base.transitions.length * plain.transitions.length];
+    size_t[2][] work = [[0, 0]];
+    visited[0] = true;
+    while (work.length) {
+        const pair = work[$ - 1];
+        work = work[0 .. $ - 1];
+        const tagged = pair[0], reference = pair[1];
+        if (result.base.accepting[tagged] != plain.accepting[reference] || eofOf(result.base,
+                tagged) != eofOf(plain, reference))
+            return TaggedAutomaton.init;
+        foreach (byteValue; 0 .. 256) {
+            const a = result.base.transitions[tagged][byteValue], b = plain.transitions[reference][byteValue];
+            if ((a == ubyte.max) != (b == ubyte.max))
+                return TaggedAutomaton.init;
+            if (a == ubyte.max)
+                continue;
+            const index = a * plain.transitions.length + b;
+            if (!visited[index]) {
+                visited[index] = true;
+                work ~= [cast(size_t)a, cast(size_t)b];
+            }
+        }
+    }
+    result.valid = true;
+    return result;
+}
+
 /// Return the last accepting offset, or size_t.max when no prefix matched.
 size_t scanDFA(scope const(ubyte[256])[] transitions, scope const(bool)[] accepting, scope string input,
         size_t pos) @nogc pure nothrow @safe {
@@ -479,9 +754,26 @@ private string emitRuns(const Automaton automaton, size_t state, ubyte target) p
 /// Each state label performs exactly the arrival bookkeeping of the table loop:
 /// accepting/EOF-accepting ends, the examined frontier, then one byte dispatch.
 /// Expects `input`, `pos`, `end`, `examined` and `lastEofEnd` in scope.
-private string codeScannerSource(const Automaton automaton) pure nothrow @safe {
+private string codeScannerSource(const Automaton automaton, const TaggedAutomaton tags = TaggedAutomaton
+        .init) pure nothrow @safe {
+    const tagged = tags.valid;
     string code = "const size_t scanLength = input.length;\n";
     const hasEof = automaton.eofAccepting.length != 0;
+    // A byte that loops back to its state and fires no event can be skipped without dispatch.
+    bool loops(size_t state, size_t c) {
+        return automaton.transitions[state][c] == state && (!tagged || !tags.action[state][c]);
+    }
+
+    // Bookkeeping when the state accepts: a tagged scan also notes how many records exist, where the open one began and
+    // which tail events complete the accepted path.
+    string accepted(size_t state, bool atEof) {
+        string text = "end = pos;";
+        if (tagged)
+            text ~= " acceptLength = records.length; acceptReg = reg; acceptList = " ~ unsignedText(
+                    atEof && tags.tailEof.length ? tags.tailEof[state] : tags.tail[state]) ~ ";";
+        return text;
+    }
+
     foreach (state; 0 .. automaton.transitions.length) {
         const name = unsignedText(state);
         code ~= "dfaState" ~ name ~ ":\n";
@@ -489,15 +781,15 @@ private string codeScannerSource(const Automaton automaton) pure nothrow @safe {
         // exactly as the table loop's hoisted self-loop does.
         ulong[4] loopBits;
         foreach (c; 0 .. 256)
-            if (automaton.transitions[state][c] == state)
+            if (loops(state, c))
                 loopBits[c >> 6] |= 1UL << (c & 63);
         size_t runStart = 256, runEnd, loopRuns;
         foreach (c; 0 .. 256)
-            if (automaton.transitions[state][c] == state) {
+            if (loops(state, c)) {
                 if (runStart == 256)
                     runStart = c;
                 runEnd = c;
-                if (c == 0 || automaton.transitions[state][c - 1] != state)
+                if (c == 0 || !loops(state, c - 1))
                     ++loopRuns;
             }
         if (loopRuns == 1) {
@@ -511,19 +803,55 @@ private string codeScannerSource(const Automaton automaton) pure nothrow @safe {
             code ~= "{ enum ulong[4] loopBits = [" ~ literal ~ "]; while (pos < scanLength) { const ubyte c = " ~ "cast(ubyte)input[pos]; if (!((loopBits[c >> 6] >> (c & 63)) & 1)) break; ++pos; } }\n";
         }
         if (automaton.accepting[state])
-            code ~= "end = pos;\n";
+            code ~= accepted(state, false) ~ "\n";
         const eof = hasEof && automaton.eofAccepting[state];
         if (eof)
             code ~= "lastEofEnd = pos;\n";
         code ~= "examined = pos;\n";
-        code ~= "if (pos == scanLength) {" ~ (eof ? " end = pos;" : "") ~ " goto dfaFinish; }\n";
+        code ~= "if (pos == scanLength) {" ~ (eof ? " " ~ accepted(state, true) : "") ~ " goto dfaFinish; }\n";
         code ~= "switch (cast(ubyte)input[pos]) {\n";
-        foreach (target; 0 .. automaton.transitions.length) {
-            if (target == state)
-                continue;
-            const runs = emitRuns(automaton, state, cast(ubyte)target);
-            if (runs.length)
-                code ~= runs ~ "++pos; goto dfaState" ~ unsignedText(target) ~ ";\n";
+        if (tagged) {
+            // One case group per (successor, events) pair.
+            ubyte[] doneTargets, doneLists;
+            foreach (c; 0 .. 256) {
+                const target = automaton.transitions[state][c];
+                const list = tags.action[state][c];
+                if (target == ubyte.max || loops(state, c))
+                    continue;
+                bool seen;
+                foreach (i, t; doneTargets)
+                    seen = seen || (t == target && doneLists[i] == list);
+                if (seen)
+                    continue;
+                doneTargets ~= target;
+                doneLists ~= list;
+                size_t at;
+                while (at < 256) {
+                    if (automaton.transitions[state][at] != target || tags.action[state][at] != list || loops(
+                            state, at)) {
+                        ++at;
+                        continue;
+                    }
+                    size_t last = at;
+                    while (last + 1 < 256 && automaton.transitions[state][last + 1] == target
+                            && tags.action[state][last + 1] == list && !loops(state, last + 1))
+                        ++last;
+                    code ~= "case " ~ unsignedText(at) ~ ":" ~ (last > at
+                            ? " .. case " ~ unsignedText(last) ~ ":" : "") ~ "\n";
+                    at = last + 1;
+                }
+                foreach (event; tags.events[tags.starts[list] .. tags.starts[list + 1]])
+                    code ~= event == 0 ? "reg = pos;\n" : "records.putLeaf(" ~ unsignedText(event - 1) ~ "U, reg, pos);\n";
+                code ~= "++pos; goto dfaState" ~ unsignedText(target) ~ ";\n";
+            }
+        } else {
+            foreach (target; 0 .. automaton.transitions.length) {
+                if (target == state)
+                    continue;
+                const runs = emitRuns(automaton, state, cast(ubyte)target);
+                if (runs.length)
+                    code ~= runs ~ "++pos; goto dfaState" ~ unsignedText(target) ~ ";\n";
+            }
         }
         code ~= "default: goto dfaFinish;\n}\n";
     }
@@ -782,9 +1110,321 @@ version (NPeggedScannerMetrics) @nogc nothrow unittest {
     static assert(scannerName!Automaton == "<anonymous DFA>");
 }
 
+private struct TaggedStorage(alias Table) {
+    static immutable tagged = Table.tagged;
+    /// Bytes on which a state loops to itself without firing an event: the scan skips them without table reads.
+    static immutable loops = () {
+        CharSetMask[Table.tagged.base.transitions.length] masks;
+        foreach (state, row; Table.tagged.base.transitions)
+            foreach (c; 0 .. 256)
+                if (row[c] == state && !Table.tagged.action[state][c])
+                    masks[state].addChar(cast(ubyte)c);
+        return masks;
+    }();
+}
+
+private template hasValidTags(alias Table) {
+    static if (__traits(hasMember, Table, "tagged"))
+        enum hasValidTags = Table.tagged.valid;
+    else
+        enum hasValidTags = false;
+}
+
+/// Run the events of list `list` at offset `at`; `reg` is the remembered start of the open leaf record.
+pragma(inline, true) private void runEvents(alias Tags)(size_t list, size_t at, ref size_t reg, ref RecordBuffer records) @nogc nothrow {
+    foreach (event; Tags.events[Tags.starts[list] .. Tags.starts[list + 1]]) {
+        if (event == 0)
+            reg = at;
+        else
+            records.putLeaf(event - 1, reg, at);
+    }
+}
+
+/// O4: `scanDFA` for a tagged table. Appends the leaf records of the accepted path to `records` and leaves them
+/// untouched when nothing is accepted. Records the path wrote past the last accepting offset are rolled back and
+/// the accepting state's tail events are run at that offset, so the result is the one a rule-by-rule walk of the
+/// same (deterministic) region gives. The caller checks `records.status` for an exhausted arena.
+pragma(inline, true) size_t scanTaggedRecords(alias Table)(scope string input, size_t pos,
+        out size_t examined, out size_t lastEofEnd, ref RecordBuffer records) @nogc nothrow {
+    static if (hasValidTags!Table)
+        return scanTaggedRecordsWith!(Table,
+                TaggedStorage!Table.tagged.base.transitions.length <= codeScannerStateLimit)(input,
+                pos, examined, lastEofEnd, records);
+    else
+        return scanTaggedRecordsWith!(Table, false)(input, pos, examined, lastEofEnd, records);
+}
+
+/// `Code` selects the straight-line state scanner over the table loop; both are equivalent.
+size_t scanTaggedRecordsWith(alias Table, bool Code)(scope string input, size_t pos,
+        out size_t examined, out size_t lastEofEnd, ref RecordBuffer records) @nogc nothrow {
+    examined = pos;
+    lastEofEnd = size_t.max;
+    static if (!hasValidTags!Table)
+        return size_t.max;
+    else {
+        alias tags = TaggedStorage!Table.tagged;
+        if (pos > input.length)
+            return size_t.max;
+        const base = records.length;
+        const hasEof = tags.base.eofAccepting.length != 0;
+        size_t reg = pos, end = size_t.max, acceptLength = base, acceptReg = pos, acceptList;
+        static if (Code) {
+            mixin(codeScannerSource(tags.base, tags));
+        } else {
+            ubyte state;
+            if (tags.base.accepting[0]) {
+                end = pos;
+                acceptList = tags.tail[0];
+            }
+            if (hasEof && tags.base.eofAccepting[0])
+                lastEofEnd = pos;
+            while (pos < input.length) {
+                const mask = TaggedStorage!Table.loops[state];
+                while (pos < input.length && mask.contains(cast(ubyte)input[pos]))
+                    ++pos;
+                examined = pos;
+                if (tags.base.accepting[state]) {
+                    end = pos;
+                    acceptLength = records.length;
+                    acceptReg = reg;
+                    acceptList = tags.tail[state];
+                }
+                if (hasEof && tags.base.eofAccepting[state])
+                    lastEofEnd = pos;
+                if (pos == input.length)
+                    break;
+                const c = cast(ubyte)input[pos];
+                const next = tags.base.transitions[state][c];
+                if (next == ubyte.max)
+                    break;
+                const list = tags.action[state][c];
+                if (list)
+                    runEvents!tags(list, pos, reg, records);
+                state = next;
+                ++pos;
+                examined = pos;
+                if (tags.base.accepting[state]) {
+                    end = pos;
+                    acceptLength = records.length;
+                    acceptReg = reg;
+                    acceptList = tags.tail[state];
+                }
+                if (hasEof && tags.base.eofAccepting[state])
+                    lastEofEnd = pos;
+            }
+            if (pos == input.length && hasEof && tags.base.eofAccepting[state]) {
+                end = pos;
+                lastEofEnd = pos;
+                acceptLength = records.length;
+                acceptReg = reg;
+                acceptList = tags.tailEof[state];
+            }
+        }
+        lastEofEnd = hasEof ? lastEofEnd : end;
+        if (end == size_t.max || tags.base.requireEnd && end != input.length) {
+            records.rollback(base);
+            return size_t.max;
+        }
+        records.rollback(acceptLength);
+        runEvents!tags(acceptList, end, acceptReg, records);
+        return end;
+    }
+}
+
+private RegularExpression[] taggedFieldNodes() pure nothrow {
+    CharSetMask letters, comma;
+    letters.addRange('a', 'z');
+    comma.addChar(',');
+    return [
+        RegularExpression(RegularKind.bytes, letters), // 0
+        regularNode(RegularKind.repetition, [0]), // 1
+        regularMark(0), // 2 open
+        regularMark(6), // 3 close, kind 5
+        regularNode(RegularKind.sequence, [2, 1, 3]), // 4 Field
+        RegularExpression(RegularKind.bytes, comma), // 5
+        regularNode(RegularKind.sequence, [5, 4]), // 6
+        regularNode(RegularKind.repetition, [6]), // 7
+        regularNode(RegularKind.sequence, [4, 7]) // 8
+    ];
+}
+
+/// O4: `Field (',' Field)*` with `Field <- [a-z]*` a leaf record of kind 5, as a generated `_dfa_` struct would declare it.
+private struct TaggedFields(bool End) {
+    enum automaton = compileDFA(taggedFieldNodes(), 8, End);
+    enum tagged = compileTaggedDFA(taggedFieldNodes(), 8, End);
+    enum valid = automaton.valid;
+    enum requireEnd = automaton.requireEnd;
+}
+
+@nogc nothrow unittest {
+    import npegged.storage : Arena;
+    import npegged.records : CompactNode;
+
+    alias Plain = TaggedFields!false;
+    static assert(Plain.tagged.valid && Plain.automaton.valid);
+    static immutable inputs = ["", "a", "ab,c", "ab,c,,d", ",", ",,", "ab,c!x", "A", "a,B", "a,b,"];
+    foreach (input; inputs) {
+        Arena owner;
+        RecordBuffer output;
+        output.arena = &owner;
+        size_t examined, lastEofEnd;
+        const end = scanTaggedRecords!Plain(input, 0, examined, lastEofEnd, output);
+        size_t plainExamined;
+        // Same end and examined bytes as the plain automaton.
+        assert(end == scanDFA!Plain(input, 0, plainExamined) && examined == plainExamined);
+        // One record per field of the accepted prefix, in order, each spanning its letters.
+        size_t fields = 1, begin;
+        foreach (i; 0 .. end + 1) {
+            if (i == end || input[i] == ',') {
+                assert(output.nodes[fields - 1] == CompactNode(5, begin, i, size_t.max));
+                begin = i + 1;
+                if (i < end)
+                    ++fields;
+            }
+        }
+        if (end == size_t.max)
+            assert(output.length == 0);
+        else
+            assert(output.length == fields);
+    }
+    // A table that requires the end of input accepts only whole inputs and leaves no record behind otherwise.
+    alias Anchored = TaggedFields!true;
+    foreach (input; ["a,b", "a,b!", "a,!", "", "X", "A"]) {
+        Arena owner;
+        RecordBuffer output;
+        output.arena = &owner;
+        size_t examined, lastEofEnd;
+        const end = scanTaggedRecords!Anchored(input, 0, examined, lastEofEnd, output);
+        assert(end == scanDFA!Anchored(input, 0));
+        if (input == "a,b" || input == "") {
+            assert(end == input.length && output.length == (input.length ? 2 : 1));
+        } else
+            assert(end == size_t.max && output.length == 0);
+    }
+    // A refused allocation leaves the status of the buffer failed; the caller rolls back.
+    Arena exhausted;
+    exhausted.limit = 0;
+    RecordBuffer limited;
+    limited.arena = &exhausted;
+    size_t examined, lastEofEnd;
+    scanTaggedRecords!Plain("a,b", 0, examined, lastEofEnd, limited);
+    assert(limited.status != Status.ok && limited.length == 0);
+    // Starting past the input, and a scan that suppresses its output.
+    assert(scanTaggedRecords!Plain("a", 2, examined, lastEofEnd, limited) == size_t.max);
+    Arena roomy;
+    RecordBuffer quiet;
+    quiet.arena = &roomy;
+    quiet.suppressed = true;
+    assert(scanTaggedRecords!Plain("a,b", 0, examined, lastEofEnd, quiet) == 3 && quiet.length == 0);
+}
+
+/// The straight-line tagged scanner and the table loop agree on the end, the frontier and the records written.
+@nogc nothrow unittest {
+    import npegged.storage : Arena;
+
+    static void sameScanners(Table)(string input) @nogc nothrow {
+        foreach (start; 0 .. input.length + 1) {
+            Arena first, second;
+            RecordBuffer codeOutput, loopOutput;
+            codeOutput.arena = &first;
+            loopOutput.arena = &second;
+            size_t codeExamined, codeEof, loopExamined, loopEof;
+            const code = scanTaggedRecordsWith!(Table, true)(input, start, codeExamined, codeEof, codeOutput);
+            const loop = scanTaggedRecordsWith!(Table, false)(input, start, loopExamined, loopEof, loopOutput);
+            assert(code == loop && codeExamined == loopExamined && codeEof == loopEof);
+            assert(codeOutput.nodes == loopOutput.nodes);
+        }
+    }
+
+    char[6] buffer;
+    enum alphabet = "a,A ";
+    foreach (length; 0 .. buffer.length + 1) {
+        size_t combinations = 1;
+        foreach (_; 0 .. length)
+            combinations *= alphabet.length;
+        foreach (code; 0 .. combinations) {
+            size_t rest = code;
+            foreach (i; 0 .. length) {
+                buffer[i] = alphabet[rest % alphabet.length];
+                rest /= alphabet.length;
+            }
+            sameScanners!(TaggedFields!false)(cast(string)buffer[0 .. length]);
+            sameScanners!(TaggedFields!true)(cast(string)buffer[0 .. length]);
+        }
+    }
+}
+
+private RegularExpression[] ambiguousNodes() pure nothrow {
+    CharSetMask a;
+    a.addChar('a');
+    // (open 'a' close1) / (open 'a' close2): the first alternative wins.
+    return [
+        RegularExpression(RegularKind.bytes, a), // 0
+        regularMark(0), // 1
+        regularMark(2), // 2 close kind 1
+        regularMark(3), // 3 close kind 2
+        regularNode(RegularKind.sequence, [1, 0, 2]), // 4
+        regularNode(RegularKind.sequence, [1, 0, 3]), // 5
+        regularNode(RegularKind.choice, [4, 5]) // 6
+    ];
+}
+
+private struct AmbiguousTable {
+    enum tagged = compileTaggedDFA(ambiguousNodes(), 6);
+}
+
+/// Of two paths that consume the same byte the earlier one wins, and a table that would scan differently from the
+/// plain automaton of the same expressions is declined.
+nothrow unittest {
+    import npegged.storage : Arena;
+    import npegged.records : CompactNode;
+
+    static assert(AmbiguousTable.tagged.valid);
+    Arena owner;
+    RecordBuffer output;
+    output.arena = &owner;
+    size_t examined, lastEofEnd;
+    assert(scanTaggedRecords!AmbiguousTable("a", 0, examined, lastEofEnd, output) == 1);
+    assert(output.nodes == [CompactNode(1, 0, 1, size_t.max)]);
+    // `a close1 / open a b close2`: on `a` the first alternative wins and the second is dropped, so `ab`, which the plain
+    // automaton accepts, would be rejected. Such a table is declined rather than scanning differently.
+    CharSetMask a, b;
+    a.addChar('a');
+    b.addChar('b');
+    const lookahead = [
+        RegularExpression(RegularKind.bytes, a), // 0
+        RegularExpression(RegularKind.bytes, b), // 1
+        regularMark(0), // 2 open
+        regularMark(2), // 3 close kind 1
+        regularMark(3), // 4 close kind 2
+        regularNode(RegularKind.sequence, [0, 3]), // 5 `a close1`
+        regularNode(RegularKind.sequence, [2, 0, 1, 4]), // 6 `open a b close2`
+        regularNode(RegularKind.choice, [5, 6]) // 7
+    ];
+    assert(compileDFA(lookahead, 7).valid && !compileTaggedDFA(lookahead, 7).valid);
+    // The same event on both paths is no problem.
+    const same = [
+        RegularExpression(RegularKind.bytes, a), regularMark(0), regularMark(2),
+        regularNode(RegularKind.sequence, [1, 0, 2]), regularNode(RegularKind.sequence, [1, 0, 2]),
+        regularNode(RegularKind.choice, [3, 4])
+    ];
+    assert(compileTaggedDFA(same, 5).valid);
+    assert(!compileTaggedDFA(same, 99).valid && !compileTaggedDFA(same, 5, false, 0).valid);
+    assert(!compileTaggedDFA(same, 5, false, 256).valid && !compileTaggedDFA(same, 5, false, 255, 1)
+            .valid);
+    assert(!compileTaggedDFA([regularNode(RegularKind.sequence, [7])], 0).valid);
+    assert(!compileTaggedDFA([regularNode(RegularKind.optional, [])], 0).valid);
+    assert(!compileTaggedDFA([regularNode(RegularKind.endOfInput, [0])], 0).valid);
+    assert(!compileTaggedDFA([regularMark(1L << 33)], 0).valid);
+}
+
 /// Generic tree capture retains the original combinator.
 /// A failed scan is replayed to produce the original failure structure.
-struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool HasInnerRecords = false) {
+/// `Records`: 0 none, 1 rules inside the region emit records (the region is walked rule by rule), 2 they emit
+/// leaf records only and `Table.tagged` produces them (O4).
+struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, int Records = 0) {
+    private enum HasInnerRecords = Records != 0;
+    private enum Tagged = Records == 2 && hasValidTags!Table;
     version (NPeggedScannerMetrics) private enum diagnosticName = scannerName!Table;
     static if (__traits(hasMember, Original, "scan")) {
         version (NPeggedScannerMetrics) {
@@ -793,7 +1433,8 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                 ScannerEvent event;
                 event.rule = diagnosticName;
                 event.reason = ScannerReason.primitiveScan;
-                event.eligible = (Check == 1 || Check == 2 && !HasInnerRecords) && Table.valid;
+                event.eligible = (Check == 1 || Check == 2 && (!HasInnerRecords || Tagged)) && Table
+                    .valid;
                 event.original = true;
                 auto sink = s.context.scannerReport;
                 auto result = Original.scan!Capture(s, pos);
@@ -832,7 +1473,7 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
             Check) s, size_t pos, ref size_t steps, ref bool live, const size_t depth, out size_t end,
             out size_t failEnd) nothrow {
         version (NPeggedScannerMetrics) {
-        } else static if ((Check == 1 || (Check == 2 && !HasInnerRecords)) && Table.valid) {
+        } else static if ((Check == 1 || (Check == 2 && (!HasInnerRecords || Tagged))) && Table.valid) {
             const limit = s.context.stepLimit;
             if (live && steps < limit && pos <= s.input.length && (!ReferenceDepth
                     || s.context.trace is null && depth <= s.context.depthLimit
@@ -840,10 +1481,26 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                 const remaining = limit - steps - 1;
                 const available = s.input.length - pos;
                 const stop = pos + (remaining < available ? remaining : available);
-                size_t examined;
-                size_t lastEofEnd;
-                const scanned = scanDFA!Table(s.input[0 .. stop], pos, examined, lastEofEnd);
-                const settled = examined < stop || stop == s.input.length;
+                size_t examined = pos;
+                size_t lastEofEnd = size_t.max;
+                static if (Check == 2 && Tagged) {
+                    // Records are appended during the scan, so only a scan that sees the whole input is attempted.
+                    const settled = stop == s.input.length;
+                    const recordBase = s.output.length;
+                    const scanned = settled ? scanTaggedRecords!Table(s.input, pos, examined, lastEofEnd,
+                            s.output) : size_t.max;
+                    s.syncOutput();
+                    if (s.status != Status.ok) {
+                        s.output.rollback(recordBase);
+                        live = false;
+                        steps += examined - pos + 1;
+                        end = failEnd = examined;
+                        return false;
+                    }
+                } else {
+                    const scanned = scanDFA!Table(s.input[0 .. stop], pos, examined, lastEofEnd);
+                    const settled = examined < stop || stop == s.input.length;
+                }
                 if (scanned != size_t.max && settled) {
                     steps += examined - pos + 1;
                     static if (!Accept)
@@ -909,12 +1566,12 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                     sink.record(event);
             static if (Check == 0)
                 event.reason = ScannerReason.tree;
-            else static if (Check == 2 && HasInnerRecords)
+            else static if (Check == 2 && HasInnerRecords && !Tagged)
                 event.reason = ScannerReason.innerRecords;
             else static if (!Table.valid)
                 event.reason = ScannerReason.invalidTable;
         }
-        static if ((Check == 1 || (Check == 2 && !HasInnerRecords)) && Table.valid) {
+        static if ((Check == 1 || (Check == 2 && (!HasInnerRecords || Tagged))) && Table.valid) {
             version (NPeggedScannerMetrics)
                 event.eligible = true;
             if (s.status == Status.ok && pos <= s.input.length && s.steps < s.context.stepLimit
@@ -926,9 +1583,25 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                 const remaining = s.context.stepLimit - s.steps - 1;
                 const available = s.input.length - pos;
                 const limit = pos + (remaining < available ? remaining : available);
-                size_t examined;
-                size_t lastEofEnd;
-                const end = scanDFA!Table(s.input[0 .. limit], pos, examined, lastEofEnd);
+                size_t examined = pos;
+                size_t lastEofEnd = size_t.max;
+                static if (Check == 2 && Tagged) {
+                    const whole = limit == s.input.length;
+                    const recordBase = s.output.length;
+                    const end = whole ? scanTaggedRecords!Table(s.input, pos, examined, lastEofEnd, s
+                            .output) : size_t.max;
+                    if (!whole)
+                        examined = limit; // not settled: the original walk decides
+                    s.syncOutput();
+                    if (s.status != Status.ok) {
+                        s.output.rollback(recordBase);
+                        s.steps += examined - pos + 1;
+                        auto exhausted = s.node(pos, examined, false);
+                        exhausted.failEnd = examined;
+                        return exhausted;
+                    }
+                } else
+                    const end = scanDFA!Table(s.input[0 .. limit], pos, examined, lastEofEnd);
                 version (NPeggedScannerMetrics) {
                     event.attempted = true;
                     event.scanAccepted = end != size_t.max;
@@ -945,7 +1618,7 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                     if (examined > end)
                         s.recordFailure(s.node(pos, examined, false));
                     return s.node(pos, end);
-                } else static if (Check == 1 || (Check == 2 && !HasInnerRecords)) {
+                } else static if (Check == 1 || (Check == 2 && (!HasInnerRecords || Tagged))) {
                     static if (Table.requireEnd) {
                         if (lastEofEnd != size_t.max && (examined < limit || limit == s.input.length)) {
                             version (NPeggedScannerMetrics) {
@@ -996,6 +1669,59 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
         } else
             return Original(s, pos);
     }
+}
+
+/// O4: a tagged region in records mode takes the same decisions from `opCall` and the cursor entry, writes the same
+/// records, and leaves them alone (falling back to the original walk) when the step budget does not show the whole input.
+@nogc nothrow unittest {
+    import npegged.peg : zeroOrMore, charRange;
+    import npegged.storage : Arena;
+
+    alias Fields = TaggedFields!false;
+    alias token = dfaToken!(zeroOrMore!(charRange!('a', 'z')), Fields, 0, 2);
+    static assert(token.Tagged);
+    static immutable string[7] inputs = ["", "a", "a,b", "a,b,", "A", "ab,cd,,e", "a,b!"];
+    static immutable size_t[8] limits = [0, 1, 2, 3, 5, 9, 64, size_t.max];
+    foreach (limit; limits)
+        foreach (input; inputs)
+            foreach (start; 0 .. input.length + 1) {
+                Arena first, second;
+                RecordBuffer calledOutput, cursorOutput;
+                calledOutput.arena = &first;
+                cursorOutput.arena = &second;
+                State!(false, 2) called, cursor;
+                called.context.stepLimit = cursor.context.stepLimit = limit;
+                called.input = cursor.input = input;
+                called.attachRecords(calledOutput);
+                cursor.attachRecords(cursorOutput);
+                const expected = token(called, start);
+                size_t steps, end, failEnd;
+                bool live = true;
+                const ok = token.cursor(cursor, start, steps, live, 0, end, failEnd);
+                assert(ok == expected.successful && end == expected.end && failEnd == expected
+                        .failEnd);
+                assert(steps == called.steps && live == (called.status == Status.ok));
+                assert(calledOutput.nodes == cursorOutput.nodes);
+            }
+    // An exhausted record arena fails the parse with its status and leaves no record behind.
+    Arena exhausted;
+    exhausted.limit = 0;
+    RecordBuffer output;
+    output.arena = &exhausted;
+    State!(false, 2) failing, failingCursor;
+    failing.input = failingCursor.input = "a,b";
+    failing.attachRecords(output);
+    const refused = token(failing, 0);
+    assert(!refused.successful && failing.status != Status.ok && output.length == 0);
+    Arena another;
+    another.limit = 0;
+    RecordBuffer cursorBuffer;
+    cursorBuffer.arena = &another;
+    failingCursor.attachRecords(cursorBuffer);
+    size_t steps, end, failEnd;
+    bool live = true;
+    assert(!token.cursor(failingCursor, 0, steps, live, 0, end, failEnd));
+    assert(!live && failingCursor.status != Status.ok && cursorBuffer.length == 0);
 }
 
 /// S4: the cursor entry is `opCall` with the counters held by the caller, for every step limit.
