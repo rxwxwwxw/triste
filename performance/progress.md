@@ -67,11 +67,16 @@ Largest outstanding gaps are listed in the latest summary.csv (PEGGrammar.Permis
 ## Phase 2 exit (2026-10-21)
 
 Full gate (`--q2`, validation/spans/tree/accept, 500 iter x 7 samples x 3 runs, direct backend, LDC 1.43, Apple M1; run
-`20261021T035808Z-544080000-e10f8b6dc`, `milestones/PhaseExit/`): **246/346 workloads within 1.5x (71.1%)**, p50 1.28, p90 1.87,
-geomean 1.34 over all, **1.23 over the 332 workloads that exclude the LeftExpr family**, where 246/332 (74%) are within target.
-The corpus grew from 171 workloads (Phase 1 baseline: 99 within, p90 2.04, geomean 1.32) to 346 (Q2 corpora, Ops, LeftExpr, accept),
-so counts are not directly comparable; on the original 171 ids the C1-era dashboard run was 125 within, p90 1.80.
-**Regression / open problem:** the new `LeftExpr` family in `validation` mode (check, not accept) is 10x-232,000x slower than its
-handwritten twin (`LeftExpr.Deep` 232,390x). Check mode uses the generic left-recursion seed-growing path; P8 lowered loops only in the accept clone.
-Not fixed; accept mode on the same family is within target (see `milestones/P8/`). DMD crashes on this host (not run); ASan/LSan/Valgrind
-results are as recorded per milestone. D1 decision: keep `combinators` default. Other Phase 2 closures: X1/X2/O4(b,c)/S7 NO-GO, X3 tool delivered.
+`20261021T060113Z-124016000-5be5e5027`, `milestones/PhaseExit2/`, commit `5be5e5027`): **264/346 workloads within 1.5x (76.3%)**, p50 1.25,
+p90 1.88, p95 2.41, geomean 1.26, worst 24.5x (`LeftExpr.Deep/validation`). Phase 1 baseline for comparison: 99/171 within, p90 2.04,
+geomean 1.32; the corpus grew from 171 to 346 workloads, so counts are not directly comparable.
+An earlier exit run (`milestones/PhaseExit`, commit `e10f8b6dc`) had found 246/346, p90 1.87, worst 232,390x. Two things changed since:
+* `LeftExpr` in `check` mode: seed growth retired every memo entry at later positions on each growth, which made nested parentheses
+  exponential; only same-position entries are retired now (`milestones/P8/notes.md`, follow-up). 8 nested levels 20 ms -> 2.2 us. The
+  family is still 10-25x its handwritten twin in `check` mode (generic seed growth); `accept` mode is at 2.0x.
+* O4 (tagged-DFA leaf records): CSV span/tree workloads -37..-54%, from 1.7-2.1x to 0.9-1.0x handwritten (`milestones/O4/notes.md`).
+Remaining over-target workloads: `LeftExpr` check mode, `Ops` (3.9x), tiny inputs limited by the entry floor, adversarial inputs.
+Other Phase 2 closures: X1 NO-GO, X2 regular-region subset done as O4 (the general lexer/parser fusion is not built), S7 NO-GO,
+X3 tool delivered without an adopted profile. D1: keep `combinators` as the default.
+Not run on this host: DMD (segfaults), the coverage collector (needs dmd + gdc + gcov), LeakSanitizer and Valgrind (unavailable on
+arm64 macOS; ASan was run on the unit tests and on `tests/tagged_regions.d`).
