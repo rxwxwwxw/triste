@@ -184,6 +184,8 @@ private string decimal(size_t value) {
 }
 
 nothrow unittest {
+    GrammarAnalysis empty;
+    assert(workBounds(empty).length == 0);
     assert(decimal(0) == "0" && decimal(7) == "7" && decimal(1203) == "1203");
     assert(describe(WorkBound(true, 6, null)) == "6*(n+1)");
     assert(describe(WorkBound(false, 0, "x")) == "unknown: x");

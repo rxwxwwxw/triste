@@ -398,14 +398,8 @@ TaggedAutomaton compileTaggedDFA(const(RegularExpression)[] expressions, size_t 
             malformed = true;
             return Fragment.init;
         }
+        // The plain automaton above validated the expressions (child order, arities), so only the limits can differ.
         auto node = expressions[index];
-        if (node.kind == RegularKind.sequence && node.children.length == 1) {
-            if (node.children[0] >= index) {
-                malformed = true;
-                return Fragment.init;
-            }
-            return build(node.children[0], depth + 1);
-        }
         const begin = stateCount++;
         const end = stateCount++;
         if (node.kind == RegularKind.bytes) {
@@ -417,15 +411,10 @@ TaggedAutomaton compileTaggedDFA(const(RegularExpression)[] expressions, size_t 
             malformed = node.children.length != 0 || node.bytes.bits[0] > uint.max;
         } else if (node.kind == RegularKind.endOfInput) {
             hasEnd = true;
-            malformed = node.children.length != 0;
             states[begin].eofEpsilon ~= end;
         } else {
             size_t previous = begin;
             foreach (child; node.children) {
-                if (child >= index) {
-                    malformed = true;
-                    return Fragment(begin, end);
-                }
                 const part = build(child, depth + 1);
                 if (malformed)
                     return Fragment(begin, end);
@@ -442,11 +431,8 @@ TaggedAutomaton compileTaggedDFA(const(RegularExpression)[] expressions, size_t 
             }
             if (node.kind == RegularKind.sequence)
                 states[previous].epsilon ~= end;
-            else if (node.kind == RegularKind.optional || node.kind == RegularKind.repetition) {
-                if (node.children.length != 1)
-                    malformed = true;
+            else if (node.kind == RegularKind.optional || node.kind == RegularKind.repetition)
                 states[begin].epsilon ~= end;
-            }
         }
         return Fragment(begin, end);
     }
@@ -1352,6 +1338,65 @@ private struct TaggedFields(bool End) {
             sameScanners!(TaggedFields!true)(cast(string)buffer[0 .. length]);
         }
     }
+}
+
+private RegularExpression[] anchoredNodes() pure nothrow {
+    CharSetMask letters;
+    letters.addRange('a', 'z');
+    return [
+        RegularExpression(RegularKind.bytes, letters), // 0
+        regularNode(RegularKind.repetition, [0]), // 1
+        regularMark(0), // 2 open
+        regularMark(6), // 3 close, kind 5
+        regularNode(RegularKind.endOfInput, []), // 4
+        regularNode(RegularKind.sequence, [2, 1, 3, 4]), // 5 `open [a-z]* close eoi`
+        RegularExpression(RegularKind.bytes,
+                letters), // 6
+        regularNode(RegularKind.choice, [0, 0, 0, 0, 0, 0, 0]), // 7 many alternatives of one byte
+    ];
+}
+
+private struct TaggedAnchored {
+    enum tagged = compileTaggedDFA(anchoredNodes(), 5);
+    enum automaton = compileDFA(anchoredNodes(), 5);
+    enum valid = automaton.valid;
+    enum requireEnd = automaton.requireEnd;
+}
+
+/// A record that must end at the end of input has its events run by the EOF-accepting state, and the generators
+/// that read the tables report the limits the plain compiler does not hit.
+nothrow unittest {
+    import npegged.storage : Arena;
+    import npegged.records : CompactNode;
+
+    static assert(TaggedAnchored.tagged.valid && TaggedAnchored.tagged.base.eofAccepting.length);
+    foreach (input; ["", "ab", "ab!"]) {
+        Arena owner;
+        RecordBuffer output;
+        output.arena = &owner;
+        size_t examined, lastEofEnd;
+        const end = scanTaggedRecords!TaggedAnchored(input, 0, examined, lastEofEnd, output);
+        assert(end == scanDFA!TaggedAnchored(input, 0));
+        if (input == "ab!")
+            assert(end == size_t.max && output.length == 0);
+        else
+            assert(end == input.length && output.nodes == [
+                CompactNode(5, 0, input.length, size_t.max)
+        ]);
+    }
+    // A choice of single bytes merges into one plain state but needs a state per alternative here: a small NFA budget
+    // is enough for the plain compiler and not for the tagged one.
+    assert(compileDFA(anchoredNodes(), 7, false, 255, 12).valid
+            && !compileTaggedDFA(anchoredNodes(), 7, false, 255, 12).valid);
+    // The generated scanner reads the events and the accepted-path bookkeeping from the tables.
+    const code = codeScannerSource(TaggedAnchored.tagged.base, TaggedAnchored.tagged);
+    assert(code.length > codeScannerSource(TaggedAnchored.automaton).length);
+    bool hasPut, hasAccept;
+    foreach (i; 0 .. code.length - 10) {
+        hasPut = hasPut || code[i .. i + 10] == "reg = pos;";
+        hasAccept = hasAccept || code[i .. i + 12] == "acceptLength";
+    }
+    assert(hasPut && hasAccept);
 }
 
 private RegularExpression[] ambiguousNodes() pure nothrow {

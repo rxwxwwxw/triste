@@ -669,6 +669,28 @@ nothrow unittest {
 }
 
 nothrow unittest {
+    // Budgets and malformed graphs fail with a status instead of producing a candidate.
+    alias K = ExpressionKind;
+    GrammarAnalysis graph;
+    graph.names = ["Dangling", "Empty", "Deep"];
+    graph.expressions = [
+        Expression(K.reference, null, "Missing"), // 0
+        Expression(K.choice, null), // 1: no alternatives
+        Expression(K.reference, null, "Deep"), // 2: Deep <- Deep
+    ];
+    graph.roots = [0, 1, 2];
+    graph.solve();
+    auto dangling = CandidateGenerator(graph, 0).next();
+    assert(dangling.status == GenStatus.unsupported);
+    auto empty = CandidateGenerator(graph, 1).next();
+    assert(empty.status == GenStatus.unsupported);
+    GeneratorOptions shallow;
+    shallow.maxDepth = 3;
+    auto deep = CandidateGenerator(graph, 2, shallow).next();
+    assert(deep.status == GenStatus.budgetExceeded);
+}
+
+nothrow unittest {
     // minimal lengths, unsupported nodes, nullable loop termination, literal escapes
     alias K = ExpressionKind;
     GrammarAnalysis graph;

@@ -2330,6 +2330,12 @@ package struct Frontend {
         // Indirect left recursion through the base alternative is not lowered.
         assert(frontend.iterativeForm(5).blocker == "base-leads-to-self");
         assert(frontend.iterativeForm(7).blocker.length);
+        // Only suffixes, no base alternative: nothing to start the loop from.
+        Frontend suffixOnly;
+        suffixOnly.input = "S: A <- A 'a' / A 'b'";
+        suffixOnly.read();
+        suffixOnly.prepareAnalysis();
+        assert(!suffixOnly.iterativeForm(0).ok && suffixOnly.iterativeForm(0).blocker == "no-base-or-suffix");
     }
 
     /// O2: can evaluating `index` (direct cursor, records mode) leave records in the buffer?
@@ -3829,6 +3835,8 @@ nothrow unittest {
     assert(bound(expression, "Expr") == "9*(n+1)");
     assert(bound(expression, "Root") == "15*(n+1)");
     assert(bound("W: Root <- Item+ eoi Item <- 'a' / 'b' 'c'", "Item") == "1*(n+1)");
+    // An option is a repetition-like node: it costs one attempt.
+    assert(bound("W: Root <- Item? 'b' eoi Item <- 'a'", "Root").length);
     // Left recursion, predicates, ambiguous FIRST sets and nullable loop bodies have no bound.
     assert(bound("W: Root <- Root '+' 'a' / 'a'", "Root") == "unknown: not-certified-ll1");
     assert(bound("W: Root <- !'x' 'a'", "Root") == "unknown: not-certified-ll1");
@@ -4341,6 +4349,23 @@ nothrow unittest {
     assert(startsWith(both.report, "{\"scope\""));
     assert(bitesReport("Bad: Root <- 'a' #\x80").status == Status.invalidInput);
     assert(bitesReport("Broken:").status == Status.invalidInput);
+}
+
+nothrow unittest {
+    // P3/L4: ordered choices of short literals become inline dispatch in the exact and the accept clones.
+    foreach (definition; [
+        "L: Root <- ('abc' / 'abd' / 'xyz')+ eoi", "L: Root <- ('a' / 'ab' / 'b')+ eoi"
+    ]) {
+        auto direct = generate!(Memoization.selective, void, ParserBackend.direct)(definition);
+        assert(direct.status == Status.ok && Frontend.countOf(direct.source, "_lc") >= 1);
+    }
+}
+
+nothrow unittest {
+    auto report = nextBitesReport("N: Root <- ('a' / 'b')* 'c' eoi");
+    assert(report.status == Status.ok && report.grammarName == "N" && report.report.length);
+    assert(nextBitesReport("Bad: Root <- 'a' #\x80").status == Status.invalidInput);
+    assert(nextBitesReport("Broken:").status == Status.invalidInput);
 }
 
 /// Report-only NEXTBITES and Proposition 10-13 premise checks per choice/star (B5).

@@ -1,0 +1,30 @@
+# LDC line coverage (scripts/coverage_ldc.sh): unit tests + hotpath + tagged_regions + generate_parser, unittest bodies excluded; 2026-10-21
+# Runtime lines only: code that runs only in CTFE is not counted by -cov. Branch coverage needs GDC/gcov and was not measured.
+  96.2%  src/npegged/analysis.d
+  96.9%  src/npegged/bites.d
+ 100.0%  src/npegged/conversion.d
+  98.0%  src/npegged/coverage.d
+ 100.0%  src/npegged/definition.d
+  94.0%  src/npegged/dfa.d
+ 100.0%  src/npegged/formatting.d
+ 100.0%  src/npegged/fuzz.d
+  91.3%  src/npegged/generator.d
+  91.3%  src/npegged/grammar.d
+  96.5%  src/npegged/introspection.d
+  93.3%  src/npegged/io.d
+ 100.0%  src/npegged/language.d
+ 100.0%  src/npegged/learning.d
+  93.1%  src/npegged/ll.d
+  93.0%  src/npegged/lr.d
+ 100.0%  src/npegged/meta.d
+  95.5%  src/npegged/parser.d
+  93.2%  src/npegged/peg.d
+  95.8%  src/npegged/policy.d
+ 100.0%  src/npegged/records.d
+ 100.0%  src/npegged/storage.d
+  98.5%  src/npegged/tester/grammartester.d
+ 100.0%  src/npegged/tester/testerparser.d
+  93.7%  src/npegged/tohtml.d
+ 100.0%  src/npegged/unicode.d
+  90.9%  src/npegged/work.d
+modules at or below 90%: 0
