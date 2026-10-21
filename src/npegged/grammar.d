@@ -17,6 +17,7 @@ import npegged.fuzz : Mutator, Observation, observe, sameObservation, accepts, s
     regressionLine, parseRegression, Regression;
 import core.time : MonoTime;
 import npegged.ll : classifyRegions, renderRegions, renderEbnf, RegionClass, firstCertifiedRules;
+import npegged.work : WorkBound, workBounds, describe;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
 nothrow:
@@ -144,8 +145,9 @@ private string renderEligibility(scope const ref EligibilityResult value, Eligib
                 booleanText(row.recordSubtree)) ~ separator ~ field("dfaScanner",
                 booleanText(row.dfaScanner)) ~ separator ~ field("predictiveDispatch",
                 booleanText(row.predictiveDispatch)) ~ separator ~ field("scannerRegions",
-                number(row.scannerRegions)) ~ separator ~ field("strategy", jsonQuoted(row.strategy)) ~ (
-                json ? "}" : "\n");
+                number(row.scannerRegions)) ~ separator ~ field("strategy",
+                jsonQuoted(row.strategy)) ~ separator ~ field("workBound",
+                jsonQuoted(row.workBound)) ~ (json ? "}" : "\n");
     }
     return result ~ (json ? "]}" : "");
 }
@@ -2807,6 +2809,9 @@ package struct Frontend {
             auto scannerProof = new bool[rules.length];
         }
         auto ruleChunks = new string[rules.length];
+        WorkBound[] workByRule;
+        if (eligibility !is null)
+            workByRule = workBounds(analyzed);
         foreach (ruleIndex, rule; rules) {
             string ruleOut;
             const island = islands.length && islands[ruleIndex];
@@ -2996,6 +3001,8 @@ package struct Frontend {
                     row.recordLeaf = recordLeaves[ruleIndex];
                     row.recordSubtree = recordSubtrees[ruleIndex];
                 }
+                if (ruleIndex < workByRule.length)
+                    row.workBound = describe(workByRule[ruleIndex]);
                 eligibility.rules ~= row;
             }
             ruleChunks[ruleIndex] = ruleOut;
@@ -3495,6 +3502,32 @@ unittest {
     assert(args.length == 2);
     auto selected = grammar!(Memoization.selective)("Nested: A <- '(' A ')' / 'x'");
     assert(selected.length);
+}
+
+nothrow unittest {
+    // W1: static work bounds. Derived by hand: Num = rule(1) + `[0-9]+` attempt(1); Expr adds the two Num call sites, the
+    // repetition and the `+` Num pair, with Num's body reached from both call sites.
+    static string bound(string definition, string rule) nothrow {
+        auto report = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)(definition);
+        assert(report.status == Status.ok);
+        foreach (row; report.rules)
+            if (row.name.length > rule.length && row.name[$ - rule.length - 1 .. $] == "." ~ rule)
+                return row.workBound;
+        return null;
+    }
+
+    enum expression = "W: Num <- [0-9]+ Expr <- Num ('+' Num)* Root <- Expr eoi";
+    assert(bound(expression, "Num") == "2*(n+1)");
+    assert(bound(expression, "Expr") == "9*(n+1)");
+    assert(bound(expression, "Root") == "15*(n+1)");
+    assert(bound("W: Root <- Item+ eoi Item <- 'a' / 'b' 'c'", "Item") == "1*(n+1)");
+    // Left recursion, predicates, ambiguous FIRST sets and nullable loop bodies have no bound.
+    assert(bound("W: Root <- Root '+' 'a' / 'a'", "Root") == "unknown: not-certified-ll1");
+    assert(bound("W: Root <- !'x' 'a'", "Root") == "unknown: not-certified-ll1");
+    assert(bound("W: Root <- ('a' 'b' / 'a' 'c')* eoi", "Root") == "unknown: not-certified-ll1");
+    assert(bound("W: Root <- ('a'*)* eoi", "Root") == "unknown: not-certified-ll1");
+    // A rule that calls an uncertified rule inherits the blocker (closed region).
+    assert(bound("W: Root <- Bad 'a' Bad <- !'x' 'b'", "Root") == "unknown: not-certified-ll1");
 }
 
 version (unittest) private uint checkpointTag(string name) @nogc nothrow pure {

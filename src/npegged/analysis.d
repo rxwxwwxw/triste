@@ -80,6 +80,8 @@ struct RuleEligibility {
     bool dfaScanner, predictiveDispatch;
     size_t scannerRegions;
     string strategy; // "direct-cursor", "dfa-scanner" or "combinator"
+    /// W1: static bound on work units, "<a>*(n+1)" for an input of length n, or "unknown: <blocker>" (see npegged.work).
+    string workBound = "unknown: not-computed";
 }
 
 @nogc nothrow unittest {

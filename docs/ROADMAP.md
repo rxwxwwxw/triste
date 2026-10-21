@@ -597,10 +597,10 @@ What the generated `direct` code shows (output of `grammar!(Memoization.selectiv
 | O1 (NO-GO; `performance/milestones/O1/`) | P0 | A4 | Whole-body DFA for regular leaf-record rules | M | CSV records |
 | O2 (complete; `performance/milestones/O2/`) | P1 | O1 | Checkpoint elision in record loops (specializes P4) | S | CSV, JSON, PEG records |
 | O3 (complete; `performance/milestones/O3/`) | P1 | O1 | `RecordBuffer` fast path for compiled leaf kinds | S | records |
-| W1 | P1 | L1, B6 | Static work and depth bounds (report-only) | M | analysis |
-| W2 | P1 | W1, A5 | Limit-free clones selected at entry | M | all valid inputs |
-| W3 | P1 | W1 | Depth checks only at heads of recursive cycles | M | JSON, Arithmetic, PEG |
-| S5 | P1 | S4 | Depth as a cursor parameter (realizes part of P5) | M | rule-boundary-heavy |
+| W1 (complete, report-only; `performance/milestones/W1/`) | P1 | L1, B6 | Static work and depth bounds (report-only) | M | analysis |
+| W2 (NO-GO; `performance/milestones/W2/`) | P1 | W1, A5 | Limit-free clones selected at entry | M | all valid inputs |
+| W3 (NO-GO: superseded by S5) | P1 | W1 | Depth checks only at heads of recursive cycles | M | JSON, Arithmetic, PEG |
+| S5 (complete; `performance/milestones/S5/`) | P1 | S4 | Depth as a cursor parameter (realizes part of P5) | M | rule-boundary-heavy |
 | S6 (closed: superseded by D2) | P1 | S4, D2 | Tick regions guarded by slack | M | all |
 | S7 | P2 | Q3 | Cursor results returned in registers (realizes part of P5) | S | rule-boundary-heavy |
 | S8 (NO-GO; `performance/milestones/S8/`) | P1 | Q1 | Furthest failure held in a register; cheaper rejection path | S | tiny invalid |
@@ -720,7 +720,9 @@ Report each ratio both raw and with the harness floor subtracted, as extra colum
 
 **Result:** `putLeaf` (single capacity branch; status checked once after the append, rolled back when not ok) is exact. CSV records improve 10–14% (Flat/spans 11.8 -> 10.5 µs; cumulatively 12.1 -> 10.5 µs with S4 and O2), still about 1.8× handwritten. Capacity reservation was not done (arena counters feed `Observation`). See `performance/milestones/O3/notes.md`.
 
-#### W1 — Static work and depth bounds (report-only)
+#### W1 — Static work and depth bounds (report-only) — COMPLETE (work bound; depth bound not computed)
+
+**Result:** `src/npegged/work.d` (`workBound` in the eligibility report): sound `perPosition*(n+1)` bounds for positionally-LL(1) closed regions, `unknown` with a blocker otherwise; empirically dominated on enumerated inputs (worst measured/bound 0.15-0.33). On the benchmark grammars only leaf rules are certified. The separate depth bound was not built (W3 is closed). See `performance/milestones/W1/notes.md`.
 
 **Files:** `src/npegged/analysis.d` (or a new cold module), with the report next to `eligibilityReport`.  
 **Tasks:** Per entry rule, compute a sound affine bound `ticks(n) ≤ a·n + b` for the *exact* clone's work-unit model. Report `unknown` when any premise is missing. Premises:
@@ -740,7 +742,9 @@ Compute the depth bound separately: the longest acyclic call chain `Dacyc`, plus
 
 **Exit:** bounds and tightness (measured/bound) for every benchmark grammar. Codegen does not change.
 
-#### W2 — Limit-free clones
+#### W2 — Limit-free clones — CLOSED NO-GO
+
+**Result:** the clone would only apply to leaf rules of the benchmark grammars (their roots are not certified), the ceiling measured mostly inlining side effects, and an unsound bound silently disables limits. See `performance/milestones/W2/notes.md`.
 
 **Files:** `src/npegged/grammar.d`, `src/npegged/peg.d`.  
 **Tasks:** For entries with a W1 bound, emit a cursor family with tick and depth checks compiled out. At entry, select it only if all of these hold:
@@ -754,14 +758,16 @@ Steps are not in any public result (§10.1 item 5), and the bound guarantees no 
 **Benchmarks:** all workloads, plus A5 code size and compile time.  
 **Exit:** enable by default only if the gain is reproducible and the size cost acceptable. Otherwise keep it opt-in, as F4 was.
 
-#### W3 — Depth checks at recursive-cycle heads only
+#### W3 — Depth checks at recursive-cycle heads only — CLOSED NO-GO (superseded by S5)
 
 **Files:** `src/npegged/grammar.d`, `src/npegged/analysis.d`.  
 **Tasks:** Find the strongly connected components of the rule call graph. A non-recursive call chain adds at most `Dacyc` depth. At each entry to an SCC head, emit the guard `depth + Dacyc ≤ depthLimit`. While it holds, no depth check before the next head can fail, so the callees' checks can be dropped. When it fails, take the exact path. The point where the limit fires stays the same.  
 **Tests:** `depthLimit` at, below and above nesting depth (`JSON.DeepNesting`, nested Arithmetic, `nestedPeg`); mutual recursion; and a non-recursive deep chain longer than `Dacyc` for a misconfigured guard (a negative test).  
 **Exit:** S2's ~9% depth cost recovered on `Arithmetic.Flat` (hypothesis), with exact sweeps.
 
-#### S5 — Depth as a cursor parameter
+#### S5 — Depth as a cursor parameter — COMPLETE
+
+**Result:** cursors take `_depth` and check the limit inline; boundaries restore `depth` instead of decrementing. PEGGrammar validation -8..-22%, spans -10..-14%; PEGGrammar tree +4..6% (disclosed). See `performance/milestones/S5/notes.md`.
 
 Pass `depth` by value through `_cursor_*` signatures. Synchronize `s.depth` only at boundaries into combinators, memoized rules and trace. S2 skipped this because callees read `s.depth` from shared state; a parameter removes that memory traffic for cursor-to-cursor calls. Use it where W3 does not apply, or combine the two. Tests and exit are the same as for S1 (dense depth-limit sweeps).
 

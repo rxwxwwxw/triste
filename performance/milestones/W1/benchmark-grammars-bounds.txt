@@ -1,0 +1,56 @@
+arithmetic BenchArithmetic.Root bound=unknown: not-certified-ll1
+arithmetic BenchArithmetic.Term bound=unknown: not-certified-ll1
+arithmetic BenchArithmetic.Factor bound=unknown: not-certified-ll1
+arithmetic BenchArithmetic.Primary bound=unknown: not-certified-ll1
+arithmetic BenchArithmetic.Number bound=5*(n+1)
+arithmetic BenchArithmetic.Identifier bound=2*(n+1)
+arithmetic BenchArithmetic.Space bound=unknown: not-certified-ll1
+csv BenchCSV.Root bound=unknown: not-certified-ll1
+csv BenchCSV.Sep bound=unknown: not-certified-ll1
+csv BenchCSV.Field bound=unknown: not-certified-ll1
+numbers BenchNumbers.Scientific bound=10*(n+1)
+numbers BenchNumbers.Hexa bound=3*(n+1)
+numbers BenchNumbers.Binary bound=2*(n+1)
+peg BenchPEG.Root bound=unknown: not-certified-ll1
+peg BenchPEG.GrammarHeaderGuard bound=5*(n+1)
+peg BenchPEG.SimpleGrammarHeader bound=unknown: not-certified-ll1
+peg BenchPEG.FullGrammarHeader bound=unknown: not-certified-ll1
+peg BenchPEG.Definition bound=unknown: not-certified-ll1
+peg BenchPEG.DefHeader bound=unknown: not-certified-ll1
+peg BenchPEG.DefHeaderGuard bound=5*(n+1)
+peg BenchPEG.SimpleHeader bound=unknown: not-certified-ll1
+peg BenchPEG.FullHeader bound=unknown: not-certified-ll1
+peg BenchPEG.TopExpression bound=unknown: not-certified-ll1
+peg BenchPEG.TopSequence bound=unknown: not-certified-ll1
+peg BenchPEG.TopBoundary bound=unknown: not-certified-ll1
+peg BenchPEG.ParamGuard bound=3*(n+1)
+peg BenchPEG.ParamAhead bound=unknown: not-certified-ll1
+peg BenchPEG.Expression bound=unknown: not-certified-ll1
+peg BenchPEG.Sequence bound=unknown: not-certified-ll1
+peg BenchPEG.SequenceBoundary bound=unknown: not-certified-ll1
+peg BenchPEG.Prefix bound=unknown: not-certified-ll1
+peg BenchPEG.Primary bound=unknown: not-certified-ll1
+peg BenchPEG.Ident bound=unknown: not-certified-ll1
+peg BenchPEG.Params bound=unknown: not-certified-ll1
+peg BenchPEG.Action bound=unknown: not-certified-ll1
+peg BenchPEG.Quoted bound=unknown: not-certified-ll1
+peg BenchPEG.Literal bound=unknown: not-certified-ll1
+peg BenchPEG.Class bound=unknown: not-certified-ll1
+peg BenchPEG.Sp bound=unknown: not-certified-ll1
+json JSON.Document bound=unknown: not-certified-ll1
+json JSON.Value bound=unknown: not-certified-ll1
+json JSON.True bound=1*(n+1)
+json JSON.False bound=1*(n+1)
+json JSON.Null bound=1*(n+1)
+json JSON.Object bound=unknown: not-certified-ll1
+json JSON.Pair bound=unknown: not-certified-ll1
+json JSON.Array bound=unknown: not-certified-ll1
+json JSON.String bound=unknown: not-certified-ll1
+json JSON.Unescaped bound=unknown: not-certified-ll1
+json JSON.Number bound=9*(n+1)
+json JSON.Spacing bound=unknown: not-certified-ll1
+arithmetic units=59 n=15
+arithmetic units=5645 n=1025
+arithmetic units=589 n=129
+csv units=1027 n=1025
+numbers scientific units=13
