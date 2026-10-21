@@ -304,6 +304,34 @@ int main() @nogc nothrow {
             }
         }
     }
+    // P3: the two-byte dispatch table in direct cursors must reproduce the ordered choice exactly, including the
+    // failure positions that earlier alternatives record when a step limit ends the parse early.
+    {
+        alias Q = Pair!(
+                `Fixture: Root <- Op* eoi Op <- '==' / '=' / '<=' / '<' / '<<' / '!=' / '!'`,
+                Memoization.selective);
+        enum alphabet = "<=!x";
+        char[5] buffer;
+        foreach (length; 0 .. 6) {
+            size_t combinations = 1;
+            foreach (_; 0 .. length)
+                combinations *= alphabet.length;
+            foreach (code; 0 .. combinations) {
+                size_t digits = code;
+                foreach (position; 0 .. length) {
+                    buffer[position] = alphabet[digits % alphabet.length];
+                    digits /= alphabet.length;
+                }
+                const input = cast(string)buffer[0 .. length];
+                assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall)(input);
+                foreach (limit; 0 .. 20) {
+                    ParseContext context;
+                    context.stepLimit = limit;
+                    assertSameParse!(Q.Reference.Fixture.opCall, Q.Candidate.Fixture.opCall)(input, context);
+                }
+            }
+        }
+    }
     // L3: the ll1 backend (FIRST-guarded loop exits in certified regions) must match the combinators exactly,
     // including every small step/depth/memory limit, on certified, uncertified and mixed grammars.
     static foreach (rules; [

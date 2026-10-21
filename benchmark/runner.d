@@ -601,7 +601,11 @@ int main(string[] args) {
             WorkloadInput("PEGGrammar.Permissive", "G: A <-- / []**", true),
             WorkloadInput("PEGGrammar.Truncated", "G: A <- ('a'", false),
             WorkloadInput("PEGGrammar.Trailing", "G: A <- 'a' )", false),
-            WorkloadInput("PEGGrammar.Empty", "G:", false)
+            WorkloadInput("PEGGrammar.Empty", "G:", false),
+            WorkloadInput("Ops.Short", "<= == != ++ --", true), WorkloadInput("Ops.Empty", "",
+                    true), WorkloadInput("Ops.Invalid", "<= a", false),
+            WorkloadInput("Ops.Pairs", "== = =", true),
+            WorkloadInput("Ops.Truncated", "<<=<x", false)
         ];
         foreach (entry; extra) {
             BenchmarkCase bc;
@@ -621,6 +625,9 @@ int main(string[] args) {
         }
         foreach (i; 0 .. 128)
             manyRules ~= "\nR <- [a-z]+";
+        string longOperators;
+        foreach (i; 0 .. 256)
+            longOperators ~= "<<= == != && || ++ -- += -= *= /= < > ! & | + - * / ";
         string nestedArithmetic = "x", nestedPeg = "'x'";
         foreach (i; 0 .. 64) {
             nestedArithmetic = "(" ~ nestedArithmetic ~ ")";
@@ -642,7 +649,9 @@ int main(string[] args) {
             WorkloadInput("PEGGrammar.ManyRules", manyRules, true),
             WorkloadInput("PEGGrammar.Deep", "G: R <- " ~ nestedPeg, true),
             WorkloadInput("PEGGrammar.LongLiteral", "G: R <- '" ~ longDigits ~ "'", true),
-            WorkloadInput("PEGGrammar.LongTruncated", "G: R <- '" ~ longDigits, false)
+            WorkloadInput("PEGGrammar.LongTruncated", "G: R <- '" ~ longDigits, false),
+            WorkloadInput("Ops.Long", longOperators, true),
+            WorkloadInput("Ops.LongInvalid", longOperators ~ "a", false)
         ]) {
             BenchmarkCase bc;
             bc.name = entry.name;

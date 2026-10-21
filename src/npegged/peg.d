@@ -2841,8 +2841,8 @@ template or(rules...) {
 
 /// Ordered choice of 1-2 byte literals with overlapping FIRST bytes (F4, opt-in via NPeggedFirst2).
 /// The winner of an ordered choice is a function of the first two input bytes, so a table picks it.
-/// Success reproduces `choice!(false, literal!...)` exactly, including the step count; failure,
-/// tree mode, compile-time evaluation and an insufficient step budget all take the original choice.
+/// Success reproduces `choice!(false, literal!...)` exactly (literals and choices charge no work units, docs/WORK_UNITS.md);
+/// failure, tree mode, compile-time evaluation and a non-ok status all take the original choice.
 struct literalChoice2(texts...) {
     import npegged.meta : AliasSeq;
 
@@ -2874,6 +2874,10 @@ struct literalChoice2(texts...) {
     private struct Plan {
         ubyte[256] slot; // first byte -> 1-based row, 0 = no alternative starts with it
         ubyte[257][slots] winner; // [row][second byte, 256 = end of input] -> 1-based alternative
+        /// [row][second byte] -> 0 when the winner is the first alternative, else 1 + the furthest offset (0 or 1) at which
+        /// an earlier alternative failed. The ordered choice records those failures; the table replays the furthest one
+        /// because it is visible in `failEnd` whenever a limit ends the parse early.
+        ubyte[257][slots] skip;
     }
 
     private static Plan computePlan() {
@@ -2890,6 +2894,13 @@ struct literalChoice2(texts...) {
                     if (!plan.winner[plan.slot[first] - 1][second] && cast(ubyte)text[0] == first
                             && (text.length == 1 || (second != 256 && cast(ubyte)text[1] == second)))
                         plan.winner[plan.slot[first] - 1][second] = cast(ubyte)(i + 1);
+                // Earlier alternatives failed: after one matched byte when they start with `first`, else at once.
+                static foreach (i, text; texts)
+                    if (plan.winner[plan.slot[first] - 1][second] > i + 1) {
+                        const reach = cast(ubyte)text[0] == first ? 2 : 1;
+                        if (plan.skip[plan.slot[first] - 1][second] < reach)
+                            plan.skip[plan.slot[first] - 1][second] = cast(ubyte)reach;
+                    }
             }
         }
         return plan;
@@ -2906,9 +2917,10 @@ struct literalChoice2(texts...) {
                 if (row) {
                     const second = pos + 1 < s.input.length ? cast(ubyte)s.input[pos + 1] : 256;
                     const winner = plan.winner[row - 1][second];
-                    // n ticks (earlier alternatives + the winner) must all fit the step budget.
-                    if (winner && s.steps + winner <= s.context.stepLimit) {
-                        s.steps += winner;
+                    // Work-unit model v2: ordered choices of literals charge nothing, so the winner needs no ticks.
+                    if (winner) {
+                        if (const skipped = plan.skip[row - 1][second])
+                            s.recordFailure(s.node(pos, pos + skipped - 1, false));
                         static foreach (i, text; texts)
                             if (winner == i + 1)
                                 return s.node(pos, pos + text.length);
@@ -2954,6 +2966,12 @@ struct literalChoice2(texts...) {
     alias Reference = choice!(false, literal!"ab", literal!"ac", literal!"z", literal!"za");
     const table = Plan.computePlan();
     assert(Plan.computeSlots() == 2);
+    // Skipped earlier alternatives: none for the first winner, an offset-1 failure when an earlier alternative shares the
+    // first byte, an offset-0 failure otherwise.
+    assert(table.skip[table.slot['a'] - 1]['b'] == 0);
+    assert(table.skip[table.slot['a'] - 1]['c'] == 2);
+    assert(table.winner[table.slot['z'] - 1]['a'] == 3 && table.skip[table.slot['z'] - 1]['a'] == 1);
+    assert(table.skip[table.slot['z'] - 1][256] == 1 && table.winner[table.slot['z'] - 1][256] == 3);
     foreach (first; 0 .. 256)
         foreach (second; 0 .. 257) {
             char[2] bytes = [cast(char)first, cast(char)second];

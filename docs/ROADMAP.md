@@ -389,7 +389,9 @@ The paper's critical conditions include:
 **Tests:** successful, failed, nested/backtracked, output and diagnostic modes for each new shape.  
 **Exit:** fallback count decreases with parity; report cost/gain after each subtask.
 
-### P3 — Emit certified two-byte (later bounded-k) dispatch
+### P3 — Emit certified two-byte (later bounded-k) dispatch — COMPLETE (two-byte)
+
+**Result:** the direct backend emits F4's table natively in cursors, with the skipped-alternative failure replay that the first version lacked (found by exhaustive comparison); new `Ops` family (ratio 5.9-6.9 -> 2.9 on short inputs, 3.8 -> 2.3 on 7k operators). Bounded-k beyond two bytes was not built. See `performance/milestones/P3/notes.md`.
 
 **Files:** `grammar.d`, `peg.d`.  
 **Tasks:** consume F4 plans to generate nested switch/table code, correctly handling EOF and earlier successful alternatives. Never infer a safe dispatch from FIRST overlap alone; consult proven guards when available.  

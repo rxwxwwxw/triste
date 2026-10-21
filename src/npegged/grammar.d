@@ -1356,11 +1356,20 @@ package struct Frontend {
             values ~= query.appendFacts(root);
         }
         auto plan = dispatchChoice(choices, values);
-        version (NPeggedFirst2) {
+        if (firstTwoEnabled()) {
             if (plan is null)
                 plan = firstTwoChoice(choices);
         }
         return plan;
+    }
+
+    /// The two-byte dispatch table (F4/P3) is used by the direct backend, whose cursors test it inline; the combinator
+    /// backends keep the plain ordered choice unless `NPeggedFirst2` forces the table combinator.
+    private bool firstTwoEnabled() const nothrow {
+        version (NPeggedFirst2)
+            return true;
+        else
+            return backend == ParserBackend.direct;
     }
 
     /// F4 (opt-in): ordered choice of 1-2 byte literals with overlapping FIRST bytes. Anything else,
@@ -1463,7 +1472,7 @@ package struct Frontend {
             foreach (child; node.children)
                 values ~= graph.facts[child];
             auto predicted = dispatchChoice(args, values);
-            version (NPeggedFirst2) {
+            if (firstTwoEnabled()) {
                 if (!predicted.length)
                     predicted = firstTwoChoice(args);
             }
@@ -2380,6 +2389,41 @@ package struct Frontend {
                 code ~= "default: { auto failed = s.failure(" ~ position ~ ", \"choice\"); " ~ target
                     ~ "End = failed.end; " ~ target
                     ~ "Fail = failed.failEnd; " ~ target ~ "Ok = failed.successful; break; } }\n";
+        } else if (lower && startsWith(expression.source, "literalChoice2!(") && expression.arguments
+                .length >= 2) {
+            // P3: the winner of an ordered choice of 1-2 byte literals is a function of the first two bytes (F4's
+            // table), tested inline. Literals and choices charge no work units. A hit replays the failure the skipped
+            // earlier alternatives record; a miss means every alternative failed, the furthest one after one matched
+            // byte when some alternative starts with the input byte and at the position otherwise (checked
+            // exhaustively against the ordered choice, including early stops by step limits).
+            const choice = "_lc" ~ number(serial++);
+            string lengths;
+            foreach (i, argument; expression.arguments)
+                lengths ~= (i ? ", " : "") ~ number(decodedLiteral("literal!(" ~ argument ~ ")")
+                        .length);
+            code ~= "alias " ~ choice ~ " = " ~ expression.source ~ ";\nenum size_t[" ~ number(
+                    expression.arguments.length)
+                ~ "] " ~ choice ~ "Length = [" ~ lengths ~ "];\nsize_t " ~ choice
+                ~ "Miss;\nif (_live && "
+                ~ position ~ " < s.input.length) { const " ~ choice ~ "Row = " ~ choice
+                ~ ".plan.slot[cast(ubyte)s.input[" ~ position ~ "]]; if (" ~ choice ~ "Row) { const "
+                ~ choice ~ "Second = "
+                ~ position ~ " + 1 < s.input.length ? cast(int)cast(ubyte)s.input[" ~ position
+                ~ " + 1] : 256; const "
+                ~ choice ~ "Winner = " ~ choice ~ ".plan.winner[" ~ choice ~ "Row - 1][" ~ choice
+                ~ "Second]; if (" ~ choice ~ "Winner) { " ~ diagnostic(
+                        "if (const " ~ choice ~ "Skipped = " ~ choice ~ ".plan.skip[" ~ choice
+                        ~ "Row - 1][" ~ choice ~ "Second]) s.recordFailure(s.node("
+                        ~ position ~ ", " ~ position ~ " + " ~ choice ~ "Skipped - 1, false)); ")
+                ~ target
+                ~ "End = " ~ position ~ " + " ~ choice ~ "Length[" ~ choice ~ "Winner - 1]; "
+                ~ target ~ "Fail = " ~ target ~ "End; break; } " ~ choice ~ "Miss = 1; } }\n";
+            code ~= target ~ "Ok = false;";
+            if (!acceptActive)
+                code ~= " " ~ target ~ "Fail = " ~ position ~ " + " ~ choice
+                    ~ "Miss; if (_live) s.recordFailure(s.node("
+                    ~ position ~ ", " ~ position ~ " + " ~ choice ~ "Miss, false));";
+            code ~= "\n";
         } else if (lower && op == "or") {
             code ~= target ~ "Ok = false;\n";
             foreach (child; expression.children) {
@@ -2859,9 +2903,10 @@ package struct Frontend {
                     directGraph.appendFacts(directRoot);
                 }
                 const op = directGraph.expressions[directRoot].combinator;
-                useDirect = op == "and" || op == "or" || op == "predictiveChoice" || op == "zeroOrMore"
-                    || op == "oneOrMore"
-                    || op == "option" || op == "posLookahead" || op == "negLookahead" || op == "predictiveNot";
+                useDirect = op == "and" || op == "or" || op == "predictiveChoice"
+                    || op == "literalChoice2" || op == "zeroOrMore"
+                    || op == "oneOrMore" || op == "option" || op == "posLookahead"
+                    || op == "negLookahead" || op == "predictiveNot";
                 // P2: a nonempty plain literal root lowers to the direct cursor form.
                 if (startsWith(directGraph.expressions[directRoot].source, "literal!(")
                         && decodedLiteral(directGraph.expressions[directRoot].source).length)
