@@ -24,7 +24,10 @@ struct OpsParser {
         while (at < input.length && isSpace(input[at]))
             ++at;
         while (at < input.length) {
-            if (at + 1 < input.length && twoByte(input[at], input[at + 1]))
+            if (at + 2 < input.length && input[at + 2] == '=' && (input[at] == '<'
+                    && input[at + 1] == '<' || input[at] == '>' && input[at + 1] == '>'))
+                at += 3;
+            else if (at + 1 < input.length && twoByte(input[at], input[at + 1]))
                 at += 2;
             else if (oneByte(input[at]))
                 ++at;
@@ -43,4 +46,6 @@ struct OpsParser {
     assert(!OpsParser.parse("a") && !OpsParser.parse("< a") && !OpsParser.parse("<=x") && !OpsParser
             .parse("~"));
     assert(OpsParser.parse("&") && OpsParser.parse("|") && OpsParser.parse("&="));
+    assert(OpsParser.parse("<<=") && OpsParser.parse(">>= >>") && OpsParser.parse("<<<") && !OpsParser
+            .parse("<<x"));
 }

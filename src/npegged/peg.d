@@ -2932,6 +2932,186 @@ struct literalChoice2(texts...) {
     }
 }
 
+/// Ordered choice of 1-4 byte literals (L4): a trie over the alternatives replaces trying them one after another. The winner of
+/// an ordered choice is the lowest-index alternative that is a prefix of the input, so the walk follows the input down the
+/// trie and keeps the smallest terminal index it passes. Like `literalChoice2`, everything the ordered choice would have
+/// recorded is replayed: the skipped earlier alternatives fail after matching the bytes they share with the input, which the
+/// walk knows (the deepest node on the path that an earlier alternative passes through); with no winner every alternative failed
+/// at the walk's depth.
+struct literalChoiceK(texts...) {
+    import npegged.meta : AliasSeq;
+
+    private template Rules(size_t i = 0) {
+        static if (i == texts.length)
+            alias Rules = AliasSeq!();
+        else
+            alias Rules = AliasSeq!(literal!(texts[i]), Rules!(i + 1));
+    }
+
+    alias Slow = choice!(false, Rules!());
+    enum maxNodes = 250;
+    static assert(texts.length >= 2 && texts.length < ubyte.max, "literalChoiceK needs 2..254 alternatives");
+
+    private struct Trie {
+        ubyte[256][maxNodes + 1] child; // [node][byte] -> node, 0 = none (node 0 is the root)
+        ubyte[maxNodes + 1] terminal; // lowest 1-based alternative ending at the node, 0 = none
+        ubyte[maxNodes + 1] lowest; // lowest 1-based alternative passing through (or ending at) the node, 0 = none
+        size_t nodes;
+        bool overflow;
+    }
+
+    private static Trie computeTrie() {
+        Trie trie;
+        trie.nodes = 1;
+        static foreach (i, text; texts) {
+            {
+                static assert(text.length >= 1 && text.length <= 4, "literalChoiceK takes 1-4 byte literals");
+                size_t node = 0;
+                foreach (c; text) {
+                    if (!trie.child[node][cast(ubyte)c]) {
+                        if (trie.nodes > maxNodes) {
+                            trie.overflow = true;
+                            return trie;
+                        }
+                        trie.child[node][cast(ubyte)c] = cast(ubyte)trie.nodes++;
+                    }
+                    node = trie.child[node][cast(ubyte)c];
+                    if (!trie.lowest[node])
+                        trie.lowest[node] = cast(ubyte)(i + 1);
+                }
+                if (!trie.terminal[node])
+                    trie.terminal[node] = cast(ubyte)(i + 1);
+            }
+        }
+        // The root is passed by every alternative: the lowest index is the first.
+        trie.lowest[0] = 1;
+        return trie;
+    }
+
+    static immutable Trie trie = computeTrie();
+    static assert(!trie.overflow, "literalChoiceK: too many trie nodes");
+
+    /// Result of one walk: `winner` is the 1-based alternative (0 = none); `failure` is 0 when no earlier alternative failed,
+    /// otherwise 1 + the furthest offset at which an earlier alternative (or, with no winner, any alternative) failed.
+    struct Dispatch {
+        ubyte winner;
+        ubyte failure;
+        ubyte length; // bytes the winner consumes
+    }
+
+    /// Winner and length only, for callers that record no failures (the `accept` clone).
+    pragma(inline, true) static Dispatch winnerOnly(scope const(char)[] input, size_t pos) @nogc nothrow pure {
+        Dispatch result;
+        size_t node, at = pos;
+        ubyte best;
+        while (true) {
+            const t = trie.terminal[node];
+            if (t && (!best || t < best)) {
+                best = t;
+                result.length = cast(ubyte)(at - pos);
+            }
+            if (at >= input.length)
+                break;
+            const next = trie.child[node][cast(ubyte)input[at]];
+            if (!next)
+                break;
+            node = next;
+            ++at;
+        }
+        result.winner = best;
+        return result;
+    }
+
+    pragma(inline, true) static Dispatch dispatch(scope const(char)[] input, size_t pos) @nogc nothrow pure {
+        Dispatch result;
+        size_t node, depth;
+        ubyte[5] path;
+        path[0] = 0;
+        ubyte best;
+        while (true) {
+            const t = trie.terminal[node];
+            if (t && (!best || t < best)) {
+                best = t;
+                result.length = cast(ubyte)depth;
+            }
+            if (pos + depth >= input.length)
+                break;
+            const next = trie.child[node][cast(ubyte)input[pos + depth]];
+            if (!next)
+                break;
+            node = next;
+            path[++depth] = cast(ubyte)node;
+        }
+        result.winner = best;
+        if (!best) {
+            result.failure = cast(ubyte)(depth + 1); // every alternative failed after the bytes the walk consumed
+            return result;
+        }
+        // Earlier alternatives (index < best) fail at the deepest path node they still pass through.
+        foreach (d; 0 .. depth + 1)
+            if (trie.lowest[path[d]] && trie.lowest[path[d]] < best)
+                result.failure = cast(ubyte)(d + 1);
+        return result;
+    }
+
+    static State!(CT, Check).Node opCall(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t pos) nothrow {
+        static if (CT || Check == 0)
+            return Slow(s, pos);
+        else {
+            if (s.status == Status.ok && pos < s.input.length) {
+                const hit = dispatch(s.input, pos);
+                if (hit.winner) {
+                    if (hit.failure)
+                        s.recordFailure(s.node(pos, pos + hit.failure - 1, false));
+                    return s.node(pos, pos + hit.length);
+                }
+            }
+            return Slow(s, pos);
+        }
+    }
+}
+
+@nogc nothrow unittest {
+    // The trie dispatch is the ordered choice: every short input over a small alphabet, against the combinator choice.
+    alias fast = literalChoiceK!("<<=", "<<", "<=", "<", ">>=", ">>", "...", "..", ".", "=>", "=", "!=");
+    alias slow = choice!(false, literal!"<<=", literal!"<<", literal!"<=", literal!"<",
+            literal!">>=", literal!">>", literal!"...", literal!"..", literal!".",
+            literal!"=>", literal!"=", literal!"!=");
+    enum alphabet = "<=>.!x";
+    char[5] buffer;
+    foreach (length; 0 .. 5) {
+        size_t combinations = 1;
+        foreach (_; 0 .. length)
+            combinations *= alphabet.length;
+        foreach (code; 0 .. combinations) {
+            size_t digit = code;
+            foreach (i; 0 .. length) {
+                buffer[i] = alphabet[digit % alphabet.length];
+                digit /= alphabet.length;
+            }
+            const input = cast(string)buffer[0 .. length];
+            foreach (limit; [0UL, 1, 5, 100]) {
+                ParseContext a, b;
+                a.stepLimit = b.stepLimit = limit;
+                const f = check!fast(a, input);
+                const o = check!slow(b, input);
+                assert(f.status == o.status && f.successful == o.successful && f.end == o.end && f
+                        .failEnd == o.failEnd);
+            }
+        }
+    }
+    foreach (probe; [
+        "", "<", "<<", "<<=", "<<x", "<=", ">>=x", "...", "..", ".", "=>", "=", "!=", "!", "x", "..x"
+    ]) {
+        const full = fast.dispatch(probe, 0), lean = fast.winnerOnly(probe, 0);
+        assert(full.winner == lean.winner && full.length == lean.length);
+    }
+    // An earlier longer alternative that fails after sharing bytes is replayed ("<<=" fails at offset 2 on "<<x").
+    assert(fast.dispatch("<<x", 0).winner == 2 && fast.dispatch("<<x", 0).failure == 3);
+    assert(fast.dispatch("x", 0).winner == 0 && fast.dispatch("x", 0).failure == 1);
+    assert(fast.dispatch("<=x", 0).winner == 3 && fast.dispatch("<=x", 0).length == 2);
+}
+
 @nogc nothrow unittest {
     alias ordered = literalChoice2!("==", "=", "<=", "<");
     alias reference = choice!(false, literal!"==", literal!"=", literal!"<=", literal!"<");

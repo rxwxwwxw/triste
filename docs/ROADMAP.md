@@ -159,7 +159,7 @@ Use *existing* repository workloads first. Add missing families with separate te
 | L1 | P1 | F2,B4 | Equivalence certificate model + negative tests | M |
 | L2 | P1 | L1 | Export certified CFG/EBNF subset | S |
 | L3 | P1 | L2,A4 | LL(1) generated backend | M |
-| L4 | P2 | L3,F4,B5 | Bounded LL(k) / regular-lookahead experiments | M |
+| L4 (complete for literal prefixes; `performance/milestones/L4/`) | P2 | L3,F4,B5 | Bounded LL(k) / regular-lookahead experiments | M |
 | L5 (complete, report-only; `performance/milestones/L5/`) | P2 | L2 | LR(1) grammar conflict analysis (report-only) | M |
 | L6 (NO-GO after the recognizer experiment; `performance/milestones/L6/`) | P3 | L5,A4 | Optional experimental LR backend / hybrid calls | L |
 | G1 | P1 | A4 | Seeded, bounded candidate generator | S |
@@ -466,7 +466,9 @@ The paper's critical conditions include:
 **Benchmarks:** `choices`, `structured`, `output_modes`, alongside existing direct backend and handwritten baseline.  
 **Exit:** a separately selectable LL backend before any default rollout.
 
-### L4 — LL(k)/LL-regular experiment
+### L4 — LL(k)/LL-regular experiment — COMPLETE for literal prefixes
+
+**Result:** trie dispatch for 3-4 byte literal choices in direct cursors (validation -10..-48% on the Ops family), corpus study of 105 grammars (bounded prefixes resolve about 3% of the FIRST conflicts); regular-lookahead classification not built. See `performance/milestones/L4/notes.md`.
 
 **Files:** analysis/compiler.  
 **Tasks:** use F4 bounded-prefix proof and, where applicable, a small DFA that classifies lookahead languages without consuming input. Include overlap and prefix-end handling. Investigate strong-LL(k)/LL-regular sufficient transformations as research tasks, not assumed results for arbitrary PEG rules.  

@@ -168,7 +168,7 @@ mixin(grammar!(Memoization.selective, void, backend)(leftExprGrammar));
 enum opsGrammar = `
 BenchOps:
     Root <- Space (Op Space)* eoi
-    Op <- '<<' / '<=' / '<' / '>>' / '>=' / '>' / '==' / '=' / '!=' / '!' / '&&' / '&' / '||' / '|' / '+=' / '++' / '+' / '-=' / '--' / '-' / '*=' / '*' / '/=' / '/'
+    Op <- '<<=' / '<<' / '<=' / '<' / '>>=' / '>>' / '>=' / '>' / '==' / '=' / '!=' / '!' / '&&' / '&' / '||' / '|' / '+=' / '++' / '+' / '-=' / '--' / '-' / '*=' / '*' / '/=' / '/'
     Space <: [ \t\n]*
 `;
 mixin(grammar!(Memoization.selective, void, backend)(opsGrammar));

@@ -1382,22 +1382,31 @@ package struct Frontend {
         if (choices.length < 2 || choices.length >= ubyte.max)
             return null;
         bool[256] seen;
-        size_t firsts;
-        string result = "literalChoice2!(";
+        size_t firsts, total, longest;
+        string list;
         foreach (i, choice; choices) {
             if (!startsWith(choice, "literal!(") || choice[$ - 1] != ')')
                 return null;
             const text = decodedLiteral(choice);
-            if (text.length < 1 || text.length > 2)
+            if (text.length < 1 || text.length > 4)
                 return null;
             if (!seen[cast(ubyte)text[0]]) {
                 seen[cast(ubyte)text[0]] = true;
                 ++firsts;
             }
-            result ~= (i ? ", " : "") ~ quoted(text);
+            total += text.length;
+            if (text.length > longest)
+                longest = text.length;
+            list ~= (i ? ", " : "") ~ quoted(text);
         }
-        return firsts <= 16 ? result ~ ")" : null;
+        // L4: literals of 3-4 bytes need the trie walk; the two-byte table covers the rest.
+        if (longest >= 3)
+            return total <= literalTrieNodes ? "literalChoiceK!(" ~ list ~ ")" : null;
+        return firsts <= 16 ? "literalChoice2!(" ~ list ~ ")" : null;
     }
+
+    /// Trie nodes `literalChoiceK` may use (one ubyte id each).
+    enum literalTrieNodes = 240;
 
     nothrow unittest {
         Frontend frontend;
@@ -1407,8 +1416,12 @@ package struct Frontend {
         auto excessive = new string[ubyte.max];
         excessive[] = `literal!("a")`;
         assert(!frontend.firstTwoChoice(excessive).length);
-        foreach (unsupported; ["identifier", `literal!("a"`, `literal!("")`, `literal!("abc")`])
+        foreach (unsupported; ["identifier", `literal!("a"`, `literal!("")`, `literal!("abcde")`])
             assert(!frontend.firstTwoChoice([`literal!("a")`, unsupported]).length);
+        // L4: 3-4 byte literals use the trie walk.
+        assert(frontend.firstTwoChoice([`literal!("<<=")`, `literal!("<")`]) == `literalChoiceK!("<<=", "<")`);
+        assert(frontend.firstTwoChoice([`literal!("....")`, `literal!("...")`,
+                `literal!(".")`]) == `literalChoiceK!("....", "...", ".")`);
         string[] choices;
         foreach (c; "abcdefghijklmnopq")
             choices ~= "literal!(\"" ~ c ~ "\")";
@@ -2528,6 +2541,24 @@ package struct Frontend {
                     ~ "Miss; if (_live) s.recordFailure(s.node("
                     ~ position ~ ", " ~ position ~ " + " ~ choice ~ "Miss, false));";
             code ~= "\n";
+        } else if (lower && startsWith(expression.source, "literalChoiceK!(") && expression.arguments
+                .length >= 2) {
+            // L4: the trie walk of `literalChoiceK.dispatch`, with the same replay rules as the two-byte table above.
+            const choice = "_lc" ~ number(serial++);
+            code ~= "alias " ~ choice ~ " = " ~ expression.source ~ ";\nsize_t " ~ choice
+                ~ "Miss;\nif (_live && " ~ position ~ " < s.input.length) { const " ~ choice
+                ~ "Hit = " ~ choice ~ (acceptActive ? ".winnerOnly(s.input, " : ".dispatch(s.input, ")
+                ~ position ~ "); if (" ~ choice ~ "Hit.winner) { " ~ diagnostic(
+                        "if (" ~ choice ~ "Hit.failure) s.recordFailure(s.node(" ~ position ~ ", "
+                        ~ position ~ " + " ~ choice ~ "Hit.failure - 1, false)); ") ~ target
+                ~ "End = " ~ position ~ " + " ~ choice ~ "Hit.length; " ~ target ~ "Fail = "
+                ~ target ~ "End; break; } " ~ (acceptActive ? "" : choice ~ "Miss = " ~ choice ~ "Hit.failure - 1; ") ~ "}\n";
+            code ~= target ~ "Ok = false;";
+            if (!acceptActive)
+                code ~= " " ~ target ~ "Fail = " ~ position ~ " + " ~ choice
+                    ~ "Miss; if (_live) s.recordFailure(s.node("
+                    ~ position ~ ", " ~ position ~ " + " ~ choice ~ "Miss, false));";
+            code ~= "\n";
         } else if (lower && op == "or") {
             code ~= target ~ "Ok = false;\n";
             foreach (child; expression.children) {
@@ -3017,9 +3048,9 @@ package struct Frontend {
                 }
                 const op = directGraph.expressions[directRoot].combinator;
                 useDirect = op == "and" || op == "or" || op == "predictiveChoice"
-                    || op == "literalChoice2" || op == "zeroOrMore"
-                    || op == "oneOrMore" || op == "option" || op == "posLookahead"
-                    || op == "negLookahead" || op == "predictiveNot";
+                    || op == "literalChoice2" || op == "literalChoiceK"
+                    || op == "zeroOrMore" || op == "oneOrMore" || op == "option"
+                    || op == "posLookahead" || op == "negLookahead" || op == "predictiveNot";
                 // P2: a nonempty plain literal root lowers to the direct cursor form.
                 if (startsWith(directGraph.expressions[directRoot].source, "literal!(")
                         && decodedLiteral(directGraph.expressions[directRoot].source).length)
@@ -3327,7 +3358,8 @@ nothrow unittest {
 
     // Test optimizeChoice
     assert(parser.firstTwoChoice(["literal!(\"==\")", "literal!(\"=\")"]) == "literalChoice2!(\"==\", \"=\")");
-    assert(parser.firstTwoChoice(["literal!(\"abc\")", "literal!(\"a\")"]) is null);
+    assert(parser.firstTwoChoice(["literal!(\"abc\")", "literal!(\"a\")"]) == "literalChoiceK!(\"abc\", \"a\")");
+    assert(parser.firstTwoChoice(["literal!(\"abcde\")", "literal!(\"a\")"]) is null);
     assert(parser.firstTwoChoice(["literal!(\"\")", "literal!(\"a\")"]) is null);
     assert(parser.firstTwoChoice(["literal!(\"a\")", "charRange!(48, 57)"]) is null);
     assert(parser.firstTwoChoice(["literal!(\"a\")"]) is null);
