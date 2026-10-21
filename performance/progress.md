@@ -66,17 +66,23 @@ Largest outstanding gaps are listed in the latest summary.csv (PEGGrammar.Permis
 
 ## Phase 2 exit (2026-10-21)
 
-Full gate (`--q2`, validation/spans/tree/accept, 500 iter x 7 samples x 3 runs, direct backend, LDC 1.43, Apple M1; run
-`20261021T060113Z-124016000-5be5e5027`, `milestones/PhaseExit2/`, commit `5be5e5027`): **264/346 workloads within 1.5x (76.3%)**, p50 1.25,
-p90 1.88, p95 2.41, geomean 1.26, worst 24.5x (`LeftExpr.Deep/validation`). Phase 1 baseline for comparison: 99/171 within, p90 2.04,
-geomean 1.32; the corpus grew from 171 to 346 workloads, so counts are not directly comparable.
-An earlier exit run (`milestones/PhaseExit`, commit `e10f8b6dc`) had found 246/346, p90 1.87, worst 232,390x. Two things changed since:
-* `LeftExpr` in `check` mode: seed growth retired every memo entry at later positions on each growth, which made nested parentheses
-  exponential; only same-position entries are retired now (`milestones/P8/notes.md`, follow-up). 8 nested levels 20 ms -> 2.2 us. The
-  family is still 10-25x its handwritten twin in `check` mode (generic seed growth); `accept` mode is at 2.0x.
-* O4 (tagged-DFA leaf records): CSV span/tree workloads -37..-54%, from 1.7-2.1x to 0.9-1.0x handwritten (`milestones/O4/notes.md`).
-Remaining over-target workloads: `LeftExpr` check mode, `Ops` (3.9x), tiny inputs limited by the entry floor, adversarial inputs.
-Other Phase 2 closures: X1 NO-GO, X2 regular-region subset done as O4 (the general lexer/parser fusion is not built), S7 NO-GO,
-X3 tool delivered without an adopted profile. D1: keep `combinators` as the default.
-Not run on this host: DMD (segfaults), the coverage collector (needs dmd + gdc + gcov), LeakSanitizer and Valgrind (unavailable on
-arm64 macOS; ASan was run on the unit tests and on `tests/tagged_regions.d`).
+Final gate (`--q2`, validation/spans/tree/accept, 500 iter x 7 samples x 3 runs, direct backend, LDC 1.43, Apple M1; run
+`20261021T064108Z-774271000-3435a052d`, `milestones/PhaseExit3/`): **261/346 workloads within 1.5x (75.4%)**, p50 1.26, p90 1.87, p95 2.32,
+geomean 1.21, worst 6.4x. Phase 1 baseline: 99/171 within, p90 2.04, geomean 1.32 (the corpus grew from 171 to 346 workloads, so counts are not
+directly comparable). Earlier exit runs: `PhaseExit` 246/346 (worst 232,390x), `PhaseExit2` 264/346 (worst 24.5x); the 3-workload difference to
+PhaseExit2 is within the run-to-run spread of workloads sitting at 1.5x.
+What closed the gap since the first exit run: the exponential memo invalidation of nested left recursion (P8 follow-up), `check` mode running
+left-recursive expression rules as loops (P8 follow-up 2: LeftExpr check 25x -> 6.4x at worst), O4 tagged-DFA records (CSV span/tree workloads
+-37..-54%, now 0.9-1.0x handwritten) and the literal-trie walk (L4).
+The 85 remaining over-target workloads: 68 have inputs of at most 16 bytes (entry floor, `milestones/Q1`, `S3`: the harness' call into the parser
+costs more than the handwritten twin's whole parse; the exact-entry variants were measured and rejected), 4 are 17-64 bytes, 2 up to 1 KB and 11 above:
+LeftExpr 2.7x (validation) and 1.7x (accept), Ops 2.6x (rule call, repetition and work-unit overhead per operator: 9 ns against 4 ns), JSON small invalid
+1.65x, Arithmetic 1.5x. They were not made faster because no further change was found that keeps verdicts, frontiers, statuses and records exact
+("accept slow when you can't make it faster correctly").
+Checks on this tree: unit tests (26 modules), A4 differential on LDC, `tests/tagged_regions.d` (977,413 strings), `tests/left_recursion.d`
+(2,015,539 strings), eligibility goldens, `scripts/coverage_ldc.sh`: every module above 90% line coverage (`performance/coverage/`; runtime lines only,
+branch coverage needs GDC/gcov), AddressSanitizer on the unit tests and the two integration checks.
+Not available on this host and therefore not run: DMD (the x86_64 `dmd` binary segfaults on `void main(){}`, with `-o-` and with `-c`), LeakSanitizer
+and Valgrind (not provided for arm64 macOS), GDC branch coverage.
+D1: `direct` is faster by a geomean 1.35x and faster on all but 15 workloads (`milestones/D1/notes.md`); the default stays `combinators` as the maintainer decided.
+X1 NO-GO, X2 regular-region subset done as O4, S7 NO-GO, X3 tool delivered (profile: `direct` for every family).

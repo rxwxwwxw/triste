@@ -180,7 +180,7 @@ S = one narrow change; M = a few narrowly staged PRs if necessary; L = **must be
 - **Complete:** A1–A5, F1–F4, B1–B8, P1, P2, P6, L1–L3, G1–G7, S1, S2b, Q1, S3, S4, O2, O3. **Closed NO-GO:** S8, O1.
 - F4 and P1 remain opt-in; B1–B8 and L1/L2 are report-only; L3 is experimental. Completion does not imply default enablement or a measured gain.
 - G7 generated and validated its corpora; wiring them into timing remains Q2.
-- **Closed NO-GO at phase exit:** X1 (Q3 shows scanning is not the gap), X2 (a satisfied by B/L analyses and O4(a); b/c not built). **O4 complete for leaf records** (a: 119 of 260 regions composed, 25 of 105 grammars; b: tagged recognizer; c: records parity), CSV records -37..-54%, now at handwritten parity. **X3:** offline tool delivered (`performance/scripts/autotune.py`), no profile adopted. P4=O2, P5=S5 (S7 NO-GO). Phase-exit gate (`milestones/PhaseExit2`, after the LeftExpr fix and O4): **264/346 within 1.5x (76.3%)**, p50 1.25, p90 1.88, p95 2.41, geomean 1.26; the worst workloads are `LeftExpr` in `check` mode (7 workloads, 10-25x: seed growth kept by design, the exponential blow-up of nested parentheses was fixed) and `Ops` (3.9x); details in `performance/progress.md`.
+- **Closed NO-GO at phase exit:** X1 (Q3 shows scanning is not the gap), X2 (a satisfied by B/L analyses and O4(a); b/c not built). **O4 complete for leaf records** (a: 119 of 260 regions composed, 25 of 105 grammars; b: tagged recognizer; c: records parity), CSV records -37..-54%, now at handwritten parity. **X3:** offline tool delivered (`performance/scripts/autotune.py`), no profile adopted. P4=O2, P5=S5 (S7 NO-GO). Phase-exit gate (`milestones/PhaseExit3`, final tree): **261/346 within 1.5x (75.4%)**, p50 1.26, p90 1.87, p95 2.32, geomean 1.21, worst 6.4x (`LeftExpr` check). Of the 85 workloads over target 68 have inputs of at most 16 bytes (the entry floor measured by Q1/S3: a call costs more than the handwritten twin's whole parse), 11 are over 1 KB (`LeftExpr` 2.7x, `Ops` 2.6x, JSON/Arithmetic about 1.5x); details in `performance/progress.md`.
 - **S3:** exact whole-DFA entry is experimental behind `NPeggedLeanEntry`; generic context borrowing and the explicit finish return were rejected. Default performance binary is unchanged. Evidence: `performance/milestones/S3/notes-s3.md`.
 - **Rejected experiment:** S2's threshold heuristic; S2b is the retained exact implementation.
 - Historical validation limitations: DMD crashes on this host; the Phase 1 ledger records coverage and sanitizer checks as not run. These are not passing checks.
@@ -849,7 +849,7 @@ Some regions are regular and emit only leaf records; CSV `Root <- Field (Sep Fie
 
 #### D1 — Decision: make `direct` the default backend — DECIDED (keep `combinators`)
 
-**Decision (maintainer, 2026-10-20):** keep `combinators` as the `grammar!` default; the numbers above stay as the decision record. Refreshed final-tree data set for revisiting it: `performance/milestones/D1/notes.md` (direct 264/346 within 1.5x versus combinators 147/346; combinators faster by >3% on 31 of 346 workloads, at most 12%).
+**Decision (maintainer, 2026-10-20):** keep `combinators` as the `grammar!` default; the numbers above stay as the decision record. Refreshed final-tree data set for revisiting it: `performance/milestones/D1/notes.md` (direct 261/346 within 1.5x versus combinators 150/346; combinators faster by >3% on 15 of 346 workloads, 14 of them by under 9%).
 
 Present the maintainer with the following:
 - The L3 and S2b numbers.
