@@ -79,7 +79,7 @@ def main():
     parser.add_argument('--iterations', type=positive, default=2000)
     parser.add_argument('--samples', type=positive, default=7)
     parser.add_argument('--runs', type=positive, default=3)
-    parser.add_argument('--modes', nargs='+', choices=('validation', 'spans', 'tree'),
+    parser.add_argument('--modes', nargs='+', choices=('validation', 'spans', 'tree', 'accept'),
                         default=['validation', 'spans', 'tree'])
     parser.add_argument('--target-ratio', type=float, default=1.5,
                         help='Target maximum ratio against handwritten baseline (default: 1.5)')
@@ -118,19 +118,21 @@ def main():
             except (RuntimeError, ValueError):
                 pass
     workload_corpora = {}
-    jobs = [('json-ambiguity', mode, names, json_extra) for mode in args.modes]
+    jobs = [('json-ambiguity', mode, names, json_extra) for mode in args.modes if mode != 'accept']
     for mode in dict.fromkeys(['validation', *args.modes]):
-        workload_corpus = json.loads(run([binary, '--workloads', '--export-corpus', *work_extra,
-                                         f'--mode={mode}'], env=environment, timeout=120).stdout)
+        accept_flag = ['--accept'] if mode == 'accept' else []
+        workload_corpus = json.loads(run([binary, '--workloads', '--export-corpus', *work_extra, *accept_flag,
+                                         f"--mode={'validation' if mode == 'accept' else mode}"],
+                                        env=environment, timeout=120).stdout)
         workload_names = [case['name'] for case in workload_corpus if case['timed']]
         if not workload_names:
             raise ValueError(f'Missing handwritten workload corpus: {mode}')
         workload_corpora[mode] = workload_corpus
-        jobs.append(('handwritten-workloads', mode, workload_names, ['--workloads', *work_extra]))
+        jobs.append(('handwritten-workloads', mode, workload_names, ['--workloads', *work_extra, *accept_flag]))
     for repeat in range(args.runs):
         for suite, mode, case_names, extra in jobs:
             measured = json.loads(run([binary, '--target-engines', '--json', '--memory',
-                                       f'--mode={mode}', f'--iterations={args.iterations}',
+                                       f"--mode={'validation' if mode == 'accept' else mode}", f'--iterations={args.iterations}',
                                        f'--samples={args.samples}', *extra], env=environment, timeout=300 if args.q2 else 120).stdout)
             paired = paired_ratios(measured, case_names, mode)
             for row in paired:

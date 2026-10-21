@@ -534,6 +534,8 @@ struct State(bool CT, int Check = 0) {
     } else
         private Node furthestFailure;
     private bool hasFailure;
+    /// `accept` mode (Check 1): the caller wants a yes/no answer, so generated cursors may skip failure diagnostics.
+    bool acceptOnly;
     private alias ParserIdentity = Node function(ref State!(CT, Check), size_t) nothrow;
     private struct Entry {
         version (NPeggedDependencyTrace) size_t traceID;
@@ -2134,6 +2136,53 @@ pragma(inline, true) CheckResult check(alias parser)(ref ParseContext context, s
     assert(check!(literal!"a")(context, "a").successful);
     auto limited = check!(oneOrMore!(literal!"a"))(context, "a");
     assert(limited.status == Status.resourceLimit && !limited.successful);
+}
+
+/// Result of `accept`: whole-input acceptance and, when not accepted, why (`mismatch` or a resource limit).
+struct AcceptResult {
+    bool accepted;
+    Status status = Status.invalidInput;
+}
+
+/// Yes/no recognition (decision D3). Equivalent to `check!parser(...).successful && end == input.length`, with the
+/// same status and the same work-unit accounting, but it reports no `failEnd` and no arena counters, so generated
+/// parsers may skip failure recording and diagnostics.
+pragma(inline, true) AcceptResult accept(alias parser)(ref ParseContext context, scope string input) @nogc nothrow {
+    Arena arena;
+    arena.limit = context.memoryLimit;
+    State!(false, true) state;
+    state.arena = &arena;
+    state.input = input;
+    state.context = context;
+    state.acceptOnly = true;
+    version (NPeggedPureIslands) {
+        static if (pureIslandEntry!parser)
+            state.pureIslandsEnabled = context.trace is null && context.stepLimit == size_t.max
+                && context.depthLimit == size_t.max && context.memoryLimit == size_t.max && arena
+                    .limit == size_t.max;
+    }
+    const tree = parser(state, 0);
+    AcceptResult result;
+    result.status = state.status != Status.ok ? state.status : (tree.successful
+            && tree.end == input.length ? Status.ok : Status.mismatch);
+    result.accepted = result.status == Status.ok;
+    return result;
+}
+
+@nogc nothrow unittest {
+    ParseContext context;
+    alias whole = and!(literal!"ab", eoi);
+    foreach (input; ["", "a", "ab", "abc", "x", "aab"]) {
+        const expected = check!whole(context, input);
+        const actual = accept!whole(context, input);
+        assert(actual.accepted == (expected.successful && expected.end == input.length));
+        assert(actual.status == expected.status);
+    }
+    // A prefix match is not an accepted input; limits are reported like `check` does.
+    assert(!accept!(literal!"ab")(context, "abc").accepted);
+    assert(accept!(literal!"ab")(context, "abc").status == Status.mismatch);
+    context.stepLimit = 0;
+    assert(accept!(oneOrMore!(literal!"a"))(context, "a").status == Status.resourceLimit);
 }
 
 /// Owns copied input, compact preorder output, and parser scratch independently.

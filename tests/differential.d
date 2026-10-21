@@ -149,6 +149,26 @@ private void assertSameParse(alias Reference, alias Candidate, alias Selector = 
                             name, input, mode ~ ": actions/trace sequence", context, outputLimit);
                 }
             }
+            // C1: `accept` is `check` plus "consumed everything", on both backends, at every limit.
+            {
+                context.trace = tracing ? &Events.observe : null;
+                Events eventsA, eventsB, scratch;
+                context.userData = &scratch;
+                const checked = check!Candidate(context, input);
+                context.userData = &eventsA;
+                const fromReference = accept!Reference(context, input);
+                context.userData = &eventsB;
+                const fromCandidate = accept!Candidate(context, input);
+                const whole = checked.successful && checked.end == input.length;
+                require(fromReference.accepted == fromCandidate.accepted
+                        && fromReference.status == fromCandidate.status,
+                        name, input, "accept: backends", context, outputLimit);
+                require(fromCandidate.accepted == whole, name, input, "accept: verdict", context, outputLimit);
+                require(fromCandidate.status == (checked.status != Status.ok ? checked.status : (whole
+                        ? Status.ok : Status.mismatch)), name, input, "accept: status", context, outputLimit);
+                require(eventsA.values[0 .. eventsA.length] == eventsB.values[0 .. eventsB.length],
+                        name, input, "accept: trace sequence", context, outputLimit);
+            }
         }
     }
 }

@@ -4,7 +4,7 @@ import core.memory : GC;
 import core.stdc.stdio : printf, fprintf, stderr, putchar;
 import core.time : MonoTime;
 import benchmark.measurement : consume, currentChecksum, expectedChecksum, opaqueInput;
-import benchmark.workload_grammars : observeWorkload;
+import benchmark.workload_grammars : observeWorkload, observeWorkloadAccept;
 import benchmark.workload_output : observeWorkloadOutput, verifyWorkloadOutput,
     supportsWorkloadOutput, arithmeticOutput, csvOutput;
 import benchmark.scalar_output : handwrittenScalarOutput;
@@ -64,11 +64,17 @@ struct BenchmarkCase {
     bool largeInput;
 }
 
+/// `--accept`: the workload suite's validation obligation is answered by `accept!` (decision D3).
+__gshared bool acceptObligation;
+
 Observation observeCase(ref BenchmarkCase bc, size_t engine, bool comparison, OutputMode mode) {
     const input = opaqueInput(bc.input);
-    if (bc.workloadPair)
-        return mode == OutputMode.validation ? observeWorkload(bc.name, input,
-                engine == 2) : observeWorkloadOutput(bc.name, input, mode, engine == 2);
+    if (bc.workloadPair) {
+        if (mode == OutputMode.validation)
+            return acceptObligation ? observeWorkloadAccept(bc.name, input, engine == 2)
+                : observeWorkload(bc.name, input, engine == 2);
+        return observeWorkloadOutput(bc.name, input, mode, engine == 2);
+    }
     if (comparison) {
         if (engine == 0)
             return observePegged(input, mode, contains(bc.name, "Ambiguous."));
@@ -264,7 +270,7 @@ int main(string[] args) {
     }
     if (status == OptionStatus.help) {
         printf("Default: canonical full trees; --mode selects an explicit comparison cohort.\n");
-        printf("Usage: benchmark_runner [--iterations=N|-n N] [--samples=N] [--filter=TEXT|-f TEXT] [--json] [--memory] [--export-corpus] [--target-engines] [--workloads] [--mode=validation|spans|tree] [--corpus-index=PATH] [--families]\n");
+        printf("Usage: benchmark_runner [--iterations=N|-n N] [--samples=N] [--filter=TEXT|-f TEXT] [--json] [--memory] [--export-corpus] [--target-engines] [--workloads] [--mode=validation|spans|tree] [--corpus-index=PATH] [--families] [--accept]\n");
         return 0;
     }
     const customIterations = options.iterations;
@@ -275,6 +281,11 @@ int main(string[] args) {
     const comparison = options.comparison;
     const exportCorpus = options.exportCorpus;
     const mode = options.mode;
+    if (options.accept && (!options.workloads || options.mode != OutputMode.validation)) {
+        fprintf(stderr, "--accept applies to the workload suite in validation mode (--workloads --mode=validation)\n");
+        return 2;
+    }
+    acceptObligation = options.accept;
 
     BenchmarkCase[] benchmarks;
 
@@ -674,8 +685,8 @@ int main(string[] args) {
                 writeJsonString(bc.input, latin1);
                 if (latin1)
                     printf(",\"inputLatin1\":true");
-                const obligation = mode == OutputMode.validation
-                    ? "validation" : mode == OutputMode.spans ? "spans" : "tree";
+                const obligation = mode == OutputMode.validation ? (acceptObligation
+                        ? "accept" : "validation") : mode == OutputMode.spans ? "spans" : "tree";
                 printf(",\"grammar\":\"workload\",\"output\":\"%s\",\"expectedAccepted\":%s,\"iterations\":%zu,\"timed\":true",
                         obligation.ptr, (bc.expectedAccepted ? "true" : "false").ptr, bc
                             .defaultIterations);
@@ -799,9 +810,9 @@ int main(string[] args) {
             const throughput = mean > 0 ? bc.input.length * cast(double)iterations / (mean * 1000) : 0;
             const gcPerOp = gcBytes / samples / iterations;
             string engineName = engine == 0 ? "Pegged" : engine == 1 ? "NPegged" : "Handwritten";
-            string obligation = comparison ? (mode == OutputMode.validation
-                    ? "validation" : mode == OutputMode.spans ? "spans" : "tree") : engine == 2
-                ? "validation" : "full-tree";
+            string obligation = comparison ? (mode == OutputMode.validation ? (acceptObligation
+                    ? "accept" : "validation") : mode == OutputMode.spans ? "spans" : "tree")
+                : engine == 2 ? "validation" : "full-tree";
             const observed = comparison || contains(bc.name, "Ambiguous.") ? observeCase(bc, engine,
                     comparison, mode) : Observation.init;
             const arenaMeasured = measureMemory && (comparison ? observed.allocatorMeasured : engine == 1);

@@ -228,6 +228,35 @@ pragma(inline, true) private Observation recognize(alias parser)(string input) @
             result.status == Status.mismatch ? Status.ok : result.status);
 }
 
+pragma(inline, true) private Observation acceptAll(alias parser)(string input) @nogc nothrow {
+    ParseContext context;
+    const result = accept!parser(context, input);
+    return Observation(result.accepted, 0, 0, 0, 0, 0, true, result.status == Status.mismatch
+            ? Status.ok : result.status);
+}
+
+/// `accept` obligation (decision D3): whole-input yes/no with the handwritten boolean twins; the NPegged side calls
+/// `accept!` instead of `check!`.
+Observation observeWorkloadAccept(string name, string input, bool handwritten) @nogc nothrow {
+    if (handwritten)
+        return observeWorkload(name, input, true);
+    if (name.length >= 11 && name[0 .. 11] == "Arithmetic.")
+        return acceptAll!(BenchArithmetic.opCall)(input);
+    if (name.length >= 4 && name[0 .. 4] == "CSV.")
+        return acceptAll!(BenchCSV.opCall)(input);
+    if (name.length >= 11 && name[0 .. 11] == "PEGGrammar.")
+        return acceptAll!(BenchPEG.opCall)(input);
+    if (name.length >= 12 && name[0 .. 12] == "Numbers.Hexa")
+        return acceptAll!(BenchNumbers.Hexa)(input);
+    if (name.length >= 14 && name[0 .. 14] == "Numbers.Binary")
+        return acceptAll!(BenchNumbers.Binary)(input);
+    if (name.length >= 18 && name[0 .. 18] == "Numbers.Scientific")
+        return acceptAll!(BenchNumbers.Scientific)(input);
+    Observation invalid;
+    invalid.status = Status.invalidInput;
+    return invalid;
+}
+
 /// Matching boolean obligations; both engines include result destruction.
 Observation observeWorkload(string name, string input, bool handwritten) @nogc nothrow {
     if (name.length >= 11 && name[0 .. 11] == "Arithmetic.")
@@ -259,6 +288,14 @@ Observation observeWorkload(string name, string input, bool handwritten) @nogc n
             "Arithmetic.Test", "CSV.Test", "PEGGrammar.Test", "Numbers.HexaTest",
             "Numbers.BinaryTest", "Numbers.ScientificTest"
         ]) {
+            {
+                const probe = name[0] == 'A' ? "1" : name[0] == 'C' ? "a,b" : name[0] == 'P'
+                    ? "G: A <- 'a'" : name[8] == 'B' ? "0b1" : "12";
+                auto viaAccept = observeWorkloadAccept(name, probe, handwritten);
+                assert(viaAccept.accepted && viaAccept.status == Status.ok);
+                auto rejected = observeWorkloadAccept(name, "\x01\x02", handwritten);
+                assert(!rejected.accepted && rejected.status == Status.ok);
+            }
             const input = name[0] == 'A' ? "1" : name[0] == 'C' ? "a,b" : name[0] == 'P'
                 ? "G: A <- 'a'" : name[8] == 'B' ? "0b1" : "12";
             auto observation = observeWorkload(name, input, handwritten);

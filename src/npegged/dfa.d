@@ -818,6 +818,19 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
     /// identical to `s.steps = steps; opCall(s, pos); steps = s.steps; live = s.status == Status.ok`.
     pragma(inline, true) static bool cursor(bool CT, int Check = 0)(ref State!(CT, Check) s,
             size_t pos, ref size_t steps, ref bool live, const size_t depth, out size_t end, out size_t failEnd) nothrow {
+        return cursorImpl!false(s, pos, steps, live, depth, end, failEnd);
+    }
+
+    /// `cursor` for `accept` mode: identical units and outcomes, but a settled failure is not recorded as a diagnostic.
+    pragma(inline, true) static bool cursorAccept(bool CT, int Check = 0)(ref State!(CT, Check) s,
+            size_t pos, ref size_t steps, ref bool live, const size_t depth, out size_t end, out size_t failEnd) nothrow {
+        return cursorImpl!true(s, pos, steps, live, depth, end, failEnd);
+    }
+
+    pragma(inline, true) private static bool cursorImpl(bool Accept, bool CT, int Check)(
+            ref State!(CT,
+            Check) s, size_t pos, ref size_t steps, ref bool live, const size_t depth, out size_t end,
+            out size_t failEnd) nothrow {
         version (NPeggedScannerMetrics) {
         } else static if ((Check == 1 || (Check == 2 && !HasInnerRecords)) && Table.valid) {
             const limit = s.context.stepLimit;
@@ -833,8 +846,9 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                 const settled = examined < stop || stop == s.input.length;
                 if (scanned != size_t.max && settled) {
                     steps += examined - pos + 1;
-                    if (examined > scanned)
-                        s.recordFailure(s.node(pos, examined, false));
+                    static if (!Accept)
+                        if (examined > scanned)
+                            s.recordFailure(s.node(pos, examined, false));
                     end = failEnd = scanned;
                     return true;
                 }
@@ -843,18 +857,22 @@ struct dfaToken(alias Original, alias Table, size_t ReferenceDepth = 0, bool Has
                         steps += examined - pos + 1;
                         end = lastEofEnd;
                         failEnd = examined > lastEofEnd ? examined : lastEofEnd;
-                        auto failed = s.node(pos, end, false);
-                        failed.failEnd = failEnd;
-                        s.recordFailure(failed);
+                        static if (!Accept) {
+                            auto failed = s.node(pos, end, false);
+                            failed.failEnd = failEnd;
+                            s.recordFailure(failed);
+                        }
                         return false;
                     }
                 } else {
                     if (settled) {
                         steps += examined - pos + 1;
                         end = failEnd = examined;
-                        auto failed = s.node(pos, examined, false);
-                        failed.failEnd = examined;
-                        s.recordFailure(failed);
+                        static if (!Accept) {
+                            auto failed = s.node(pos, examined, false);
+                            failed.failEnd = examined;
+                            s.recordFailure(failed);
+                        }
                         return false;
                     }
                 }

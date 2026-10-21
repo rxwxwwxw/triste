@@ -604,7 +604,7 @@ What the generated `direct` code shows (output of `grammar!(Memoization.selectiv
 | S6 (closed: superseded by D2) | P1 | S4, D2 | Tick regions guarded by slack | M | all |
 | S7 | P2 | Q3 | Cursor results returned in registers (realizes part of P5) | S | rule-boundary-heavy |
 | S8 (NO-GO; `performance/milestones/S8/`) | P1 | Q1 | Furthest failure held in a register; cheaper rejection path | S | tiny invalid |
-| C1 | P1 | W2, D3 | `accept` mode, and optimistic `check` with exact replay | M | valid inputs |
+| C1 ((a) complete, (b) NO-GO; `performance/milestones/C1/`) | P1 | W2, D3 | `accept` mode, and optimistic `check` with exact replay | M | valid inputs |
 | C2 | P2 | C1, B4, F4 | BITES-guarded dispatch in the accept clone | M | PEG, JSON |
 | C3 | P2 | C1, B6 | Proposition 6 cuts in the accept clone (promotes B6) | M | backtracking-heavy |
 | C4 | P2 | C1, B7 | Redundant-predicate elimination in the accept clone | S | PEGGrammar |
@@ -784,7 +784,9 @@ For cursors that are not inlined, return `(end | okBit, failEnd)` as a 16-byte s
 
 S1 found that removing failure recording made no difference on valid `Arithmetic.Flat`. However, 34 of the 40 tiny over-target workloads are rejections, so the failure path deserves its own ceiling experiment. Targets: `Numbers.*Invalid`, `CSV.Trailing`, `PEGGrammar.Truncated`. Candidate costs on that path are `recordFailure(s.node(…))` stores, the `predictiveChoice` default arm's `s.failure(pos, "choice")`, the `finish` merge, and the `dfaToken` fast-failure branch. Keep `furthestFailure.failEnd` and `hasFailure` in cursor locals, synced the way S1 syncs steps. Drop the milestone if the ceiling is < 3% on that cluster.
 
-#### C1 — `accept` mode and optimistic `check`
+#### C1 — `accept` mode and optimistic `check` — (a) COMPLETE, (b) NO-GO
+
+**Result:** `accept!` and its failure-free clone are implemented (`docs/ACCEPT.md`; median -7.1% vs `check` on the 44 workload cases, PEGGrammar.Deep -19%, tiny rejections -10..-15%). Optimistic `check` was not implemented: it cannot reproduce arena counters/`failEnd` and doubles the cost of every rejection. See `performance/milestones/C1/notes.md`.
 
 **Prerequisite:** decision D3, which covers the public API.  
 **Tasks:**

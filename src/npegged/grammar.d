@@ -275,6 +275,7 @@ package struct Frontend {
     bool selective;
     ParserBackend backend;
     bool llGuards, llActive; // L3: FIRST-guarded loop exits in certified rules
+    bool acceptActive; // C1: emitting the `accept` clone (no failure diagnostics; same work units and outcomes)
     size_t llRule;
     bool[] llCertified;
     bool llComputed;
@@ -1993,8 +1994,9 @@ package struct Frontend {
                         facts.first.bits[1]) ~ ", " ~ ulongHex(facts.first.bits[2]) ~ ", " ~ ulongHex(
                         facts.first.bits[3]) ~ "]).contains(cast(ubyte)s.input[" ~ position ~ "])";
             guard ~= " && _steps < _limit && _limit - _steps > " ~ symbol ~ ".cost) { _steps += "
-                ~ symbol ~ ".cost; static if (" ~ symbol ~ ".diagnostic) s.recordFailure(s.node("
-                ~ position ~ ", " ~ position ~ ", false)); " ~ complete ~ " } }\n";
+                ~ symbol ~ ".cost; " ~ (acceptActive
+                        ? "" : "static if (" ~ symbol ~ ".diagnostic) s.recordFailure(s.node("
+                        ~ position ~ ", " ~ position ~ ", false)); ") ~ complete ~ " } }\n";
         }
         return declarations;
     }
@@ -2028,6 +2030,16 @@ package struct Frontend {
     /// (three loads and a store per call) than they save when a rule ticks only a few times.
     enum localStepSites = 1;
 
+    /// A failure diagnostic statement, omitted from the `accept` clone.
+    private string diagnostic(string statement) const nothrow {
+        return acceptActive ? "" : statement;
+    }
+
+    /// Cursor name prefix of the current clone.
+    private string cursorName() const nothrow {
+        return acceptActive ? "_acursor_" : "_cursor_";
+    }
+
     /// Cursors that never tick but test liveness this often also keep it in a register.
     enum localLiveSites = 4;
 
@@ -2057,6 +2069,7 @@ package struct Frontend {
 
     /// The same cursor body with `steps`/`status` accessed in the shared state (what the code did before S1).
     private static string withSharedSteps(string code) nothrow {
+        code = replaceAll(code, ".cursorAccept(s, ", ".cursorShared(s, ");
         code = replaceAll(code, ".cursor(s, ", ".cursorShared(s, ");
         code = replaceAll(code, ", _steps, _live, _depth, ", ", _depth, ");
         code = replaceAll(code, "s.steps = _steps; ", "");
@@ -2236,7 +2249,7 @@ package struct Frontend {
                 tag = ", false";
             }
             if (entry == "recognizeRule") // Work unit and depth come from the registers (S2b, S5); cursors run only without trace.
-                code ~= "if (!_tick()) { " ~ target ~ "Fail = " ~ target ~ "End; " ~ target ~ "Ok = false; } else if (_depth >= _depthLimit) { s.steps = _steps; s.status = Status.resourceLimit; _steps = s.steps; _live = s.status == Status.ok; " ~ target ~ "Fail = " ~ target ~ "End; " ~ target ~ "Ok = false; } else { s.steps = _steps; " ~ target ~ "Ok = _cursor_" ~ expression
+                code ~= "if (!_tick()) { " ~ target ~ "Fail = " ~ target ~ "End; " ~ target ~ "Ok = false; } else if (_depth >= _depthLimit) { s.steps = _steps; s.status = Status.resourceLimit; _steps = s.steps; _live = s.status == Status.ok; " ~ target ~ "Fail = " ~ target ~ "End; " ~ target ~ "Ok = false; } else { s.steps = _steps; " ~ target ~ "Ok = " ~ cursorName() ~ expression
                     .reference ~ "(s, " ~ target ~ "End, " ~ target
                     ~ "Fail, _depth + 1); _steps = s.steps; _live = s.status == Status.ok; }\n";
             else
@@ -2273,7 +2286,7 @@ package struct Frontend {
         } else if (outputMode != 2 && op == "dfaToken" && expression.arguments.length == 4) {
             const next = "_d" ~ number(serial++);
             code ~= "size_t " ~ next ~ "End, " ~ next ~ "Fail; const bool " ~ next ~ "Ok = "
-                ~ expression.source ~ ".cursor(s, "
+                ~ expression.source ~ (acceptActive ? ".cursorAccept(s, " : ".cursor(s, ")
                 ~ position ~ ", _steps, _live, _depth, " ~ next ~ "End, " ~ next ~ "Fail);\n" ~ target
                 ~ "End = "
                 ~ next ~ "End; " ~ target ~ "Fail = " ~ next ~ "Fail; " ~ target ~ "Ok = " ~ next ~ "Ok;\n";
@@ -2316,18 +2329,19 @@ package struct Frontend {
                     ~ ".mask.contains(cast(ubyte)s.input["
                     ~ position ~ "])) { " ~ target ~ "Ok = _live; break; }\n";
             }
-            code ~= "const " ~ saved ~ " = s.beginProbe();\n" ~ emitDirect(graph,
-                    expression.children[0],
-                    position, next, serial, depth + 1, outputMode) ~ "const " ~ nested
-                ~ " = s.finishProbe(" ~ saved ~ ");\n" ~ target ~ "Ok = (" ~ next ~ "Ok == " ~ (
-                        op == "posLookahead" ? "true" : "false") ~ ") && _live; if (!" ~ target ~ "Ok) {\n";
+            code ~= diagnostic("const " ~ saved ~ " = s.beginProbe();\n") ~ emitDirect(graph,
+                    expression.children[0], position, next,
+                    serial, depth + 1, outputMode) ~ diagnostic(
+                    "const " ~ nested ~ " = s.finishProbe(" ~ saved ~ ");\n")
+                ~ target ~ "Ok = (" ~ next ~ "Ok == " ~ (op == "posLookahead"
+                        ? "true" : "false") ~ ") && _live; if (!" ~ target ~ "Ok) {\n";
             if (op == "posLookahead")
-                code ~= target ~ "Fail = " ~ next ~ "Fail; auto " ~ failure ~ " = s.node(" ~ position
-                    ~ ", " ~ position ~ ", false); "
-                    ~ failure ~ ".failEnd = " ~ nested ~ ".present ? " ~ nested ~ ".failEnd : " ~ next
-                    ~ "Fail; s.recordFailure(" ~ failure ~ ");\n";
+                code ~= target ~ "Fail = " ~ next ~ "Fail;" ~ diagnostic(
+                        " auto " ~ failure ~ " = s.node(" ~ position ~ ", "
+                        ~ position ~ ", false); " ~ failure ~ ".failEnd = " ~ nested ~ ".present ? "
+                        ~ nested ~ ".failEnd : " ~ next ~ "Fail; s.recordFailure(" ~ failure ~ ");") ~ "\n";
             else
-                code ~= "s.failure(" ~ position ~ ", \"negative lookahead\");\n";
+                code ~= diagnostic("s.failure(" ~ position ~ ", \"negative lookahead\");") ~ "\n";
             code ~= "}\n";
         } else if (lower && op == "predictiveChoice") {
             const dispatch = "_choice" ~ number(serial++);
@@ -2357,9 +2371,13 @@ package struct Frontend {
                 }
                 code ~= "break; }\n";
             }
-            code ~= "default: { auto failed = s.failure(" ~ position ~ ", \"choice\"); " ~ target
-                ~ "End = failed.end; "
-                ~ target ~ "Fail = failed.failEnd; " ~ target ~ "Ok = failed.successful; break; } }\n";
+            if (acceptActive)
+                code ~= "default: { " ~ target ~ "End = " ~ position ~ "; " ~ target ~ "Fail = "
+                    ~ position ~ "; " ~ target ~ "Ok = false; break; } }\n";
+            else
+                code ~= "default: { auto failed = s.failure(" ~ position ~ ", \"choice\"); " ~ target
+                    ~ "End = failed.end; " ~ target
+                    ~ "Fail = failed.failEnd; " ~ target ~ "Ok = failed.successful; break; } }\n";
         } else if (lower && op == "or") {
             code ~= target ~ "Ok = false;\n";
             foreach (child; expression.children) {
@@ -2396,8 +2414,8 @@ package struct Frontend {
                             first.bits[2]) ~ ", " ~ ulongHex(first.bits[3]) ~ "];\nif (" ~ here
                     ~ " >= s.input.length || (" ~ mask ~ "[cast(ubyte)s.input[" ~ here
                     ~ "] >> 6] & (1UL << (cast(ubyte)s.input["
-                    ~ here ~ "] & 63))) == 0) { s.recordFailure(s.node(" ~ here ~ ", " ~ here
-                    ~ ", false)); } else {\n" ~ emitDirect(graph,
+                    ~ here ~ "] & 63))) == 0) { " ~ diagnostic("s.recordFailure(s.node(" ~ here ~ ", "
+                            ~ here ~ ", false));") ~ " } else {\n" ~ emitDirect(graph,
                             expression.children[0], here, body, serial, depth + 1, outputMode)
                     ~ next ~ "End = " ~ body ~ "End; "
                     ~ next ~ "Fail = " ~ body ~ "Fail; " ~ next ~ "Ok = " ~ body ~ "Ok; }\n";
@@ -2423,14 +2441,16 @@ package struct Frontend {
                     ~ " <= s.input.length && " ~ bytes ~ ".length <= s.input.length - "
                     ~ position ~ " && s.input[" ~ position ~ " .. " ~ position ~ " + " ~ bytes
                     ~ ".length] == " ~ bytes
-                    ~ ") { " ~ target ~ "End += " ~ bytes ~ ".length; " ~ target ~ "Fail = " ~ target
-                    ~ "End; } else { size_t "
-                    ~ matched ~ "; while (" ~ matched ~ " < " ~ bytes ~ ".length && " ~ position ~ " + "
-                    ~ matched ~ " < s.input.length && s.input["
-                    ~ position ~ " + " ~ matched ~ "] == " ~ bytes ~ "[" ~ matched ~ "]) ++" ~ matched
-                    ~ "; " ~ target ~ "Ok = false; "
-                    ~ target ~ "Fail += " ~ matched ~ "; s.recordFailure(s.node(" ~ position ~ ", "
-                    ~ target ~ "Fail, false)); }\n";
+                    ~ ") { " ~ target ~ "End += " ~ bytes ~ ".length; " ~ target ~ "Fail = " ~ target ~ "End; } else { ";
+                if (acceptActive) // Only the verdict matters: no mismatch offset, no diagnostic.
+                    code ~= target ~ "Ok = false; }\n";
+                else
+                    code ~= "size_t " ~ matched ~ "; while (" ~ matched ~ " < " ~ bytes ~ ".length && "
+                        ~ position ~ " + " ~ matched ~ " < s.input.length && s.input["
+                        ~ position ~ " + " ~ matched ~ "] == " ~ bytes ~ "[" ~ matched ~ "]) ++" ~ matched
+                        ~ "; " ~ target ~ "Ok = false; "
+                        ~ target ~ "Fail += " ~ matched ~ "; s.recordFailure(s.node(" ~ position ~ ", "
+                        ~ target ~ "Fail, false)); }\n";
             }
         } else if (expression.byteTerminal && expression.byteWidth == 1
                 && (expression.source == "any"
@@ -2444,16 +2464,16 @@ package struct Frontend {
                         expression.alphabet.bits[3])
                 ~ "]; if (!_live || " ~ position ~ " >= s.input.length || (" ~ mask
                 ~ "[cast(ubyte)s.input[" ~ position ~ "] >> 6] & (1UL << (cast(ubyte)s.input["
-                ~ position ~ "] & 63))) == 0) { " ~ target ~ "Ok = false; s.recordFailure(s.node("
-                ~ position ~ ", " ~ position ~ ", false)); } else { ++" ~ target ~ "End; " ~ target
-                ~ "Fail = " ~ target ~ "End; }\n";
+                ~ position ~ "] & 63))) == 0) { " ~ target ~ "Ok = false; " ~ diagnostic(
+                        "s.recordFailure(s.node(" ~ position ~ ", " ~ position ~ ", false));")
+                ~ " } else { ++" ~ target ~ "End; " ~ target ~ "Fail = " ~ target ~ "End; }\n";
         } else if (expression.source == "eps") {
             // Empty success neither consumes input nor charges a work unit.
         } else if (expression.source == "eoi" || expression.source == "endOfInput" || expression
                 .source == "fail") {
             code ~= "if (" ~ (expression.source == "fail"
-                    ? "true" : position ~ " != s.input.length") ~ ") { " ~ target
-                ~ "Ok = false; s.recordFailure(s.node(" ~ position ~ ", " ~ position ~ ", false)); }\n";
+                    ? "true" : position ~ " != s.input.length") ~ ") { " ~ target ~ "Ok = false; " ~ diagnostic(
+                    "s.recordFailure(s.node(" ~ position ~ ", " ~ position ~ ", false));") ~ " }\n";
         } else {
             const next = "_node" ~ number(serial++);
             code ~= "s.steps = _steps; s.depth = _depth; auto " ~ next ~ " = " ~ expression.source
@@ -2856,7 +2876,10 @@ package struct Frontend {
                         inner = inner[1 .. $];
                     directRecords = inner == "true";
                 }
-                foreach (check; [1, 2]) {
+                foreach (pass; [1, 2, 3]) {
+                    // Pass 3 is the `accept` clone: recognition cursors without failure diagnostics (C1).
+                    const check = pass == 3 ? 1 : pass;
+                    acceptActive = pass == 3;
                     directDeclarations = null;
                     this.directRule = r;
                     size_t serial;
@@ -2866,12 +2889,16 @@ package struct Frontend {
                     llActive = false;
                     const localSteps = countOf(cursorBody, "_tick()") >= localStepSites
                         || countOf(cursorBody, "_live") >= localLiveSites;
-                    ruleOut ~= directDeclarations;
-                    ruleOut ~= (useDirect || check == 2 && directRecords ? "" : "pragma(inline, true) ") ~ "private static bool _cursor_" ~ r ~ "(ref State!(false, " ~ number(
+                    if (!acceptActive) // The clone reuses the declarations of the exact pass (same numbering).
+                        ruleOut ~= directDeclarations;
+                    ruleOut ~= (useDirect || check == 2 && directRecords ? "" : "pragma(inline, true) ") ~ "private static bool " ~ cursorName() ~ r ~ "(ref State!(false, " ~ number(
                             check) ~ ") s, ref size_t cursor, ref size_t failure, const size_t _depth) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ (
                             localSteps ? llLocals ~ cursorBody ~ "s.steps = _steps; " : withSharedSteps(
                             cursorBody)) ~ "cursor = _resultEnd; failure = _resultFail; return _resultOk; }\n";
                 }
+                acceptActive = false;
+                // The exact entry may be asked for a yes/no answer (`accept`): route it to the clone.
+                ruleOut ~= "pragma(inline, true) private static State!(CT, Check).Node _directAccept_" ~ r ~ "(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; " ~ "const successful = _acursor_" ~ r ~ "(s, end, failure, s.depth); " ~ "auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }\n";
                 ruleOut ~= "pragma(inline, true) private static State!(CT, Check).Node _direct_" ~ r ~ "(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; " ~ "const successful = _cursor_" ~ r ~ "(s, end, failure, s.depth); " ~ "auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }\n";
                 // S3: reference-free DFA success needs neither State nor finish replay.
                 version (NPeggedLeanEntry)
@@ -2896,9 +2923,11 @@ package struct Frontend {
             if (useDirect || directRecords)
                 ruleOut ~= "static if (!CT && ((Check == 1 && " ~ (useDirect
                         ? "true" : "false") ~ ") || (Check == 2 && " ~ (useDirect || directRecords
-                        ? "true" : "false")
-                    ~ "))) { if (s.context.trace is null) return defined!(_direct_"
-                    ~ r ~ "!(CT, Check), " ~ quoted(name ~ "." ~ r) ~ ")(s,p); } ";
+                        ? "true" : "false") ~ "))) { if (s.context.trace is null) { " ~ (useDirect
+                        ? "static if (Check == 1) { if (s.acceptOnly) return defined!(_directAccept_"
+                        ~ r ~ "!(CT, Check), " ~ quoted(name ~ "." ~ r) ~ ")(s,p); } " : "")
+                    ~ "return defined!(_direct_" ~ r ~ "!(CT, Check), " ~ quoted(
+                            name ~ "." ~ r) ~ ")(s,p); } } ";
             ruleOut ~= "return defined!(" ~ body ~ ", " ~ quoted(name ~ "." ~ r) ~ ")(s,p); }\n";
             // Concrete overloads break recursive attribute-inference cycles.
             foreach (mode; [

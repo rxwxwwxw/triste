@@ -11,7 +11,7 @@ struct Options {
     size_t iterations;
     size_t samples = 5;
     string filter, corpusIndex;
-    bool json, memory, exportCorpus, targetEngines, workloads, explicitMode, families;
+    bool json, memory, exportCorpus, targetEngines, workloads, explicitMode, families, accept;
     bool comparison = true;
     OutputMode mode = OutputMode.tree;
 }
@@ -122,6 +122,9 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
             case "--families":
                 options.families = true;
                 break;
+            case "--accept":
+                options.accept = true;
+                break;
             case "--help":
             case "-h":
                 return OptionStatus.help;
@@ -178,6 +181,10 @@ OptionStatus parseOptions(scope const(string)[] args, ref Options options) @nogc
     assert(corpus.corpusIndex == "c.tsv" && corpus.workloads);
     assert(parseOptions(["runner", "--corpus-index="], corpus) == OptionStatus.invalid);
     assert(parseOptions(["runner", "--corpus-index"], corpus) == OptionStatus.invalid);
+    Options acceptOptions;
+    assert(parseOptions(["runner", "--accept", "--workloads"], acceptOptions) == OptionStatus.ok
+            && acceptOptions.accept && acceptOptions.workloads);
+    assert(parseOptions(["runner", "--accept=1"], acceptOptions) == OptionStatus.invalid);
     Options families;
     assert(parseOptions(["runner", "--families"], families) == OptionStatus.ok && families.families);
     assert(parseOptions(["runner", "--families=1"], families) == OptionStatus.invalid);
