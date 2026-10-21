@@ -149,28 +149,43 @@ private void assertSameParse(alias Reference, alias Candidate, alias Selector = 
                             name, input, mode ~ ": actions/trace sequence", context, outputLimit);
                 }
             }
-            // C1: `accept` is `check` plus "consumed everything", on both backends, at every limit.
-            {
-                context.trace = tracing ? &Events.observe : null;
-                Events eventsA, eventsB, scratch;
-                context.userData = &scratch;
-                const checked = check!Candidate(context, input);
-                context.userData = &eventsA;
-                const fromReference = accept!Reference(context, input);
-                context.userData = &eventsB;
-                const fromCandidate = accept!Candidate(context, input);
-                const whole = checked.successful && checked.end == input.length;
-                require(fromReference.accepted == fromCandidate.accepted
-                        && fromReference.status == fromCandidate.status,
-                        name, input, "accept: backends", context, outputLimit);
-                require(fromCandidate.accepted == whole, name, input, "accept: verdict", context, outputLimit);
-                require(fromCandidate.status == (checked.status != Status.ok ? checked.status : (whole
-                        ? Status.ok : Status.mismatch)), name, input, "accept: status", context, outputLimit);
-                require(eventsA.values[0 .. eventsA.length] == eventsB.values[0 .. eventsB.length],
-                        name, input, "accept: trace sequence", context, outputLimit);
-            }
+            assertAcceptRelation!(Reference, Candidate, tracing)(name, input, context, outputLimit);
         }
     }
+}
+
+/// C1: `accept` is `check` plus "consumed everything", on both backends. P8 lowers directly left-recursive rules to loops
+/// in the direct accept clone, which charges fewer work units than seed growth: where `check` finishes inside its limits the
+/// two agree exactly, where it hits a limit accept may finish (never the other way). Kept out of line: the event buffers are large.
+private void assertAcceptRelation(alias Reference, alias Candidate, bool tracing)(string name,
+        string input, ParseContext context, size_t outputLimit) @nogc nothrow {
+    context.trace = tracing ? &Events.observe : null;
+    Events eventsA, eventsB, scratch;
+    context.userData = &scratch;
+    const checked = check!Candidate(context, input);
+    ParseContext open = ParseContext.init;
+    open.userData = &scratch; // grammar actions observe through the user pointer even without a trace
+    const unlimited = check!Candidate(open, input);
+    const verdict = unlimited.successful && unlimited.end == input.length;
+    context.userData = &eventsA;
+    const fromReference = accept!Reference(context, input);
+    context.userData = &eventsB;
+    const fromCandidate = accept!Candidate(context, input);
+    const whole = checked.successful && checked.end == input.length;
+    if (checked.status != Status.resourceLimit) {
+        require(fromReference.accepted == fromCandidate.accepted
+                && fromReference.status == fromCandidate.status,
+                name, input, "accept: backends", context, outputLimit);
+        require(fromCandidate.accepted == whole, name, input, "accept: verdict", context, outputLimit);
+        require(fromCandidate.status == (checked.status != Status.ok ? checked.status : (whole
+                ? Status.ok : Status.mismatch)), name, input, "accept: status", context, outputLimit);
+    } else {
+        require(fromCandidate.status == Status.resourceLimit || fromCandidate.accepted == verdict,
+                name, input, "accept: limited verdict", context, outputLimit);
+    }
+    if (tracing)
+        require(eventsA.values[0 .. eventsA.length] == eventsB.values[0 .. eventsB.length], name,
+                input, "accept: trace sequence", context, outputLimit);
 }
 
 private enum control = `Fixture:

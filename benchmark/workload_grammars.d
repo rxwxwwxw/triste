@@ -138,6 +138,30 @@ mixin(grammar!(Memoization.selective, void, backend)(numbersGrammar));
 }
 
 import benchmark.handwritten.ops : OpsParser;
+import benchmark.handwritten.leftexpr : LeftExprParser;
+
+// Directly left-recursive expression grammar (family `nested_expr`): recognition by seed growth versus loops.
+enum leftExprGrammar = `
+BenchLeftExpr:
+    Root <- Space Expr eoi
+    Expr <- Expr ('+' / '-') Space Term / Term
+    Term <- Term ('*' / '/') Space Primary / Primary
+    Primary <- '(' Space Expr ')' Space / [0-9]+ Space
+    Space <: [ \t\n]*
+`;
+mixin(grammar!(Memoization.selective, void, backend)(leftExprGrammar));
+
+@nogc nothrow unittest {
+    static immutable inputs = [
+        "", "1", "1+2", "1+2*3", "(1+2)*3-4/5", "1+", "1 *", "(1", "1)", "+1", "1 + 2 * (3 - 4)",
+        "((((7))))", "1 2", "1+2+", "2*(3+", "7 - - 1"
+    ];
+    foreach (input; inputs) {
+        ParseContext context;
+        const result = check!(BenchLeftExpr.opCall)(context, input);
+        assert((result.successful && result.end == input.length) == LeftExprParser.parse(input), input);
+    }
+}
 
 // Operator lexing with overlapping FIRST bytes (family `choices`): the ordered choice of 1-2 byte literals that the
 // opt-in FIRST-2 dispatch (F4/P3) targets.
@@ -268,6 +292,8 @@ Observation observeWorkloadAccept(string name, string input, bool handwritten) @
         return acceptAll!(BenchArithmetic.opCall)(input);
     if (name.length >= 4 && name[0 .. 4] == "Ops.")
         return acceptAll!(BenchOps.opCall)(input);
+    if (name.length >= 9 && name[0 .. 9] == "LeftExpr.")
+        return acceptAll!(BenchLeftExpr.opCall)(input);
     if (name.length >= 4 && name[0 .. 4] == "CSV.")
         return acceptAll!(BenchCSV.opCall)(input);
     if (name.length >= 11 && name[0 .. 11] == "PEGGrammar.")
@@ -297,6 +323,9 @@ Observation observeWorkload(string name, string input, bool handwritten) @nogc n
     if (name.length >= 4 && name[0 .. 4] == "Ops.")
         return handwritten ? Observation(OpsParser.parse(input), 0, 0, 0, 0, 0, true) : recognize!(
                 BenchOps.opCall)(input);
+    if (name.length >= 9 && name[0 .. 9] == "LeftExpr.")
+        return handwritten ? Observation(LeftExprParser.parse(input), 0, 0, 0, 0, 0, true)
+            : recognize!(BenchLeftExpr.opCall)(input);
     if (name.length >= 12 && name[0 .. 12] == "Numbers.Hexa")
         return handwritten ? Observation(NumbersParser.parseHexa(input), 0, 0, 0, 0, 0, true)
             : recognize!(BenchNumbers.Hexa)(input);
@@ -315,18 +344,18 @@ Observation observeWorkload(string name, string input, bool handwritten) @nogc n
     foreach (handwritten; [false, true]) {
         foreach (name; [
             "Arithmetic.Test", "CSV.Test", "PEGGrammar.Test", "Numbers.HexaTest",
-            "Numbers.BinaryTest", "Numbers.ScientificTest", "Ops.Test"
+            "Numbers.BinaryTest", "Numbers.ScientificTest", "Ops.Test", "LeftExpr.Test"
         ]) {
             {
-                const probe = name[0] == 'O' ? "<= ==" : name[0] == 'A' ? "1" : name[0] == 'C'
-                    ? "a,b" : name[0] == 'P' ? "G: A <- 'a'" : name[8] == 'B' ? "0b1" : "12";
+                const probe = name[0] == 'L' ? "1+2" : name[0] == 'O' ? "<= ==" : name[0] == 'A'
+                    ? "1" : name[0] == 'C' ? "a,b" : name[0] == 'P' ? "G: A <- 'a'" : name[8] == 'B' ? "0b1" : "12";
                 auto viaAccept = observeWorkloadAccept(name, probe, handwritten);
                 assert(viaAccept.accepted && viaAccept.status == Status.ok);
                 auto rejected = observeWorkloadAccept(name, "\x01\x02", handwritten);
                 assert(!rejected.accepted && rejected.status == Status.ok);
             }
-            const input = name[0] == 'O' ? "<= ==" : name[0] == 'A' ? "1" : name[0] == 'C'
-                ? "a,b" : name[0] == 'P' ? "G: A <- 'a'" : name[8] == 'B' ? "0b1" : "12";
+            const input = name[0] == 'L' ? "1+2" : name[0] == 'O' ? "<= ==" : name[0] == 'A'
+                ? "1" : name[0] == 'C' ? "a,b" : name[0] == 'P' ? "G: A <- 'a'" : name[8] == 'B' ? "0b1" : "12";
             auto observation = observeWorkload(name, input, handwritten);
             assert(observation.accepted && observation.status == Status.ok && observation
                     .allocatorMeasured);

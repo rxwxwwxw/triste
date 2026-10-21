@@ -1895,6 +1895,13 @@ nothrow:
         return facts[root];
     }
 
+    /// Rules an expression can call at the position it starts at (what left recursion follows).
+    size_t[] leadingRules(size_t index) {
+        size_t[] edges;
+        leading(index, edges);
+        return edges;
+    }
+
     private void leading(size_t index, ref size_t[] edges) {
         auto expression = expressions[index];
         if (expression.kind == ExpressionKind.reference) {

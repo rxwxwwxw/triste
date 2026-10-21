@@ -289,6 +289,9 @@ package struct Frontend {
     private GrammarAnalysis analyzed;
     private bool hasAnalysis;
     private bool[] scalarRules;
+    /// Rules the `accept` clone calls through a cursor: the scalar rules plus the iteratively lowered left-recursive ones (P8).
+    private bool[] acceptRules;
+    private IterativeForm[] iterativeForms;
     private EligibilityResult* eligibility;
     private string directDeclarations, directRule;
     void skip() nothrow {
@@ -2143,6 +2146,106 @@ package struct Frontend {
 
     /// Lower rule-local recognition control flow without intermediate aggregate results.
     /// Terminals, scanners, predicates and unsupported operators retain their contracts.
+    /// P8: a directly left-recursive rule `E <- E S1 / .. / E Sk / B1 / .. / Bm` (suffixes first, suffixes consume, bases
+    /// never lead back to E) recognizes the same inputs as `E <- (B1 / .. / Bm) (S1 / .. / Sk)*`: seed growth tries the
+    /// suffix alternatives in order on the current seed and stops when none succeeds or none consumes. The `accept` clone uses
+    /// the loop form; `check` and the record modes keep seed growth, whose work units and failure positions differ.
+    package struct IterativeForm {
+        bool ok;
+        string blocker;
+        string lowered; // `and!(base, zeroOrMore!(suffix))` in rule-body syntax
+    }
+
+    private IterativeForm iterativeForm(size_t rule) nothrow {
+        IterativeForm form;
+        if (rule >= analyzed.roots.length || !analyzed.leftRecursive[rule]) {
+            form.blocker = "not-left-recursive";
+            return form;
+        }
+        auto root = analyzed.expressions[analyzed.roots[rule]];
+        if (root.combinator != "or" || root.children.length < 2) {
+            form.blocker = "not-a-choice";
+            return form;
+        }
+        string[] bases, suffixes;
+        bool sawBase;
+        foreach (child; root.children) {
+            auto node = analyzed.expressions[child];
+            const leadsToSelf = node.combinator == "and" && node.children.length >= 2
+                && analyzed.expressions[node.children[0]].kind == ExpressionKind.reference
+                && analyzed.referenceRule(analyzed.expressions[node.children[0]]) == rule;
+            if (leadsToSelf) {
+                if (sawBase) {
+                    form.blocker = "suffix-after-base";
+                    return form;
+                }
+                bool consumes;
+                string rest;
+                foreach (i, part; node.children[1 .. $]) {
+                    consumes = consumes || analyzed.facts[part].nullable == Nullable.no;
+                    rest ~= (i ? ", " : "") ~ analyzed.expressions[part].source;
+                }
+                if (!consumes) {
+                    form.blocker = "nullable-suffix";
+                    return form;
+                }
+                suffixes ~= node.children.length == 2 ? analyzed.expressions[node.children[1]]
+                    .source : "and!(" ~ rest ~ ")";
+            } else {
+                sawBase = true;
+                auto seen = new bool[analyzed.roots.length];
+                size_t[] pending = analyzed.leadingRules(child);
+                while (pending.length) {
+                    const at = pending[$ - 1];
+                    pending.length -= 1;
+                    if (at == rule) {
+                        form.blocker = "base-leads-to-self";
+                        return form;
+                    }
+                    if (at < seen.length && !seen[at]) {
+                        seen[at] = true;
+                        pending ~= analyzed.leftEdges[at];
+                    }
+                }
+                bases ~= node.source;
+            }
+        }
+        if (!suffixes.length || !bases.length) {
+            form.blocker = "no-base-or-suffix";
+            return form;
+        }
+        string join(string[] parts) nothrow {
+            if (parts.length == 1)
+                return parts[0];
+            string result = "or!(";
+            foreach (i, part; parts)
+                result ~= (i ? ", " : "") ~ part;
+            return result ~ ")";
+        }
+
+        form.ok = true;
+        form.lowered = "and!(" ~ join(bases) ~ ", zeroOrMore!(" ~ join(suffixes) ~ "))";
+        return form;
+    }
+
+    nothrow unittest {
+        Frontend frontend;
+        frontend.input = "P8: A <- A '+' B / B B <- 'b' C <- 'c' / C 'd' D <- D 'x' / D 'y' / 'z' E <- E ' '? 'q' / 'r' F <- F 'f' / G G <- F 'g' H <- H 'h' / H";
+        frontend.read();
+        frontend.prepareAnalysis();
+        assert(frontend.iterativeForm(0).ok && frontend.iterativeForm(0)
+                .lowered == `and!(B, zeroOrMore!(and!(literal!("+"), B)))`);
+        assert(!frontend.iterativeForm(1).ok && frontend.iterativeForm(1).blocker == "not-left-recursive");
+        assert(frontend.iterativeForm(2).blocker == "suffix-after-base");
+        const several = frontend.iterativeForm(3);
+        assert(several.ok && several.lowered == `and!(literal!("z"), zeroOrMore!(or!(literal!("x"), literal!("y"))))`);
+        // A suffix that can succeed without consuming makes the loop form non-progressing: not lowered.
+        assert(frontend.iterativeForm(4).ok);
+        // Indirect left recursion through the base alternative is not lowered.
+        assert(frontend.iterativeForm(5).blocker == "base-leads-to-self");
+        assert(frontend.iterativeForm(7).blocker.length);
+    }
+
     /// O2: can evaluating `index` (direct cursor, records mode) leave records in the buffer?
     private bool mayEmitRecords(ref GrammarAnalysis graph, size_t index, size_t depth = 0) nothrow {
         if (depth >= 64 || index >= graph.expressions.length)
@@ -2240,7 +2343,7 @@ package struct Frontend {
         }
         const reference = expression.kind == ExpressionKind.reference ? graph.referenceRule(expression) : size_t
             .max;
-        if (reference < scalarRules.length && scalarRules[reference]) {
+        if (reference < scalarRules.length && (acceptActive ? acceptRules[reference] : scalarRules[reference])) {
             string entry = "recognizeRule";
             string tag = ", false";
             if (outputMode == 2) {
@@ -2790,6 +2893,15 @@ package struct Frontend {
             scalarRules[i] = backend == ParserBackend.direct && !actionGrammar && !params.length
                 && !rule.params.length && !analyzed.leftRecursive[i] && !analyzed.conservative
                 && (!memoize || selective);
+        acceptRules = scalarRules.dup;
+        iterativeForms = new IterativeForm[rules.length];
+        foreach (i, rule; rules)
+            if (backend == ParserBackend.direct && !actionGrammar && !params.length
+                    && !rule.params.length && analyzed.leftRecursive[i] && !analyzed.conservative
+                    && (!memoize || selective)) {
+                iterativeForms[i] = iterativeForm(i);
+                acceptRules[i] = iterativeForms[i].ok;
+            }
         string result = "struct " ~ name ~ params ~ " {\n";
         if (islands.length) {
             string[] entries;
@@ -2964,6 +3076,32 @@ package struct Frontend {
                         }
                     }
             }
+            // P8: a directly left-recursive rule gets an `accept` cursor of its loop form (see iterativeForm).
+            const loweredAccept = !directRule && ruleIndex < acceptRules.length
+                && acceptRules[ruleIndex] && !scalarRules[ruleIndex] && iterativeForms[ruleIndex].ok;
+            if (loweredAccept) {
+                size_t loweredCount = count;
+                string loweredDeclarations;
+                const loweredRoot = expressionNode(analyzed, iterativeForms[ruleIndex].lowered);
+                analyzed.appendFacts(loweredRoot);
+                const loweredBody = emitTokens(analyzed, loweredRoot, r, loweredCount, loweredDeclarations);
+                ruleOut ~= loweredDeclarations;
+                const cursorRoot = expressionNode(analyzed, loweredBody);
+                analyzed.appendFacts(cursorRoot);
+                directDeclarations = null;
+                this.directRule = r;
+                size_t serial;
+                llActive = false;
+                acceptActive = true;
+                const cursorBody = emitDirect(analyzed, cursorRoot, "p", "_result", serial, 0, 1);
+                acceptActive = false;
+                const localSteps = countOf(cursorBody, "_tick()") >= localStepSites
+                    || countOf(cursorBody, "_live") >= localLiveSites;
+                ruleOut ~= directDeclarations;
+                ruleOut ~= "private static bool _acursor_" ~ r ~ "(ref State!(false, 1) s, ref size_t cursor, ref size_t failure, const size_t _depth) @nogc nothrow { enum CT = false; const size_t p = cursor;\n" ~ (
+                        localSteps ? llLocals ~ cursorBody ~ "s.steps = _steps; " : withSharedSteps(cursorBody)) ~ "cursor = _resultEnd; failure = _resultFail; return _resultOk; }\n";
+                ruleOut ~= "pragma(inline, true) private static State!(CT, Check).Node _directAccept_" ~ r ~ "(bool CT, int Check)(ref State!(CT, Check) s, size_t p) nothrow { size_t end = p, failure = p; " ~ "const successful = _acursor_" ~ r ~ "(s, end, failure, s.depth); " ~ "auto result = s.node(p, end, successful); result.successful = successful; result.failEnd = failure; return result; }\n";
+            }
             ruleOut ~= "private static State!(CT, Check).Node _" ~ r
                 ~ "(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow { ";
             const original = analyzed.expressions[analyzed.roots[ruleIndex]].source;
@@ -2978,6 +3116,9 @@ package struct Frontend {
                         ~ r ~ "!(CT, Check), " ~ quoted(name ~ "." ~ r) ~ ")(s,p); } " : "")
                     ~ "return defined!(_direct_" ~ r ~ "!(CT, Check), " ~ quoted(
                             name ~ "." ~ r) ~ ")(s,p); } } ";
+            if (loweredAccept)
+                ruleOut ~= "static if (!CT && Check == 1) { if (s.acceptOnly && s.context.trace is null) return defined!(_directAccept_" ~ r ~ "!(CT, Check), " ~ quoted(
+                        name ~ "." ~ r) ~ ")(s,p); } ";
             ruleOut ~= "return defined!(" ~ body ~ ", " ~ quoted(name ~ "." ~ r) ~ ")(s,p); }\n";
             // Concrete overloads break recursive attribute-inference cycles.
             foreach (mode; [
@@ -2993,6 +3134,11 @@ package struct Frontend {
                         ~ entryName ~ ")(p); }\n";
                 else if (actionGrammar && (mode != "false, false" && mode != "true, false"))
                     ruleOut ~= " { return s.treeFallback!(" ~ entryName ~ ")(p); }\n";
+                else if (loweredAccept && mode == "false, true")
+                    ruleOut ~= " { if (s.acceptOnly && s.context.trace is null) return s.rule!(_"
+                        ~ r ~ "!(" ~ mode ~ "), " ~ quoted(name ~ "." ~ r)
+                        ~ ", false)(p); return s.rule!(_" ~ r ~ "!(" ~ mode ~ "), " ~ quoted(
+                                name ~ "." ~ r) ~ ", " ~ (cache ? "true" : "false") ~ recordTag ~ ")(p); }\n";
                 else
                     ruleOut ~= " { return s.rule!(_" ~ r ~ "!(" ~ mode ~ "), " ~ quoted(
                             name ~ "." ~ r) ~ ", " ~ (cache ? "true" : "false") ~ recordTag ~ ")(p); }\n";
@@ -3573,6 +3719,25 @@ nothrow unittest {
     assert(bound("W: Root <- ('a'*)* eoi", "Root") == "unknown: not-certified-ll1");
     // A rule that calls an uncertified rule inherits the blocker (closed region).
     assert(bound("W: Root <- Bad 'a' Bad <- !'x' 'b'", "Root") == "unknown: not-certified-ll1");
+}
+
+nothrow unittest {
+    // P8: the accept clone of a directly left-recursive rule is its loop form; indirect or mis-ordered recursion keeps seed growth.
+    auto direct = generate!(Memoization.selective, void, ParserBackend.direct)(
+            "L: Root <- Expr eoi Expr <- Expr ('+' / '-') Term / Term Term <- [0-9]+");
+    assert(direct.status == Status.ok && Frontend.countOf(direct.source, "_acursor_Expr(ref State!(false, 1)") == 1);
+    assert(Frontend.countOf(direct.source, "_cursor_Expr(ref State!(false, 1)") == 0);
+    foreach (definition; [
+        "L: Root <- Expr eoi Expr <- Term / Expr '+' Term Term <- [0-9]+",
+        "L: Root <- Expr eoi Expr <- Sum / Term Sum <- Expr '+' Term Term <- [0-9]+",
+        "L: Root <- Expr eoi Expr <- Expr ' '? / 'a'"
+    ]) {
+        auto other = generate!(Memoization.selective, void, ParserBackend.direct)(definition);
+        assert(other.status == Status.ok && Frontend.countOf(other.source, "_acursor_Expr(ref State!(false, 1)") == 0);
+    }
+    auto combinators = generate!(Memoization.selective)(
+            "L: Root <- Expr eoi Expr <- Expr '+' Term / Term Term <- [0-9]+");
+    assert(Frontend.countOf(combinators.source, "_acursor_") == 0);
 }
 
 version (unittest) private uint checkpointTag(string name) @nogc nothrow pure {

@@ -430,7 +430,9 @@ The paper's critical conditions include:
 **Tests:** repeated failures at same offset, nested lookahead, indirect left recursion, no-backtrack deterministic rule, output snapshots.  
 **Exit:** credible profiling report and explicitly opt-in settings for trials.
 
-### P8 — Recognize iterative expression patterns
+### P8 — Recognize iterative expression patterns — COMPLETE (recognition)
+
+**Result:** `iterativeForm` recognizes `E <- E S.. / B..` and the direct accept clone runs the loop form (LeftExpr: accept 16x -> 2.0x handwritten, 8 nested levels 223,000x -> 1.9x). `check`/records/trees keep seed growth; the `accept` contract is relaxed to "never charges more than `check`" (docs/ACCEPT.md). See `performance/milestones/P8/notes.md`.
 
 **Files:** `analysis.d`, `grammar.d`, tests.  
 **Tasks:** identify a small class of left-associative arithmetic-expression forms that can be lowered to loops/precedence climbing. **Recognition only first**; tree/record associativity and semantic action order require separate proof and implementation.  

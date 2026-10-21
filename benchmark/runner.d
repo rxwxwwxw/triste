@@ -604,8 +604,11 @@ int main(string[] args) {
             WorkloadInput("PEGGrammar.Empty", "G:", false),
             WorkloadInput("Ops.Short", "<= == != ++ --", true), WorkloadInput("Ops.Empty", "",
                     true), WorkloadInput("Ops.Invalid", "<= a", false),
-            WorkloadInput("Ops.Pairs", "== = =", true),
-            WorkloadInput("Ops.Truncated", "<<=<x", false)
+            WorkloadInput("Ops.Pairs", "== = =", true), WorkloadInput("Ops.Truncated", "<<=<x",
+                    false), WorkloadInput("LeftExpr.Small",
+                    "1 + 2 * (3 - 4)", true), WorkloadInput("LeftExpr.Empty", "", false),
+            WorkloadInput("LeftExpr.Trailing", "1 + 2 +", false),
+            WorkloadInput("LeftExpr.Unbalanced", "((1 + 2) * 3", false)
         ];
         foreach (entry; extra) {
             BenchmarkCase bc;
@@ -625,6 +628,12 @@ int main(string[] args) {
         }
         foreach (i; 0 .. 128)
             manyRules ~= "\nR <- [a-z]+";
+        string flatLeft = "1", nestedLeft = "1";
+        foreach (i; 0 .. 512)
+            flatLeft ~= i % 3 == 0 ? " + 2" : i % 3 == 1 ? " * 3" : " - 4";
+        // The memoized left-recursive evaluation exhausts the default depth limit at about 16 nesting levels (P8).
+        foreach (i; 0 .. 8)
+            nestedLeft = "(" ~ nestedLeft ~ " + 1)";
         string longOperators;
         foreach (i; 0 .. 256)
             longOperators ~= "<<= == != && || ++ -- += -= *= /= < > ! & | + - * / ";
@@ -651,7 +660,10 @@ int main(string[] args) {
             WorkloadInput("PEGGrammar.LongLiteral", "G: R <- '" ~ longDigits ~ "'", true),
             WorkloadInput("PEGGrammar.LongTruncated", "G: R <- '" ~ longDigits, false),
             WorkloadInput("Ops.Long", longOperators, true),
-            WorkloadInput("Ops.LongInvalid", longOperators ~ "a", false)
+            WorkloadInput("Ops.LongInvalid", longOperators ~ "a", false),
+            WorkloadInput("LeftExpr.Flat", flatLeft, true),
+            WorkloadInput("LeftExpr.Deep", nestedLeft, true),
+            WorkloadInput("LeftExpr.FlatInvalid", flatLeft ~ "+", false)
         ]) {
             BenchmarkCase bc;
             bc.name = entry.name;
