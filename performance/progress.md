@@ -63,3 +63,15 @@ Largest outstanding gaps are listed in the latest summary.csv (PEGGrammar.Permis
   timed; 264 workloads), D2 implemented (model v2, `docs/WORK_UNITS.md`): see each `milestones/<ID>/notes*.md`.
   On the original 171 workload ids: within 1.5x 99 (S2b) -> 103 (Q2 run, before D2). D2 then moved Arithmetic/PEGGrammar
   validation and spans down by 10-15%; full-gate numbers for the whole phase are recorded when the phase closes.
+
+## Phase 2 exit (2026-10-21)
+
+Full gate (`--q2`, validation/spans/tree/accept, 500 iter x 7 samples x 3 runs, direct backend, LDC 1.43, Apple M1; run
+`20261021T035808Z-544080000-e10f8b6dc`, `milestones/PhaseExit/`): **246/346 workloads within 1.5x (71.1%)**, p50 1.28, p90 1.87,
+geomean 1.34 over all, **1.23 over the 332 workloads that exclude the LeftExpr family**, where 246/332 (74%) are within target.
+The corpus grew from 171 workloads (Phase 1 baseline: 99 within, p90 2.04, geomean 1.32) to 346 (Q2 corpora, Ops, LeftExpr, accept),
+so counts are not directly comparable; on the original 171 ids the C1-era dashboard run was 125 within, p90 1.80.
+**Regression / open problem:** the new `LeftExpr` family in `validation` mode (check, not accept) is 10x-232,000x slower than its
+handwritten twin (`LeftExpr.Deep` 232,390x). Check mode uses the generic left-recursion seed-growing path; P8 lowered loops only in the accept clone.
+Not fixed; accept mode on the same family is within target (see `milestones/P8/`). DMD crashes on this host (not run); ASan/LSan/Valgrind
+results are as recorded per milestone. D1 decision: keep `combinators` default. Other Phase 2 closures: X1/X2/O4(b,c)/S7 NO-GO, X3 tool delivered.

@@ -26,3 +26,4 @@ run_id,kind,compiler,commit,workloads,within_target,pct_within_target,p50,p90,p9
 20261020T162737Z-073837506-2d501e854,milestone:S3[direct],ldc2,2d501e854072bae6ae68d04d9c17279755ea4ae2,171,88,51.4620,1.4816,2.4332,2.6894,1.5037,3.2035,handwritten-workloads/PEGGrammar.Permissive/validation
 20261020T220009Z-547430000-38e6e00b1,milestone:Q2[direct],ldc2,38e6e00b1c34e3ee0d74a7ad8b277a063cd64f86,264,179,67.8030,1.3247,1.8680,2.0394,1.2735,2.7891,handwritten-workloads/Numbers.ScientificEmpty/validation
 20261021T002149Z-280633000-4f68f5d5a,milestone:C1[direct],ldc2,4f68f5d5a0fa90cc2793fd233016cf89b1c4afbc,318,246,77.3585,1.2649,1.7291,1.8920,1.1864,2.5800,handwritten-workloads/Numbers.ScientificEmpty/validation
+20261021T035808Z-544080000-e10f8b6dc,milestone:PhaseExit[direct],ldc2,e10f8b6dcc4203d5c25d9b2ed6aed971956ad7a9,346,246,71.0983,1.2837,1.8697,2.4500,1.3371,232390.4722,handwritten-workloads/LeftExpr.Deep/validation

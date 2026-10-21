@@ -2,14 +2,14 @@
 
 Generated from `performance/trends.csv`; do not edit by hand.
 
-Latest run: `20261021T002149Z-280633000-4f68f5d5a` (milestone:C1[direct], ldc2, commit 4f68f5d5a)
+Latest run: `20261021T035808Z-544080000-e10f8b6dc` (milestone:PhaseExit[direct], ldc2, commit e10f8b6dc)
 
-- Workloads within 1.5x: 246/318 (77.4%)
-- Slowdown p50/p90/p95: 1.26 / 1.73 / 1.89
-- Geometric mean: 1.19x
-- Worst: 2.58x (handwritten-workloads/Numbers.ScientificEmpty/validation)
+- Workloads within 1.5x: 246/346 (71.1%)
+- Slowdown p50/p90/p95: 1.28 / 1.87 / 2.45
+- Geometric mean: 1.34x
+- Worst: 232390.47x (handwritten-workloads/LeftExpr.Deep/validation)
 
-Delta vs comparable run `20261020T220009Z-547430000-38e6e00b1`: within-target +67, p90 -0.14, geomean -0.09
+No comparable prior run: host, compiler, backend, flags or corpus provenance differs or is missing.
 
 ## Families and corpus labels (newest run)
 
@@ -17,20 +17,21 @@ Labels: `fixture` = in-repo case, `real`/`synthetic`/`learned`/`adversarial` = G
 
 | family | label | workloads | paired | no_twin | within target | geomean | worst |
 |---|---|---|---|---|---|---|---|
-| corpus_arithmetic | adversarial | 4 | 4 | 0 | 4/4 | 1.2251 | 1.4481 |
-| corpus_arithmetic | synthetic | 16 | 16 | 0 | 16/16 | 1.1101 | 1.3160 |
-| corpus_csv | adversarial | 4 | 4 | 0 | 4/4 | 1.3989 | 1.4006 |
-| corpus_csv | synthetic | 16 | 16 | 0 | 9/16 | 1.1603 | 1.9785 |
-| corpus_json | adversarial | 3 | 3 | 0 | 3/3 | 1.3176 | 1.3772 |
-| corpus_json | learned | 12 | 12 | 0 | 10/12 | 1.1635 | 1.6325 |
-| corpus_json | real | 18 | 18 | 0 | 18/18 | 0.9287 | 1.0509 |
-| corpus_json | synthetic | 12 | 12 | 0 | 12/12 | 1.0703 | 1.2657 |
-| failure | fixture | 98 | 98 | 0 | 49/98 | 1.4169 | 2.5800 |
-| lex_ascii | fixture | 72 | 72 | 0 | 62/72 | 1.0863 | 1.8483 |
-| lex_utf8 | fixture | 9 | 9 | 0 | 8/9 | 1.3225 | 1.6874 |
-| nested_expr | fixture | 27 | 27 | 0 | 24/27 | 1.1437 | 1.7602 |
-| pathological | fixture | 12 | 12 | 0 | 12/12 | 0.9681 | 1.3076 |
-| structured | fixture | 15 | 15 | 0 | 15/15 | 1.0112 | 1.3192 |
+| choices | fixture | 14 | 14 | 0 | 0/14 | 2.4916 | 3.9381 |
+| corpus_arithmetic | adversarial | 4 | 4 | 0 | 2/4 | 1.2509 | 1.5088 |
+| corpus_arithmetic | synthetic | 16 | 16 | 0 | 15/16 | 1.2010 | 2.5305 |
+| corpus_csv | adversarial | 4 | 4 | 0 | 4/4 | 1.3986 | 1.3993 |
+| corpus_csv | synthetic | 16 | 16 | 0 | 9/16 | 1.1335 | 1.9471 |
+| corpus_json | adversarial | 3 | 3 | 0 | 3/3 | 1.3095 | 1.3902 |
+| corpus_json | learned | 12 | 12 | 0 | 10/12 | 1.2119 | 1.6795 |
+| corpus_json | real | 18 | 18 | 0 | 18/18 | 0.9350 | 1.0541 |
+| corpus_json | synthetic | 12 | 12 | 0 | 12/12 | 1.1036 | 1.2758 |
+| failure | fixture | 98 | 98 | 0 | 53/98 | 1.3953 | 2.4500 |
+| lex_ascii | fixture | 72 | 72 | 0 | 62/72 | 1.0832 | 1.8299 |
+| lex_utf8 | fixture | 9 | 9 | 0 | 7/9 | 1.3343 | 1.7081 |
+| nested_expr | fixture | 41 | 41 | 0 | 24/41 | 2.4258 | 232390.4722 |
+| pathological | fixture | 12 | 12 | 0 | 12/12 | 0.9917 | 1.2830 |
+| structured | fixture | 15 | 15 | 0 | 15/15 | 1.0169 | 1.3211 |
 
 ## History
 
@@ -63,6 +64,7 @@ Labels: `fixture` = in-repo case, `real`/`synthetic`/`learned`/`adversarial` = G
 | 20261020T162737Z-073837506-2d501e854 | milestone:S3[direct] | ldc2 | 88/171 | 2.43 | 1.50 | 3.20 |
 | 20261020T220009Z-547430000-38e6e00b1 | milestone:Q2[direct] | ldc2 | 179/264 | 1.87 | 1.27 | 2.79 |
 | 20261021T002149Z-280633000-4f68f5d5a | milestone:C1[direct] | ldc2 | 246/318 | 1.73 | 1.19 | 2.58 |
+| 20261021T035808Z-544080000-e10f8b6dc | milestone:PhaseExit[direct] | ldc2 | 246/346 | 1.87 | 1.34 | 232390.47 |
 
 ## Progress
 
