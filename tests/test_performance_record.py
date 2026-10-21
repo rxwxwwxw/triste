@@ -39,6 +39,7 @@ class FamilyTests(unittest.TestCase):
             'handwritten-workloads/CSV.Truncated/spans': ('failure', 'fixture'),
             'json-ambiguity/JSON.Medium/tree': ('structured', 'fixture'),
             'handwritten-workloads/Numbers.Binary/validation': ('lex_ascii', 'fixture'),
+            'handwritten-workloads/Ops.Long/accept': ('choices', 'fixture'),
         }
         for workload, (want_family, want_label) in cases.items():
             self.assertEqual((family(workload), label(workload)), (want_family, want_label), workload)

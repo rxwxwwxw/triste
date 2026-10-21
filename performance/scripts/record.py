@@ -139,6 +139,8 @@ def workload_family(workload_id):
         return name.split('.family.', 1)[1].split('.', 1)[0]
     if '.corpus.' in name:
         return 'corpus_' + name.split('.', 1)[0].lower()
+    if name.startswith('Ops.'):
+        return 'choices'
     if name.startswith('Ambiguous.'):
         return 'pathological'
     if any(name.startswith(prefix) for prefix in NESTED):
