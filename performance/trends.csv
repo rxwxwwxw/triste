@@ -29,3 +29,5 @@ run_id,kind,compiler,commit,workloads,within_target,pct_within_target,p50,p90,p9
 20261021T035808Z-544080000-e10f8b6dc,milestone:PhaseExit[direct],ldc2,e10f8b6dcc4203d5c25d9b2ed6aed971956ad7a9,346,246,71.0983,1.2837,1.8697,2.4500,1.3371,232390.4722,handwritten-workloads/LeftExpr.Deep/validation
 20261021T060113Z-124016000-5be5e5027,milestone:PhaseExit2[direct],ldc2,5be5e5027e115cfb995c6cfc7375ac91ae459e6f,346,264,76.3006,1.2547,1.8750,2.4092,1.2597,24.5115,handwritten-workloads/LeftExpr.Deep/validation
 20261021T060542Z-107474000-1ce38a6c6,milestone:D1-combinators,ldc2,1ce38a6c60cfffbdb15dcad0c6e287c4aa58e0d2,346,147,42.4855,1.6417,3.0891,9.0306,1.7431,27.4463,handwritten-workloads/LeftExpr.Deep/accept
+20261021T064108Z-774271000-3435a052d,milestone:PhaseExit3[direct],ldc2,3435a052d40131bb55ec2254020b80fb0e76071e,346,261,75.4335,1.2551,1.8706,2.3170,1.2141,6.3785,handwritten-workloads/LeftExpr.Deep/validation
+20261021T064457Z-046349000-3435a052d,milestone:D1-combinators-final,ldc2,3435a052d40131bb55ec2254020b80fb0e76071e,346,150,43.3526,1.6398,2.8304,3.5476,1.6375,12.8127,handwritten-workloads/Ops.Long/validation
