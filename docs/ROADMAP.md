@@ -160,8 +160,8 @@ Use *existing* repository workloads first. Add missing families with separate te
 | L2 | P1 | L1 | Export certified CFG/EBNF subset | S |
 | L3 | P1 | L2,A4 | LL(1) generated backend | M |
 | L4 | P2 | L3,F4,B5 | Bounded LL(k) / regular-lookahead experiments | M |
-| L5 | P2 | L2 | LR(1) grammar conflict analysis (report-only) | M |
-| L6 | P3 | L5,A4 | Optional experimental LR backend / hybrid calls | L |
+| L5 (complete, report-only; `performance/milestones/L5/`) | P2 | L2 | LR(1) grammar conflict analysis (report-only) | M |
+| L6 (NO-GO after the recognizer experiment; `performance/milestones/L6/`) | P3 | L5,A4 | Optional experimental LR backend / hybrid calls | L |
 | G1 | P1 | A4 | Seeded, bounded candidate generator | S |
 | G2 | P1 | G1 | Full-acceptance oracle, retries, generation failures | S |
 | G3 | P1 | G2,A2 | Coverage-guided generation and reporting | M |
@@ -474,14 +474,18 @@ The paper's critical conditions include:
 **Benchmarks:** explicit multiple-prefix families, predictive DFA size/build time.  
 **Exit:** only enable for certified rules with demonstrable advantage over existing `predictiveChoice` and DFA paths.
 
-### L5 — LR(1) conflict analysis on certified CFG subset
+### L5 — LR(1) conflict analysis on certified CFG subset — COMPLETE
+
+**Result:** `src/npegged/lr.d`, `lrReport`/`lrBuild`; see `docs/LL.md` and `performance/milestones/L5/notes.md`.
 
 **Files:** separate cold analysis module.  
 **Tasks:** construct canonical LR(1) items and ACTION/GOTO/conflict reports for **L2-certified CFG only**; optionally investigate LALR(1) compression once correct. LR conflict freedom by itself does not establish PEG equivalence.  
 **Tests:** no-conflict grammar, shift/reduce conflict, reduce/reduce conflict, nullable productions, precedence expression grammar, unsupported PEG predicate.  
 **Exit:** report-only LR(1) analyzer with bounded state count.
 
-### L6 — Optional LR or hybrid runtime backend
+### L6 — Optional LR or hybrid runtime backend — CLOSED NO-GO
+
+**Result:** the table recognizer (sub-milestone a) is 12x slower than the direct backend, which is within 1.05x of handwritten recursive descent on the same language. See `performance/milestones/L6/notes.md`.
 
 **Prerequisite:** L5 plus demonstrated workloads where LL/direct cannot compete. Split into scanner, parse table, stack/value construction, and hybrid-call bridge milestones before coding.  
 **Tests:** all A4 parity modes, long inputs, failure offsets, left recursion, no cross-boundary action side-effect differences.  

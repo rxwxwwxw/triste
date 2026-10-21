@@ -1,0 +1,78 @@
+import npegged.grammar;
+import npegged.lr;
+import core.time : MonoTime;
+import core.stdc.stdio;
+enum text = `L: Root <- Expr eoi Expr <- Term ('+' Term)* Term <- Fac ('*' Fac)* Fac <- '(' Expr ')' / 'n'`;
+struct D { mixin(grammar!(Memoization.selective, void, ParserBackend.direct)(text)); }
+extern (C) __gshared string[] rt_options = ["gcopt=disable:1"];
+// Flat arrays for the hot loop.
+struct Fast {
+    uint terminals, nonterminals;
+    ubyte[256] byteClass;
+    bool[256] inClass;
+    uint[] action; // kind in the top 2 bits, target below
+    uint[] gotoTable;
+    uint[] reduceLength, reduceLhs;
+    uint end;
+}
+bool run(ref const Fast f, string input, uint[] stack) {
+    size_t sp = 0, at = 0;
+    stack[0] = 0;
+    for (;;) {
+        uint t = f.end;
+        if (at < input.length) {
+            const b = cast(ubyte)input[at];
+            if (!f.inClass[b]) return false;
+            t = f.byteClass[b];
+        }
+        const cell = f.action[stack[sp] * f.terminals + t];
+        const kind = cell >> 30;
+        const target = cell & 0x3fffffff;
+        if (kind == 1) {
+            if (sp + 1 >= stack.length) return false;
+            stack[++sp] = target;
+            if (t != f.end) ++at;
+        } else if (kind == 2) {
+            sp -= f.reduceLength[target];
+            const next = f.gotoTable[stack[sp] * f.nonterminals + f.reduceLhs[target]];
+            if (next == uint.max) return false;
+            stack[++sp] = next;
+        } else if (kind == 3) {
+            return at == input.length;
+        } else return false;
+    }
+}
+struct Hand {
+    string s; size_t at;
+    bool fac() nothrow { if (at < s.length && s[at] == 'n') { ++at; return true; } if (at < s.length && s[at] == '(') { ++at; if (!expr() || at >= s.length || s[at] != ')') return false; ++at; return true; } return false; }
+    bool term() nothrow { if (!fac()) return false; while (at < s.length && s[at] == '*') { ++at; if (!fac()) return false; } return true; }
+    bool expr() nothrow { if (!term()) return false; while (at < s.length && s[at] == '+') { ++at; if (!term()) return false; } return true; }
+}
+size_t sink;
+int main() {
+    auto built = lrBuild(text, "Root");
+    Fast f;
+    f.terminals = cast(uint)built.automaton.terminalCount; f.nonterminals = cast(uint)built.automaton.nonterminalCount;
+    f.byteClass = built.grammar.byteClass; f.inClass = built.grammar.inClass; f.end = built.grammar.endMarker;
+    f.action = new uint[built.automaton.action.length];
+    foreach (i, cell; built.automaton.action) f.action[i] = (cast(uint)cell.action << 30) | cell.target;
+    f.gotoTable = built.automaton.gotoTable.dup;
+    foreach (p; built.grammar.productions) { f.reduceLength ~= cast(uint)p.rhs.length; f.reduceLhs ~= p.lhs; }
+    string input = "n";
+    foreach (i; 0 .. 200) input ~= "+n*(n+n*n)*n";
+    auto stack = new uint[4096];
+    printf("states=%zu bytes=%zu\n", built.automaton.states, input.length);
+    foreach (round; 0 .. 3) {
+        enum N = 3000;
+        auto t0 = MonoTime.currTime;
+        foreach (i; 0 .. N) sink += run(f, input, stack);
+        auto t1 = MonoTime.currTime;
+        foreach (i; 0 .. N) { ParseContext c; sink += accept!(D.L.Root)(c, input).accepted; }
+        auto t2 = MonoTime.currTime;
+        foreach (i; 0 .. N) { Hand h; h.s = input; sink += h.expr() && h.at == input.length; }
+        auto t3 = MonoTime.currTime;
+        const n = cast(double)N;
+        printf("lr table %.0f ns | direct accept %.0f ns | handwritten %.0f ns (per parse)\n", (t1 - t0).total!"nsecs" / n, (t2 - t1).total!"nsecs" / n, (t3 - t2).total!"nsecs" / n);
+    }
+    return sink == 7;
+}

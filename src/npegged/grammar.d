@@ -18,6 +18,7 @@ import npegged.fuzz : Mutator, Observation, observe, sameObservation, accepts, s
 import core.time : MonoTime;
 import npegged.ll : classifyRegions, renderRegions, renderEbnf, RegionClass, firstCertifiedRules;
 import npegged.work : WorkBound, workBounds, describe;
+import npegged.lr : LrGrammar, LrAutomaton, lrGrammarOf, buildLr, renderLr;
 import npegged.analysis : GrammarAnalysis, Expression, ExpressionKind, Nullable, FirstFacts, RuleEffect;
 
 nothrow:
@@ -4376,6 +4377,77 @@ BitesResult ebnfExport(string definition, EligibilityFormat format = Eligibility
     result.report = renderEbnf(frontend.analyzed, format == EligibilityFormat.json);
     result.status = Status.ok;
     return result;
+}
+
+/// Canonical LR(1) analysis (L5) of every `certifiedLL1` rule's CFG reading: states and conflicts, report-only. LR freedom of
+/// the CFG reading does not by itself prove that the PEG means the same (docs/LL.md); uncertified rules are listed as such.
+BitesResult lrReport(string definition, EligibilityFormat format = EligibilityFormat.text, size_t maxStates = 512) nothrow {
+    BitesResult result;
+    if (format != EligibilityFormat.json && format != EligibilityFormat.text) {
+        result.diagnostic = Diagnostic(0, "Unknown LR report format");
+        return result;
+    }
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length) {
+        result.diagnostic = frontend.error;
+        return result;
+    }
+    result.grammarName = frontend.name;
+    frontend.prepareAnalysis();
+    const regions = classifyRegions(frontend.analyzed);
+    const json = format == EligibilityFormat.json;
+    result.report = json ? "[" : "";
+    foreach (rule; 0 .. frontend.analyzed.roots.length) {
+        const grammar = lrGrammarOf(frontend.analyzed, rule, regions);
+        const automaton = buildLr(grammar, maxStates);
+        result.report ~= (json && rule ? "," : "") ~ renderLr(frontend.analyzed.names[rule], grammar, automaton,
+                json);
+    }
+    result.report ~= json ? "]" : "";
+    result.status = Status.ok;
+    return result;
+}
+
+/// The CFG reading and LR(1) tables of one rule, for table-driven recognition and tests (L6a).
+struct LrBuild {
+    Status status = Status.invalidInput;
+    LrGrammar grammar;
+    LrAutomaton automaton;
+}
+
+LrBuild lrBuild(string definition, string rule, size_t maxStates = 512) nothrow {
+    LrBuild result;
+    Frontend frontend;
+    frontend.input = definition;
+    frontend.read();
+    if (frontend.error.message.length)
+        return result;
+    frontend.prepareAnalysis();
+    const regions = classifyRegions(frontend.analyzed);
+    foreach (index, name; frontend.analyzed.names)
+        if (name == rule) {
+            result.grammar = lrGrammarOf(frontend.analyzed, index, regions);
+            result.automaton = buildLr(result.grammar, maxStates);
+            result.status = Status.ok;
+        }
+    return result;
+}
+
+nothrow unittest {
+    // Certified LL(1) regions are LR(1) (every LL(1) grammar is); uncertified ones are reported, never built.
+    auto text = lrReport("L: Num <- [0-9]+ Expr <- Num ('+' Num)* Root <- Expr eoi Bad <- !'x' 'a'")
+        .report;
+    assert(Frontend.countOf(text, ": lr1 (") == 3, text);
+    assert(Frontend.countOf(text, "rule Bad: unsupported (") == 1 && Frontend.countOf(text,
+            "region-not-certifiedLL1") == 1);
+    const json = lrReport("L: Root <- 'a' Root 'b' / 'c'", EligibilityFormat.json).report;
+    assert(json[0] == '[' && Frontend.countOf(json, "\"verdict\":\"lr1\"") == 1);
+    assert(lrBuild("L: Root <- 'a' eoi", "Missing").status == Status.invalidInput);
+    const built = lrBuild("L: Root <- 'a'+ 'b' eoi", "Root");
+    assert(built.status == Status.ok && !built.automaton.truncated && !built.automaton.conflicts
+            .length);
 }
 
 /// Seeded candidate stream for a grammar's start rule (G1). Candidates are proposals, not known to be accepted;

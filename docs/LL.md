@@ -52,3 +52,21 @@ Corpus agreement is additional evidence only; the certificate is the L1 proof co
 the cheap positional LL(1) certifier. It replays the skipped body's work units and recorded failure exactly, so outputs, step
 limits and failure positions equal the combinators (differential-tested). Measured gain over `direct`: none; see
 `performance/milestones/L3-ll1/notes-l3.md`.
+
+# LR(1) analysis of the certified CFG subset (L5, report-only) and table recognition (L6a, experiment)
+
+`lrReport(definition, format)` (`src/npegged/lr.d`) builds, for every rule whose closed region the L1 classifier calls
+`certifiedLL1`, the CFG reading of that region (terminals are the classes of a partition of the byte alphabet; `e*`, `e+`, `e?` and
+choices become helper nonterminals; `eoi` is the end marker) and its canonical LR(1) automaton: states, ACTION/GOTO tables and every
+shift/reduce and reduce/reduce conflict, within a state budget (`state-budget-exceeded` is never a proof). Uncertified rules are
+listed as `unsupported` with the blocker (`region-not-certifiedLL1`, a predicate, an undescribable terminal). `lrBuild(definition,
+rule)` returns the grammar and tables. LR(1) freedom of the CFG reading says nothing by itself about the PEG (same warning as L1/L2);
+certified LL(1) regions are LR(1) by construction, so conflicts only appear for hand-built CFGs (tests: balanced brackets, nullable
+productions, the left-recursive expression grammar, the LR(1)-not-LALR(1) grammar, the ambiguous `E -> E + E | n` shift/reduce case,
+a reduce/reduce case, a tiny state budget).
+
+`lrAccepts` runs the tables (whole-input recognition, refusing conflicting or truncated tables). `tests/lr_check.d` +
+`scripts/lr-check.sh` compare it with the combinator and direct PEG parsers over every string up to length 7 for three certified
+grammars (3,280 strings each): all agree. That is evidence for the certificate, not a proof of it.
+
+L6 (an LR runtime backend) was not built beyond this recognizer, see `performance/milestones/L6/notes.md`.
