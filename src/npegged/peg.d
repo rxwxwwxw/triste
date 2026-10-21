@@ -1536,15 +1536,18 @@ struct State(bool CT, int Check = 0) {
 
     // Retired entries stay arena-owned, but must not be revisited by later
     // seed growth or hash lookup. Active seeds remain reachable.
-    private void invalidateMemo(size_t pos) nothrow {
+    // Only entries at `pos` can have read the seed that just grew: rules are applied at or after the
+    // current position, so an entry at a later position never saw an entry at `pos`. Entries created
+    // since the last growth sit in front of `until` in the list, so the walk stops there.
+    private void invalidateMemo(size_t pos, Entry* until) nothrow {
         Entry* previous;
         auto current = entries;
-        while (current !is null) {
+        while (current !is null && current !is until) {
             auto next = current.next;
             version (NPeggedMetrics)
                 if (context.metrics !is null)
                     ++context.metrics.invalidationVisits;
-            if (!current.active && current.position >= pos) {
+            if (!current.active && current.position == pos) {
                 version (NPeggedDependencyTrace)
                     traceMemo(MemoTraceKind.retired, current);
                 version (NPeggedMetrics)
@@ -1594,22 +1597,21 @@ struct State(bool CT, int Check = 0) {
         nodes[2].active = true;
         state.entries = &nodes[0];
         state.entryCount = nodes.length;
-        state.invalidateMemo(1);
-        assert(state.entryCount == 2 && state.entries == &nodes[0]);
-        assert(nodes[0].next == &nodes[2] && nodes[2].next is null);
-        assert(state.buckets[0] == &nodes[0] && nodes[0].bucketNext == &nodes[2]);
-        assert(nodes[2].bucketNext is null);
-        assert(!nodes[1].valid && !nodes[3].valid && !nodes[4].valid);
-        assert(nodes[0].valid && nodes[2].valid);
-        state.invalidateMemo(0);
-        assert(state.entryCount == 1 && state.entries == &nodes[2]);
+        state.invalidateMemo(3, &nodes[4]);
+        assert(state.entryCount == 4 && !nodes[3].valid && nodes[4].valid);
+        assert(nodes[2].next == &nodes[4] && nodes[2].bucketNext == &nodes[4]);
+        state.invalidateMemo(2, null);
+        assert(state.entryCount == 4 && nodes[2].valid);
         nodes[2].active = false;
-        state.invalidateMemo(0);
+        state.invalidateMemo(2, null);
+        assert(state.entryCount == 3 && !nodes[2].valid && nodes[1].next == &nodes[4]);
+        state.invalidateMemo(0, null);
+        state.invalidateMemo(1, null);
+        assert(state.entries == &nodes[4] && state.entryCount == 1);
+        state.invalidateMemo(4, null);
         assert(state.entries is null && state.entryCount == 0 && state.buckets[0] is null);
-        state.invalidateMemo(0);
-        assert(state.entryCount == 0);
         version (NPeggedMetrics) {
-            assert(metrics.invalidationVisits == 8 && metrics.invalidatedEntries == 5);
+            assert(metrics.invalidationVisits == 18 && metrics.invalidatedEntries == 5);
             assert(metrics.memoUnlinkVisits == 10);
         }
     }
@@ -1710,6 +1712,8 @@ struct State(bool CT, int Check = 0) {
         ++depth;
         scope (exit)
             depth = savedDepth;
+        // Entries older than `mark` were either invalidated after an earlier iteration or cannot have read this seed.
+        auto mark = entry;
         do {
             version (NPeggedDependencyTrace)
                 traceMemo(MemoTraceKind.iteration, entry);
@@ -1732,7 +1736,8 @@ struct State(bool CT, int Check = 0) {
                 entry.output = snapshotOutput(outputBase);
             if (!entry.recursive)
                 break;
-            invalidateMemo(pos);
+            invalidateMemo(pos, mark);
+            mark = entries;
         }
         while (tick());
         rollbackOutput(outputBase);

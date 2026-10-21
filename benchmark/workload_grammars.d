@@ -154,7 +154,7 @@ mixin(grammar!(Memoization.selective, void, backend)(leftExprGrammar));
 @nogc nothrow unittest {
     static immutable inputs = [
         "", "1", "1+2", "1+2*3", "(1+2)*3-4/5", "1+", "1 *", "(1", "1)", "+1", "1 + 2 * (3 - 4)",
-        "((((7))))", "1 2", "1+2+", "2*(3+", "7 - - 1"
+        "((((7))))", "((((((((((((1+2))))))))))))*3", "1 2", "1+2+", "2*(3+", "7 - - 1"
     ];
     foreach (input; inputs) {
         ParseContext context;

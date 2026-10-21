@@ -37,3 +37,14 @@ Tests: unit tests for `iterativeForm` (accepted, suffix-after-base, several suff
 generated source (`_acursor_Expr` present only for the lowered shapes); the A4 differential with the relaxed accept relation;
 scripts/build.sh and the fixture checks (eligibility golden hashes refreshed: 4 generated sources changed) on LDC. DMD, sanitizers,
 Valgrind and coverage tooling: not run on this host.
+
+## Follow-up: check-mode seed growth no longer invalidates unrelated memo entries (2026-10-21)
+
+The phase-exit gate showed `LeftExpr` validation (check) 10x-232,000x over handwritten. Cause: `invalidateMemo` retired every non-active
+entry at positions `>= pos` after each seed growth, so the inner `Expr` of `( Expr )` was recomputed on every outer growth (exponential in
+nesting), and the walk covered the whole entry list. Rules are applied at or after the current position, so only entries *at* `pos` can have
+read the grown seed. `invalidateMemo(pos, until)` now retires only entries at `pos` and walks only the entries created since the previous
+growth (`mark`). Same verdicts/statuses: unit tests, A4 differential (all fixtures, limits, backends) pass.
+Measured (M1, LDC, direct, 7 samples x 200 iterations): Deep 20.07 ms -> 2.2 us (handwritten 115 ns); Flat 25-33 us -> 25-31 us (unchanged);
+Small 487 -> 468 ns; Unbalanced 494 ns. A first version that walked the whole list made Flat 3.6x slower (quadratic); the `mark` fixes that.
+The 16-level `((((((((((((1+2))))))))))))*3` input is now in the `LeftExpr` unittest (it exhausted the depth limit before).
