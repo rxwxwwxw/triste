@@ -849,7 +849,7 @@ Some regions are regular and emit only leaf records; CSV `Root <- Field (Sep Fie
 
 #### D1 — Decision: make `direct` the default backend — DECIDED (keep `combinators`)
 
-**Decision (maintainer, 2026-10-20):** keep `combinators` as the `grammar!` default; the numbers above stay as the decision record.
+**Decision (maintainer, 2026-10-20):** keep `combinators` as the `grammar!` default; the numbers above stay as the decision record. Refreshed final-tree data set for revisiting it: `performance/milestones/D1/notes.md` (direct 264/346 within 1.5x versus combinators 147/346; combinators faster by >3% on 31 of 346 workloads, at most 12%).
 
 Present the maintainer with the following:
 - The L3 and S2b numbers.

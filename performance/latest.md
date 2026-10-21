@@ -2,14 +2,14 @@
 
 Generated from `performance/trends.csv`; do not edit by hand.
 
-Latest run: `20261021T060113Z-124016000-5be5e5027` (milestone:PhaseExit2[direct], ldc2, commit 5be5e5027)
+Latest run: `20261021T060542Z-107474000-1ce38a6c6` (milestone:D1-combinators, ldc2, commit 1ce38a6c6)
 
-- Workloads within 1.5x: 264/346 (76.3%)
-- Slowdown p50/p90/p95: 1.25 / 1.88 / 2.41
-- Geometric mean: 1.26x
-- Worst: 24.51x (handwritten-workloads/LeftExpr.Deep/validation)
+- Workloads within 1.5x: 147/346 (42.5%)
+- Slowdown p50/p90/p95: 1.64 / 3.09 / 9.03
+- Geometric mean: 1.74x
+- Worst: 27.45x (handwritten-workloads/LeftExpr.Deep/accept)
 
-Delta vs comparable run `20261021T035808Z-544080000-e10f8b6dc`: within-target +18, p90 +0.01, geomean -0.08
+No comparable prior run: host, compiler, backend, flags or corpus provenance differs or is missing.
 
 ## Families and corpus labels (newest run)
 
@@ -17,21 +17,21 @@ Labels: `fixture` = in-repo case, `real`/`synthetic`/`learned`/`adversarial` = G
 
 | family | label | workloads | paired | no_twin | within target | geomean | worst |
 |---|---|---|---|---|---|---|---|
-| choices | fixture | 14 | 14 | 0 | 0/14 | 2.5104 | 3.9677 |
-| corpus_arithmetic | adversarial | 4 | 4 | 0 | 2/4 | 1.2502 | 1.5080 |
-| corpus_arithmetic | synthetic | 16 | 16 | 0 | 16/16 | 1.1445 | 1.3344 |
-| corpus_csv | adversarial | 4 | 4 | 0 | 4/4 | 1.4395 | 1.4839 |
-| corpus_csv | synthetic | 16 | 16 | 0 | 14/16 | 0.8807 | 1.7826 |
-| corpus_json | adversarial | 3 | 3 | 0 | 3/3 | 1.3054 | 1.3819 |
-| corpus_json | learned | 12 | 12 | 0 | 10/12 | 1.2248 | 1.6624 |
-| corpus_json | real | 18 | 18 | 0 | 18/18 | 0.9339 | 1.0501 |
-| corpus_json | synthetic | 12 | 12 | 0 | 12/12 | 1.1325 | 1.2929 |
-| failure | fixture | 98 | 98 | 0 | 56/98 | 1.3559 | 2.4561 |
-| lex_ascii | fixture | 72 | 72 | 0 | 70/72 | 1.0294 | 1.5614 |
-| lex_utf8 | fixture | 9 | 9 | 0 | 8/9 | 1.3303 | 1.7161 |
-| nested_expr | fixture | 41 | 41 | 0 | 24/41 | 1.9031 | 24.5115 |
-| pathological | fixture | 12 | 12 | 0 | 12/12 | 0.9891 | 1.3039 |
-| structured | fixture | 15 | 15 | 0 | 15/15 | 1.0185 | 1.3222 |
+| choices | fixture | 14 | 14 | 0 | 0/14 | 9.5664 | 12.6969 |
+| corpus_arithmetic | adversarial | 4 | 4 | 0 | 1/4 | 2.1380 | 2.9617 |
+| corpus_arithmetic | synthetic | 16 | 16 | 0 | 4/16 | 1.8105 | 2.3541 |
+| corpus_csv | adversarial | 4 | 4 | 0 | 2/4 | 1.4507 | 1.5059 |
+| corpus_csv | synthetic | 16 | 16 | 0 | 14/16 | 0.8794 | 1.7826 |
+| corpus_json | adversarial | 3 | 3 | 0 | 0/3 | 2.6745 | 3.2273 |
+| corpus_json | learned | 12 | 12 | 0 | 1/12 | 1.9203 | 2.7038 |
+| corpus_json | real | 18 | 18 | 0 | 16/18 | 1.2548 | 1.5859 |
+| corpus_json | synthetic | 12 | 12 | 0 | 0/12 | 2.0597 | 2.7794 |
+| failure | fixture | 98 | 98 | 0 | 28/98 | 1.6355 | 3.3763 |
+| lex_ascii | fixture | 72 | 72 | 0 | 57/72 | 1.1543 | 2.8728 |
+| lex_utf8 | fixture | 9 | 9 | 0 | 3/9 | 1.7630 | 2.2065 |
+| nested_expr | fixture | 41 | 41 | 0 | 2/41 | 4.1320 | 27.4463 |
+| pathological | fixture | 12 | 12 | 0 | 10/12 | 1.0088 | 1.5267 |
+| structured | fixture | 15 | 15 | 0 | 9/15 | 1.2386 | 1.9933 |
 
 ## History
 
@@ -66,6 +66,7 @@ Labels: `fixture` = in-repo case, `real`/`synthetic`/`learned`/`adversarial` = G
 | 20261021T002149Z-280633000-4f68f5d5a | milestone:C1[direct] | ldc2 | 246/318 | 1.73 | 1.19 | 2.58 |
 | 20261021T035808Z-544080000-e10f8b6dc | milestone:PhaseExit[direct] | ldc2 | 246/346 | 1.87 | 1.34 | 232390.47 |
 | 20261021T060113Z-124016000-5be5e5027 | milestone:PhaseExit2[direct] | ldc2 | 264/346 | 1.88 | 1.26 | 24.51 |
+| 20261021T060542Z-107474000-1ce38a6c6 | milestone:D1-combinators | ldc2 | 147/346 | 3.09 | 1.74 | 27.45 |
 
 ## Progress
 
@@ -138,11 +139,16 @@ Largest outstanding gaps are listed in the latest summary.csv (PEGGrammar.Permis
 ## Phase 2 exit (2026-10-21)
 
 Full gate (`--q2`, validation/spans/tree/accept, 500 iter x 7 samples x 3 runs, direct backend, LDC 1.43, Apple M1; run
-`20261021T035808Z-544080000-e10f8b6dc`, `milestones/PhaseExit/`): **246/346 workloads within 1.5x (71.1%)**, p50 1.28, p90 1.87,
-geomean 1.34 over all, **1.23 over the 332 workloads that exclude the LeftExpr family**, where 246/332 (74%) are within target.
-The corpus grew from 171 workloads (Phase 1 baseline: 99 within, p90 2.04, geomean 1.32) to 346 (Q2 corpora, Ops, LeftExpr, accept),
-so counts are not directly comparable; on the original 171 ids the C1-era dashboard run was 125 within, p90 1.80.
-**Regression / open problem:** the new `LeftExpr` family in `validation` mode (check, not accept) is 10x-232,000x slower than its
-handwritten twin (`LeftExpr.Deep` 232,390x). Check mode uses the generic left-recursion seed-growing path; P8 lowered loops only in the accept clone.
-Not fixed; accept mode on the same family is within target (see `milestones/P8/`). DMD crashes on this host (not run); ASan/LSan/Valgrind
-results are as recorded per milestone. D1 decision: keep `combinators` default. Other Phase 2 closures: X1/X2/O4(b,c)/S7 NO-GO, X3 tool delivered.
+`20261021T060113Z-124016000-5be5e5027`, `milestones/PhaseExit2/`, commit `5be5e5027`): **264/346 workloads within 1.5x (76.3%)**, p50 1.25,
+p90 1.88, p95 2.41, geomean 1.26, worst 24.5x (`LeftExpr.Deep/validation`). Phase 1 baseline for comparison: 99/171 within, p90 2.04,
+geomean 1.32; the corpus grew from 171 to 346 workloads, so counts are not directly comparable.
+An earlier exit run (`milestones/PhaseExit`, commit `e10f8b6dc`) had found 246/346, p90 1.87, worst 232,390x. Two things changed since:
+* `LeftExpr` in `check` mode: seed growth retired every memo entry at later positions on each growth, which made nested parentheses
+  exponential; only same-position entries are retired now (`milestones/P8/notes.md`, follow-up). 8 nested levels 20 ms -> 2.2 us. The
+  family is still 10-25x its handwritten twin in `check` mode (generic seed growth); `accept` mode is at 2.0x.
+* O4 (tagged-DFA leaf records): CSV span/tree workloads -37..-54%, from 1.7-2.1x to 0.9-1.0x handwritten (`milestones/O4/notes.md`).
+Remaining over-target workloads: `LeftExpr` check mode, `Ops` (3.9x), tiny inputs limited by the entry floor, adversarial inputs.
+Other Phase 2 closures: X1 NO-GO, X2 regular-region subset done as O4 (the general lexer/parser fusion is not built), S7 NO-GO,
+X3 tool delivered without an adopted profile. D1: keep `combinators` as the default.
+Not run on this host: DMD (segfaults), the coverage collector (needs dmd + gdc + gcov), LeakSanitizer and Valgrind (unavailable on
+arm64 macOS; ASan was run on the unit tests and on `tests/tagged_regions.d`).

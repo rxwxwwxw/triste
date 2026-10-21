@@ -1,0 +1,12 @@
+{
+  "handwritten-workloads": {
+    "choice": "direct",
+    "reason": "default",
+    "workloads": 244
+  },
+  "json-ambiguity": {
+    "choice": "direct",
+    "reason": "default",
+    "workloads": 102
+  }
+}
