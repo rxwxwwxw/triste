@@ -1381,7 +1381,7 @@ nothrow unittest {
             assert(end == size_t.max && output.length == 0);
         else
             assert(end == input.length && output.nodes == [
-                CompactNode(5, 0, input.length, size_t.max)
+            CompactNode(5, 0, input.length, size_t.max)
         ]);
     }
     // A choice of single bytes merges into one plain state but needs a state per alternative here: a small NFA budget

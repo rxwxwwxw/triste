@@ -48,3 +48,16 @@ growth (`mark`). Same verdicts/statuses: unit tests, A4 differential (all fixtur
 Measured (M1, LDC, direct, 7 samples x 200 iterations): Deep 20.07 ms -> 2.2 us (handwritten 115 ns); Flat 25-33 us -> 25-31 us (unchanged);
 Small 487 -> 468 ns; Unbalanced 494 ns. A first version that walked the whole list made Flat 3.6x slower (quadratic); the `mark` fixes that.
 The 16-level `((((((((((((1+2))))))))))))*3` input is now in the `LeftExpr` unittest (it exhausted the depth limit before).
+
+## Follow-up 2: `check` runs the loop form too (2026-10-21)
+
+`iterativeForm` rules now run as `B (S)*` in `check` (validation) mode on both backends (`_X` selects the lowered body for `Check == 1` and the
+wrapper no longer memoizes it); records, trees and `parse` keep seed growth (they need the left-leaning tree). Evidence that the swap is exact for
+verdict, end and failure frontier: `tests/left_recursion.d` (`scripts/left-recursion-check.sh`) compares the loop form against the hand-written
+loop grammar and against seed growth in records mode on 2,015,539 strings; the A4 differential (all fixtures, step/depth/memory limits, both
+backends) passes; the 8 left-recursive eligibility sources changed and their golden hashes were refreshed. Step accounting is the loop's (fewer
+units than seed growth), i.e. the D2 contract. Measured (validation, M1, direct): LeftExpr.Flat 25.3 -> 7.0 us (handwritten 2.5 us),
+Deep 2.2 us -> 0.56 us (87 ns), Small 468 -> 91 ns (28 ns).
+
+Also `literalChoiceK` (L4): the walk now ends at a trie node whose outcome (winner, failure offset, length) is precomputed, with byte classes
+for the child table: Ops check 13.2 -> 9.5 ns per operator (accept 9.1 ns unchanged, dominated by three work units and the rule calls of the loop).

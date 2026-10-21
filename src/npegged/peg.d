@@ -2962,30 +2962,46 @@ struct literalChoiceK(texts...) {
     enum maxNodes = 250;
     static assert(texts.length >= 2 && texts.length < ubyte.max, "literalChoiceK needs 2..254 alternatives");
 
+    /// The walk ends at one trie node, and everything `dispatch` reports is a function of the path to it: those facts
+    /// are computed once per node. Bytes that no literal contains share class 0, so rows stay small.
     private struct Trie {
-        ubyte[256][maxNodes + 1] child; // [node][byte] -> node, 0 = none (node 0 is the root)
+        ubyte[256] classOf; // byte -> dense class, 0 = a byte no literal contains
+        ubyte[maxNodes + 1][maxNodes + 1] child; // [node][class] -> node, 0 = none (node 0 is the root); classes < maxNodes + 1
         ubyte[maxNodes + 1] terminal; // lowest 1-based alternative ending at the node, 0 = none
         ubyte[maxNodes + 1] lowest; // lowest 1-based alternative passing through (or ending at) the node, 0 = none
-        size_t nodes;
+        ubyte[maxNodes + 1] parent, depth;
+        ubyte[maxNodes + 1] winner, failure, length; // the dispatch outcome when the walk stops at the node
+        size_t nodes, classes;
         bool overflow;
     }
 
     private static Trie computeTrie() {
         Trie trie;
         trie.nodes = 1;
+        trie.classes = 1;
         static foreach (i, text; texts) {
             {
                 static assert(text.length >= 1 && text.length <= 4, "literalChoiceK takes 1-4 byte literals");
                 size_t node = 0;
                 foreach (c; text) {
-                    if (!trie.child[node][cast(ubyte)c]) {
+                    if (!trie.classOf[cast(ubyte)c]) {
+                        if (trie.classes > maxNodes) {
+                            trie.overflow = true;
+                            return trie;
+                        }
+                        trie.classOf[cast(ubyte)c] = cast(ubyte)trie.classes++;
+                    }
+                    const cls = trie.classOf[cast(ubyte)c];
+                    if (!trie.child[node][cls]) {
                         if (trie.nodes > maxNodes) {
                             trie.overflow = true;
                             return trie;
                         }
-                        trie.child[node][cast(ubyte)c] = cast(ubyte)trie.nodes++;
+                        trie.parent[trie.nodes] = cast(ubyte)node;
+                        trie.depth[trie.nodes] = cast(ubyte)(trie.depth[node] + 1);
+                        trie.child[node][cls] = cast(ubyte)trie.nodes++;
                     }
-                    node = trie.child[node][cast(ubyte)c];
+                    node = trie.child[node][cls];
                     if (!trie.lowest[node])
                         trie.lowest[node] = cast(ubyte)(i + 1);
                 }
@@ -2995,11 +3011,35 @@ struct literalChoiceK(texts...) {
         }
         // The root is passed by every alternative: the lowest index is the first.
         trie.lowest[0] = 1;
+        foreach (node; 0 .. trie.nodes) {
+            ubyte[5] path;
+            size_t at = node;
+            const depth = trie.depth[node];
+            foreach_reverse (d; 0 .. depth + 1) {
+                path[d] = cast(ubyte)at;
+                at = trie.parent[at];
+            }
+            ubyte best;
+            foreach (d; 0 .. depth + 1) {
+                const t = trie.terminal[path[d]];
+                if (t && (!best || t < best)) {
+                    best = t;
+                    trie.length[node] = cast(ubyte)d;
+                }
+            }
+            trie.winner[node] = best;
+            if (!best)
+                trie.failure[node] = cast(ubyte)(depth + 1); // every alternative failed after the bytes the walk consumed
+            else
+                foreach (d; 0 .. depth + 1) // earlier alternatives fail at the deepest path node they still pass through
+                    if (trie.lowest[path[d]] && trie.lowest[path[d]] < best)
+                        trie.failure[node] = cast(ubyte)(d + 1);
+        }
         return trie;
     }
 
     static immutable Trie trie = computeTrie();
-    static assert(!trie.overflow, "literalChoiceK: too many trie nodes");
+    static assert(!trie.overflow, "literalChoiceK: too many trie nodes or byte classes");
 
     /// Result of one walk: `winner` is the 1-based alternative (0 = none); `failure` is 0 when no earlier alternative failed,
     /// otherwise 1 + the furthest offset at which an earlier alternative (or, with no winner, any alternative) failed.
@@ -3009,59 +3049,28 @@ struct literalChoiceK(texts...) {
         ubyte length; // bytes the winner consumes
     }
 
-    /// Winner and length only, for callers that record no failures (the `accept` clone).
-    pragma(inline, true) static Dispatch winnerOnly(scope const(char)[] input, size_t pos) @nogc nothrow pure {
-        Dispatch result;
-        size_t node, at = pos;
-        ubyte best;
-        while (true) {
-            const t = trie.terminal[node];
-            if (t && (!best || t < best)) {
-                best = t;
-                result.length = cast(ubyte)(at - pos);
-            }
-            if (at >= input.length)
+    pragma(inline, true) private static size_t walk(scope const(char)[] input, size_t pos) @nogc nothrow pure {
+        size_t node;
+        foreach (step; 0 .. 4) {
+            if (pos + step >= input.length)
                 break;
-            const next = trie.child[node][cast(ubyte)input[at]];
+            const next = trie.child[node][trie.classOf[cast(ubyte)input[pos + step]]];
             if (!next)
                 break;
             node = next;
-            ++at;
         }
-        result.winner = best;
-        return result;
+        return node;
+    }
+
+    /// Winner and length only, for callers that record no failures (the `accept` clone).
+    pragma(inline, true) static Dispatch winnerOnly(scope const(char)[] input, size_t pos) @nogc nothrow pure {
+        const node = walk(input, pos);
+        return Dispatch(trie.winner[node], 0, trie.length[node]);
     }
 
     pragma(inline, true) static Dispatch dispatch(scope const(char)[] input, size_t pos) @nogc nothrow pure {
-        Dispatch result;
-        size_t node, depth;
-        ubyte[5] path;
-        path[0] = 0;
-        ubyte best;
-        while (true) {
-            const t = trie.terminal[node];
-            if (t && (!best || t < best)) {
-                best = t;
-                result.length = cast(ubyte)depth;
-            }
-            if (pos + depth >= input.length)
-                break;
-            const next = trie.child[node][cast(ubyte)input[pos + depth]];
-            if (!next)
-                break;
-            node = next;
-            path[++depth] = cast(ubyte)node;
-        }
-        result.winner = best;
-        if (!best) {
-            result.failure = cast(ubyte)(depth + 1); // every alternative failed after the bytes the walk consumed
-            return result;
-        }
-        // Earlier alternatives (index < best) fail at the deepest path node they still pass through.
-        foreach (d; 0 .. depth + 1)
-            if (trie.lowest[path[d]] && trie.lowest[path[d]] < best)
-                result.failure = cast(ubyte)(d + 1);
-        return result;
+        const node = walk(input, pos);
+        return Dispatch(trie.winner[node], trie.failure[node], trie.length[node]);
     }
 
     static State!(CT, Check).Node opCall(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t pos) nothrow {

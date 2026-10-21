@@ -3017,11 +3017,10 @@ package struct Frontend {
         acceptRules = scalarRules.dup;
         iterativeForms = new IterativeForm[rules.length];
         foreach (i, rule; rules)
-            if (backend == ParserBackend.direct && !actionGrammar && !params.length
-                    && !rule.params.length && analyzed.leftRecursive[i] && !analyzed.conservative
-                    && (!memoize || selective)) {
+            if (!actionGrammar && !params.length && !rule.params.length
+                    && analyzed.leftRecursive[i] && !analyzed.conservative && (!memoize || selective)) {
                 iterativeForms[i] = iterativeForm(i);
-                acceptRules[i] = iterativeForms[i].ok;
+                acceptRules[i] = backend == ParserBackend.direct && iterativeForms[i].ok;
             }
         string result = "struct " ~ name ~ params ~ " {\n";
         if (islands.length) {
@@ -3200,13 +3199,19 @@ package struct Frontend {
             // P8: a directly left-recursive rule gets an `accept` cursor of its loop form (see iterativeForm).
             const loweredAccept = !directRule && ruleIndex < acceptRules.length
                 && acceptRules[ruleIndex] && !scalarRules[ruleIndex] && iterativeForms[ruleIndex].ok;
-            if (loweredAccept) {
+            // The loop form also serves `check` (validation) on every backend: same verdict, end and failure frontier as seed growth.
+            const loopForm = !directRule && ruleIndex < iterativeForms.length && iterativeForms[ruleIndex]
+                .ok;
+            string loweredBody;
+            if (loopForm) {
                 size_t loweredCount = count;
                 string loweredDeclarations;
                 const loweredRoot = expressionNode(analyzed, iterativeForms[ruleIndex].lowered);
                 analyzed.appendFacts(loweredRoot);
-                const loweredBody = emitTokens(analyzed, loweredRoot, r, loweredCount, loweredDeclarations);
+                loweredBody = emitTokens(analyzed, loweredRoot, r, loweredCount, loweredDeclarations);
                 ruleOut ~= loweredDeclarations;
+            }
+            if (loweredAccept) {
                 const cursorRoot = expressionNode(analyzed, loweredBody);
                 analyzed.appendFacts(cursorRoot);
                 directDeclarations = null;
@@ -3225,6 +3230,9 @@ package struct Frontend {
             }
             ruleOut ~= "private static State!(CT, Check).Node _" ~ r
                 ~ "(bool CT, int Check = 0)(ref State!(CT, Check) s, size_t p) nothrow { ";
+            if (loopForm)
+                ruleOut ~= "static if (Check == 1) { return defined!(" ~ loweredBody ~ ", " ~ quoted(
+                        name ~ "." ~ r) ~ ")(s,p); } else { ";
             const original = analyzed.expressions[analyzed.roots[ruleIndex]].source;
             if (original != rule.body)
                 ruleOut ~= "if (s.context.trace !is null) return defined!(" ~ original ~ ", " ~ quoted(
@@ -3240,7 +3248,8 @@ package struct Frontend {
             if (loweredAccept)
                 ruleOut ~= "static if (!CT && Check == 1) { if (s.acceptOnly && s.context.trace is null) return defined!(_directAccept_" ~ r ~ "!(CT, Check), " ~ quoted(
                         name ~ "." ~ r) ~ ")(s,p); } ";
-            ruleOut ~= "return defined!(" ~ body ~ ", " ~ quoted(name ~ "." ~ r) ~ ")(s,p); }\n";
+            ruleOut ~= "return defined!(" ~ body ~ ", " ~ quoted(name ~ "." ~ r) ~ ")(s,p); " ~ (
+                    loopForm ? "} " : "") ~ "}\n";
             // Concrete overloads break recursive attribute-inference cycles.
             foreach (mode; [
                 "false, false", "true, false", "false, true", "true, true", "false, 2", "true, 2"
@@ -3248,9 +3257,10 @@ package struct Frontend {
                 auto attributes = !startsWith(mode, "true") ? " @nogc nothrow" : " nothrow";
                 ruleOut ~= "static State!(" ~ mode ~ ").Node " ~ entryName ~ (startsWith(mode, "true")
                         ? "(CompileTime = void)" : "") ~ "(ref State!(" ~ mode ~ ") s, size_t p)" ~ attributes;
+                const memoFlag = loopForm && (mode == "false, true" || mode == "true, true") ? false : cache;
                 if (island && (mode == "false, true" || mode == "false, 2"))
                     ruleOut ~= " { if (s.pureIslandAllowed()) return s.rule!(_" ~ r ~ "!(" ~ mode
-                        ~ "), " ~ quoted(name ~ "." ~ r) ~ ", " ~ (cache
+                        ~ "), " ~ quoted(name ~ "." ~ r) ~ ", " ~ (memoFlag
                                 ? "true" : "false") ~ recordTag ~ ")(p); return s.treeFallback!("
                         ~ entryName ~ ")(p); }\n";
                 else if (actionGrammar && (mode != "false, false" && mode != "true, false"))
@@ -3259,10 +3269,10 @@ package struct Frontend {
                     ruleOut ~= " { if (s.acceptOnly && s.context.trace is null) return s.rule!(_"
                         ~ r ~ "!(" ~ mode ~ "), " ~ quoted(name ~ "." ~ r)
                         ~ ", false)(p); return s.rule!(_" ~ r ~ "!(" ~ mode ~ "), " ~ quoted(
-                                name ~ "." ~ r) ~ ", " ~ (cache ? "true" : "false") ~ recordTag ~ ")(p); }\n";
+                                name ~ "." ~ r) ~ ", " ~ (memoFlag ? "true" : "false") ~ recordTag ~ ")(p); }\n";
                 else
                     ruleOut ~= " { return s.rule!(_" ~ r ~ "!(" ~ mode ~ "), " ~ quoted(
-                            name ~ "." ~ r) ~ ", " ~ (cache ? "true" : "false") ~ recordTag ~ ")(p); }\n";
+                            name ~ "." ~ r) ~ ", " ~ (memoFlag ? "true" : "false") ~ recordTag ~ ")(p); }\n";
             }
             ruleOut ~= "static ParseResult " ~ entryName ~ "(Context)(ref Context ctx, string input) @nogc nothrow if (is(Context == ParseContext)) { return parse!(" ~ entryName ~ ")(ctx,input); }\n";
             ruleOut ~= "static ParseTree " ~ entryName
