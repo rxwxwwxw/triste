@@ -1,0 +1,150 @@
+Analysis of sampling head_runner (pid 60150) every 1 millisecond
+Process:         head_runner [60150]
+Path:            /Users/USER/*/head_runner
+Load Address:    0x10295c000
+Identifier:      head_runner
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  bash [60128]
+Target Type:     live task
+
+Date/Time:       2026-10-20 18:30:52.546 -0600
+Launch Time:     2026-10-20 18:30:51.014 -0600
+OS Version:      macOS 26.6.2 (25G83)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+----
+
+Call graph:
+    482 Thread_3440960   DispatchQueue_1: com.apple.main-thread  (serial)
+      482 start  (in dyld) + 6992  [0x180ac44e4]
+        482 _d_run_main  (in head_runner) + 144  [0x102d362e0]
+          482 _d_run_main2  (in head_runner) + 352  [0x102d3645c]
+            482 _D2rt6dmain212_d_run_main2UAAamPUQgZiZ6runAllMFZv  (in head_runner) + 120  [0x102d365b4]
+              481 _Dmain  (in head_runner) + 11300  [0x102962e28]
+              + 479 _D9benchmark6runner11observeCaseFKSQBhQBa13BenchmarkCasembEQCf11json_output10OutputModeZSQDj11measurement11Observation  (in head_runner) + 264  [0x10295ccbc]
+              + ! 477 _D9benchmark17workload_grammars15observeWorkloadFNbNiAyaQdbZSQCh11measurement11Observation  (in head_runner) + 1384  [0x10295dd98]
+              + ! : 465 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parseGrammarZQpMFNbNiZb  (in head_runner) + 944  [0x102b40954]
+              + ! : | 198 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 572  [0x102b425c4]
+              + ! : | + 159 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 340  [0x102b42c64]
+              + ! : | + ! 114 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 592  [0x102b42fc4]
+              + ! : | + ! : 82 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 572  [0x102b425c4]
+              + ! : | + ! : | 72 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 340  [0x102b42c64]
+              + ! : | + ! : | + 61 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 592  [0x102b42fc4]
+              + ! : | + ! : | + ! 28 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 572  [0x102b425c4]
+              + ! : | + ! : | + ! : 12 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 16,132,...  [0x102b42b20,0x102b42b94,...]
+              + ! : | + ! : | + ! : 11 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 340  [0x102b42c64]
+              + ! : | + ! : | + ! : | 10 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 16,60,...  [0x102b42d84,0x102b42db0,...]
+              + ! : | + ! : | + ! : | 1 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 4  [0x102d42904]
+              + ! : | + ! : | + ! : 4 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 4  [0x102d428ec]
+              + ! : | + ! : | + ! : 1 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 740  [0x102b43058]
+              + ! : | + ! : | + ! 19 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 516,20,...  [0x102b4258c,0x102b4239c,...]
+              + ! : | + ! : | + ! 12 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 560  [0x102b425b8]
+              + ! : | + ! : | + ! : 10 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T17isDefinitionAheadZQuMFNaNbNiNfZb  (in head_runner) + 188,268,...  [0x102b428fc,0x102b4294c,...]
+              + ! : | + ! : | + ! : 2 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T17isDefinitionAheadZQuMFNaNbNiNfZb  (in head_runner) + 4  [0x102d42928]
+              + ! : | + ! : | + ! 1 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 4  [0x102d4291c]
+              + ! : | + ! : | + ! 1 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 604  [0x102b42d6c]
+              + ! : | + ! : | + 7 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 868,600,...  [0x102b430d8,0x102b42fcc,...]
+              + ! : | + ! : | + 4 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 4  [0x102d42904]
+              + ! : | + ! : | 9 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 348,16,...  [0x102b42c6c,0x102b42b20,...]
+              + ! : | + ! : | 1 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 740  [0x102b43058]
+              + ! : | + ! : 16 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 560  [0x102b425b8]
+              + ! : | + ! : | 16 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T17isDefinitionAheadZQuMFNaNbNiNfZb  (in head_runner) + 76,268,...  [0x102b4288c,0x102b4294c,...]
+              + ! : | + ! : 14 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 448,516,...  [0x102b42548,0x102b4258c,...]
+              + ! : | + ! : 1 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 4  [0x102d4291c]
+              + ! : | + ! : 1 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 604  [0x102b42d6c]
+              + ! : | + ! 40 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 372,868,...  [0x102b42ee8,0x102b430d8,...]
+              + ! : | + ! 3 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 4  [0x102d42904]
+              + ! : | + ! 2 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 1200  [0x102b42838]
+              + ! : | + 31 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 16,176,...  [0x102b42b20,0x102b42bc0,...]
+              + ! : | + 5 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 4  [0x102d428ec]
+              + ! : | + 3 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 740,744  [0x102b43058,0x102b4305c]
+              + ! : | 74 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 560  [0x102b425b8]
+              + ! : | + 66 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T17isDefinitionAheadZQuMFNaNbNiNfZb  (in head_runner) + 344,356,...  [0x102b42998,0x102b429a4,...]
+              + ! : | + 8 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T17isDefinitionAheadZQuMFNaNbNiNfZb  (in head_runner) + 4  [0x102d42928]
+              + ! : | 61 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 436,1056,...  [0x102b4253c,0x102b427a8,...]
+              + ! : | 42 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseDefinitionZQsMFNbNiZb  (in head_runner) + 232,320,...  [0x102b41fec,0x102b42044,...]
+              + ! : | 42 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 1100  [0x102b427d4]
+              + ! : | + 40 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T17isDefinitionAheadZQuMFNaNbNiNfZb  (in head_runner) + 356,188,...  [0x102b429a4,0x102b428fc,...]
+              + ! : | + 2 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T17isDefinitionAheadZQuMFNaNbNiNfZb  (in head_runner) + 4  [0x102d42928]
+              + ! : | 38 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 1112  [0x102b427e0]
+              + ! : | + 25 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 340  [0x102b42c64]
+              + ! : | + ! 23 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 868,60,...  [0x102b430d8,0x102b42db0,...]
+              + ! : | + ! 2 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 4  [0x102d42904]
+              + ! : | + 9 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 132,16,...  [0x102b42b94,0x102b42b20,...]
+              + ! : | + 4 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 4  [0x102d428ec]
+              + ! : | 5 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 604  [0x102b42d6c]
+              + ! : | 3 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseDefinitionZQsMFNbNiZb  (in head_runner) + 4  [0x102d42910]
+              + ! : | 2 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 4  [0x102d4291c]
+              + ! : 7 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parseGrammarZQpMFNbNiZb  (in head_runner) + 348,928,...  [0x102b40700,0x102b40944,...]
+              + ! : 4 _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 1200  [0x102b42838]
+              + ! : 1 DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parseGrammarZQpMFNbNiZb  (in head_runner) + 4  [0x102d428f8]
+              + ! 2 _D9benchmark17workload_grammars15observeWorkloadFNbNiAyaQdbZSQCh11measurement11Observation  (in head_runner) + 148,1376  [0x10295d8c4,0x10295dd90]
+              + 2 _D9benchmark6runner11observeCaseFKSQBhQBa13BenchmarkCasembEQCf11json_output10OutputModeZSQDj11measurement11Observation  (in head_runner) + 36,236  [0x10295cbd8,0x10295cca0]
+              1 _Dmain  (in head_runner) + 11424  [0x102962ea4]
+                1 _Dmain  (in head_runner) + 11472  [0x102962ed4]
+
+Total number in stack (recursive counted multiple, when >=5):
+        7       _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner) + 0  [0x102b42b10]
+        7       _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner) + 0  [0x102b42d74]
+        5       _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner) + 0  [0x102b42388]
+
+Sort by top of stack, same collapsed (when >= 5):
+        _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T17isDefinitionAheadZQuMFNaNbNiNfZb  (in head_runner)        132
+        _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseExpressionZQsMFNbNiZb  (in head_runner)        100
+        _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner)        85
+        _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner)        68
+        _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T15parseDefinitionZQsMFNbNiZb  (in head_runner)        42
+        DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T11parsePrefixZQoMFNbNiZb  (in head_runner)        13
+        DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T17isDefinitionAheadZQuMFNaNbNiNfZb  (in head_runner)        12
+        DYLD-STUB$$_D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parsePrimaryZQpMFNbNiZb  (in head_runner)        10
+        _D9benchmark11handwritten3peg__T13PegParserImplVbi0ZQu__T12parseGrammarZQpMFNbNiZb  (in head_runner)        7
+
+Binary Images:
+       0x10295c000 -        0x102d6d3cf +head_runner (0) <D31FDE21-E813-39E9-BF8C-C9C7C1A7F371> /Users/*/head_runner
+       0x180a1c000 -        0x180a6eb4b  libobjc.A.dylib (951.7) <03BD9E32-CF0A-37B0-898A-3CE8DE06D842> /usr/lib/libobjc.A.dylib
+       0x180a6f000 -        0x180aa3d58  libdyld.dylib (1387) <957F93B3-8805-39C7-9C51-EDD1715F550E> /usr/lib/system/libdyld.dylib
+       0x180aa4000 -        0x180b574ff  dyld (1.0.0 - 1387) <74E52480-C2BD-3C8D-812D-95FE2B74A096> /usr/lib/dyld
+       0x180b58000 -        0x180b5b228  libsystem_blocks.dylib (96) <E0AC1231-27AA-3A13-8FAC-41D5802B1F3C> /usr/lib/system/libsystem_blocks.dylib
+       0x180b5c000 -        0x180bb055f  libxpc.dylib (3102.160.5) <33E44C2D-D65E-37A6-B85F-1A4CF524A050> /usr/lib/system/libxpc.dylib
+       0x180bb1000 -        0x180bd19ff  libsystem_trace.dylib (1861.160.4) <93F1DD8C-6CD9-32B9-B222-D23DA5D161B4> /usr/lib/system/libsystem_trace.dylib
+       0x180bd2000 -        0x180c805f7  libcorecrypto.dylib (1922.160.10) <0642DDAD-4771-3C82-805C-E7C6701C1461> /usr/lib/system/libcorecrypto.dylib
+       0x180c81000 -        0x180cd1257  libsystem_malloc.dylib (812.160.5) <D969A907-3E43-3951-9365-8C2DB3812E9D> /usr/lib/system/libsystem_malloc.dylib
+       0x180cd2000 -        0x180d1923f  libdispatch.dylib (1542.160.2) <B2000CD5-F580-314A-A141-E036719D854E> /usr/lib/system/libdispatch.dylib
+       0x180d1a000 -        0x180d1cffb  libsystem_featureflags.dylib (103) <FEE12F9C-344B-33B3-8EDD-283580EF1C67> /usr/lib/system/libsystem_featureflags.dylib
+       0x180d1d000 -        0x180d9e1e7  libsystem_c.dylib (1752.160.4) <D77CEB62-AFF6-3CEC-BA9B-4F057FBE2EB5> /usr/lib/system/libsystem_c.dylib
+       0x180d9f000 -        0x180e2fae7  libc++.1.dylib (2100.43) <F0FD393C-15BC-3C75-A19D-897F7B225C78> /usr/lib/libc++.1.dylib
+       0x180e30000 -        0x180e4a75f  libc++abi.dylib (2100.43) <F38A9C58-22AB-3798-BBAE-8DCD9CC0CE27> /usr/lib/libc++abi.dylib
+       0x180e4b000 -        0x180e882e7  libsystem_kernel.dylib (12377.161.14) <C6A4A4CB-92E6-3BAF-AAE0-E8306259209A> /usr/lib/system/libsystem_kernel.dylib
+       0x180e89000 -        0x180e95b3b  libsystem_pthread.dylib (539.100.4) <A373F0B0-9880-326A-88B4-DD8BE4E33072> /usr/lib/system/libsystem_pthread.dylib
+       0x180e96000 -        0x180e9e963  libsystem_platform.dylib (375.120.2) <EDB83A19-EC17-32DE-9350-6145970A85D6> /usr/lib/system/libsystem_platform.dylib
+       0x180e9f000 -        0x180ece6eb  libsystem_info.dylib (600) <9B5FB84B-31AD-3EA7-8F89-8C700D369DC8> /usr/lib/system/libsystem_info.dylib
+       0x184e6c000 -        0x184e75e5f  libsystem_darwin.dylib (1752.160.4) <8E07D22E-CE5A-38A0-B091-5B0338C326F5> /usr/lib/system/libsystem_darwin.dylib
+       0x1852d7000 -        0x1852e91b6  libsystem_notify.dylib (348.160.3) <15799128-6CBD-30D6-A2BB-B9D02B4470C0> /usr/lib/system/libsystem_notify.dylib
+       0x1875a8000 -        0x1875c2f7b  libsystem_networkextension.dylib (2226.161.1) <9C7B1EEB-47BE-3791-93A9-CFC693CB9417> /usr/lib/system/libsystem_networkextension.dylib
+       0x187645000 -        0x18765cfdf  libsystem_asl.dylib (406) <54439739-33EE-3273-839F-CBA67D7F5CB1> /usr/lib/system/libsystem_asl.dylib
+       0x1891fe000 -        0x189206387  libsystem_symptoms.dylib (2169.160.3) <229122B9-B8B1-3F2F-870E-8650AE3C4FB5> /usr/lib/system/libsystem_symptoms.dylib
+       0x18d4a3000 -        0x18d4db5b7  libsystem_containermanager.dylib (725.160.3) <14B2A47F-19C8-392F-8FDB-FE8AE375DD41> /usr/lib/system/libsystem_containermanager.dylib
+       0x18e8b5000 -        0x18e8b95d7  libsystem_configuration.dylib (1405.160.3) <D8D6280B-783D-3550-BDBA-2861AE40604F> /usr/lib/system/libsystem_configuration.dylib
+       0x18e8ba000 -        0x18e8c099f  libsystem_sandbox.dylib (2680.160.6) <54688162-B50D-3D31-A1E8-7B9766D3530D> /usr/lib/system/libsystem_sandbox.dylib
+       0x18ff15000 -        0x18ff181fb  libquarantine.dylib (196.160.2) <EEE5AADB-52E1-3C4C-881A-70405770B1F1> /usr/lib/system/libquarantine.dylib
+       0x1906b4000 -        0x1906bad03  libsystem_coreservices.dylib (191.5.1) <D4ACD2AC-5702-3C45-85A0-300B2C2D19E1> /usr/lib/system/libsystem_coreservices.dylib
+       0x190c43000 -        0x190c80a77  libsystem_m.dylib (3312.100.1) <B54FBE99-DB0B-32C7-ABDD-C2206DF606A4> /usr/lib/system/libsystem_m.dylib
+       0x190c82000 -        0x190c85527  libmacho.dylib (1387) <949131E5-BDA2-39BA-AA50-62651BB51802> /usr/lib/system/libmacho.dylib
+       0x190c9f000 -        0x190cac3a7  libcommonCrypto.dylib (600035) <3B110564-5278-3CB0-85F1-2CE8431FF935> /usr/lib/system/libcommonCrypto.dylib
+       0x190cad000 -        0x190cb6ca3  libunwind.dylib (2100.2) <05FD0014-55B1-3B8A-A6BA-6C7A389C4123> /usr/lib/system/libunwind.dylib
+       0x190cbf000 -        0x190cc9bef  libcopyfile.dylib (240.160.2.0.1) <D0009B8A-8ECC-3D56-9206-7E1839707F93> /usr/lib/system/libcopyfile.dylib
+       0x190cca000 -        0x190ccd987  libcompiler_rt.dylib (103.3) <6FB345CA-7F5C-3263-A23F-143F7539FD8A> /usr/lib/system/libcompiler_rt.dylib
+       0x190cce000 -        0x190cd278b  libsystem_collections.dylib (1752.160.4) <C8160BD2-5941-3DC0-BB40-F8C2B8156EC4> /usr/lib/system/libsystem_collections.dylib
+       0x190cd3000 -        0x190cd64cf  libsystem_secinit.dylib (168.100.7) <ECABC024-8F02-374A-BB7E-29437CEA2ABD> /usr/lib/system/libsystem_secinit.dylib
+       0x190cd7000 -        0x190cd9bf7  libremovefile.dylib (85.100.6) <7460B5AE-469A-36A0-A7EC-6C7D69628E86> /usr/lib/system/libremovefile.dylib
+       0x190cda000 -        0x190cdaf27  libkeymgr.dylib (31) <7E863FCA-F3FF-32C7-8A8C-F983E946AFC3> /usr/lib/system/libkeymgr.dylib
+       0x190cdb000 -        0x190ce3e37  libsystem_dnssd.dylib (2881.160.4) <305F4398-E688-3384-B351-02D865EC8A04> /usr/lib/system/libsystem_dnssd.dylib
+       0x190ce4000 -        0x190ce909b  libcache.dylib (95) <9CD7B1E1-3E47-339C-A193-2392E3E0ED23> /usr/lib/system/libcache.dylib
+       0x190cea000 -        0x190cebce3  libSystem.B.dylib (1356) <4FED5EE2-5D3E-35B1-A170-9859C4B683BB> /usr/lib/libSystem.B.dylib
+       0x284cad000 -        0x284cb4349  libRosetta.dylib (367.9) <0C7397C6-D747-31F2-8BC1-4096213BDE5C> /usr/lib/libRosetta.dylib
+       0x2868c0000 -        0x2868c3a4b  libsystem_darwindirectory.dylib (122) <971A4F65-493D-39F3-846D-0D33FA2769FD> /usr/lib/system/libsystem_darwindirectory.dylib
+       0x2868c4000 -        0x2868ce39b  libsystem_eligibility.dylib (319.160.17) <750CA446-92EA-3A56-9A7B-CC0841686C50> /usr/lib/system/libsystem_eligibility.dylib
+       0x2868cf000 -        0x2868d688b  libsystem_sanitizers.dylib (26.1) <D88EC709-9AA8-3083-B22B-D3CB39678D71> /usr/lib/system/libsystem_sanitizers.dylib
+       0x2868d7000 -        0x2868d7bb7  libsystem_trial.dylib (474.2.18.2) <7194FF5B-A6C5-3D67-B00A-90209F10D603> /usr/lib/system/libsystem_trial.dylib
