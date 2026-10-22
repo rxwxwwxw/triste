@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Bound the entire build/run tree, including direct invocations of this script.
+# Re-exec only the child workload; never move the invoking shell into its cgroup.
+if [[ ${NPEGGED_BENCH_BOUNDED:-0} != 1 ]]; then
+  export NPEGGED_BENCH_BOUNDED=1
+  exec python3 scripts/benchmark_limit.py "$0" "$@"
+fi
 if ! command -v timeout >/dev/null 2>&1 && [[ -d /opt/homebrew/opt/coreutils/libexec/gnubin ]]; then
   export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH"
 fi
@@ -40,11 +46,14 @@ flags=()
 output=()
 case "$(basename "$compiler")" in
   dmd)
-    flags=(-O -inline -release -w -de -checkaction=halt)
+    # DMD otherwise retains temporary CTFE allocations until compiler exit.
+    flags=(-lowmem -O -inline -release -w -de -checkaction=halt)
     output=(-of="$build_dir/benchmark_runner")
     ;;
   ldc2)
-    flags=(-O3 -release -boundscheck=off -w -de -checkaction=halt)
+    # Collect compiler temporaries before the default 2x heap growth competes
+    # with LLVM optimization for the same memory budget. This affects only LDC.
+    flags=(--lowmem --DRT-gcopt=heapSizeFactor:1.1 -O3 -release -boundscheck=off -w -de -checkaction=halt)
     output=(-of="$build_dir/benchmark_runner")
     ;;
   gdc)

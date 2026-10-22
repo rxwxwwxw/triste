@@ -96,7 +96,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
         names = {case['name'] for case in corpus}
         self.assertTrue(all(case['output'] == 'validation' for case in corpus))
         self.assertEqual({name.split('.')[0] for name in names},
-                         {'Arithmetic', 'CSV', 'Numbers', 'PEGGrammar'})
+                         {'Arithmetic', 'CSV', 'Numbers', 'PEGGrammar', 'Ops', 'LeftExpr'})
         self.assertTrue(any(not case['expectedAccepted'] for case in corpus))
         result = self.run_runner('--workloads', '--mode=validation', '--json', '--memory',
                                  '--iterations=2', '--samples=2')

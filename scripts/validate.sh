@@ -35,6 +35,7 @@ timeout 10s python3 tests/test_recursion_summary.py
 timeout 10s python3 tests/test_peg_probe_summary.py
 timeout 10s python3 tests/test_memo_dependencies.py
 timeout 10s python3 tests/test_performance_record.py
+timeout 10s python3 tests/test_benchmark_limit.py
 
 if [[ "$MODE" == "full" ]]; then
   COMPILERS="dmd ldc2" bash scripts/entry-check.sh

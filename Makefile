@@ -14,6 +14,7 @@ MEMORY_LIMIT ?= 4G
 
 # Benchmark flags (e.g., BENCH_FLAGS="--iterations=500" or BENCH_FLAGS="--json")
 BENCH_FLAGS ?=
+BENCH_MEMORY_LIMIT ?= 2G
 
 HAVE_SYSTEMD_RUN := $(shell if command -v systemd-run >/dev/null 2>&1 && systemd-run --user --scope -q --unit="npegged-probe-$$$$-$$RANDOM" true >/dev/null 2>&1; then echo 1; else echo 0; fi)
 ifeq ($(HAVE_SYSTEMD_RUN),1)
@@ -54,7 +55,7 @@ examples-all:
 
 # Run benchmarks against vendored Pegged
 benchmark:
-	$(RUN_BOUNDED) DC=$(DC) scripts/benchmark.sh $(BENCH_FLAGS)
+	env MEMORY_LIMIT="$(BENCH_MEMORY_LIMIT)" DC=$(DC) scripts/benchmark.sh $(BENCH_FLAGS)
 
 bench: benchmark
 
@@ -70,7 +71,7 @@ benchmark-compare:
 
 # Run benchmarks with allocator traffic measurements
 benchmark-memory:
-	$(RUN_BOUNDED) DC=$(DC) scripts/benchmark.sh --memory $(BENCH_FLAGS)
+	env MEMORY_LIMIT="$(BENCH_MEMORY_LIMIT)" DC=$(DC) scripts/benchmark.sh --memory $(BENCH_FLAGS)
 
 bench-memory: benchmark-memory
 
@@ -170,4 +171,5 @@ help:
 	@echo "Variables:"
 	@echo "  DC               D compiler executable (default: dmd; e.g. DC=ldc2 or DC=gdc)"
 	@echo "  MEMORY_LIMIT     Memory cap per test run when systemd-run is available (default: 4G)"
+	@echo "  BENCH_MEMORY_LIMIT Memory cap for benchmark build and run (default: 2G)"
 	@echo "  BENCH_FLAGS      Additional flags for benchmark runner (e.g. BENCH_FLAGS='--iterations=100 --json')"

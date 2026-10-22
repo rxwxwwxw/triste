@@ -159,6 +159,9 @@ int main() @nogc nothrow {
         tiny.rows = tinyStorage[];
         context.scannerReport = &tiny;
         assert(parseRecords!(Candidate.Root, selected, false)(context, "123").successful);
+        // Root's tagged scan emits its inner records in one event; use a second rule
+        // to exercise report truncation independently of that optimization.
+        assert(parseRecords!(Candidate.Digits, selected, false)(context, "123").successful);
         assert(tiny.truncated && tiny.length == 1 && tiny.total.calls >= 2);
         context.scannerReport = null;
         assert(check!(Candidate.Root)(context, "123").successful);
@@ -189,7 +192,7 @@ int main() @nogc nothrow {
         assert(testReport.total.fastFailure == 1);
         assert(testReport.total.replays == 0);
 
-        // 4. Token WITH inner records (Candidate.Inner): MUST fall back to combinator execution
+        // 4. Tagged tables handle inner leaf records without lowering to the original walk.
         testReport.total = ScannerStats.init;
         foreach (ref row; testStorage)
             row = ScannerStats.init;
@@ -197,7 +200,7 @@ int main() @nogc nothrow {
         assert(!innerRes.successful && innerRes.failEnd == 0);
         assert(testReport.total.fastFailure == 1);
         assert(testReport.total.replays == 0);
-        assert(testReport.total.reasons[ScannerReason.recordLowering] == 1);
+        assert(testReport.total.reasons[ScannerReason.recordLowering] == 0);
 
         // 5. BudgetEdge on step limit: must not take fast failure shortcut
         testReport.total = ScannerStats.init;

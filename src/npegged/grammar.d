@@ -3429,7 +3429,7 @@ nothrow unittest {
         assert(Frontend.countOf(eligible.source, "private static bool _cursor_Root(ref ParseContext") != 0);
     } else
         assert(Frontend.countOf(eligible.source, "npeggedTryCheck") == 0);
-    auto reference = generate!(Memoization.selective)("Entry: Root <- [a-z]* eoi");
+    auto reference = generate!(Memoization.selective, void, ParserBackend.combinators)("Entry: Root <- [a-z]* eoi");
     assert(reference.status == Status.ok && Frontend.countOf(reference.source, "npeggedTryCheck") == 0);
     auto memoized = generate!(Memoization.yes, void, ParserBackend.direct)("Entry: Root <- [a-z]* eoi");
     assert(memoized.status == Status.ok && Frontend.countOf(memoized.source, "npeggedTryCheck") == 0);
@@ -4058,7 +4058,9 @@ ScannerUnit:
         assert(parseRecords!(ScannerUnit.Root, compactTag, false)(context, "12").successful);
         assert(!parseRecords!(ScannerUnit.Root, compactTag, false)(context, "12!").successful);
         assert(check!(ScannerUnit.Merged)(context, "ac7").successful);
-        assert(report.total.reasons[ScannerReason.recordLowering] == 2);
+        // Tagged DFA tables emit Leaf records without lowering to the original walk.
+        assert(report.total.reasons[ScannerReason.recordLowering] == 0);
+        assert(report.total.fastFailure == 1);
         assert(report.total.fastSuccess >= 2);
         assert(!report.truncated);
     }

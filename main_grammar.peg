@@ -1,0 +1,130 @@
+```peg
+# ==============================================================================
+# UNIFIED NARRATIVE, LOGIC, & STAGE DSL (PEG GRAMMAR)
+# Unambiguous LL(1) Disjoint Grammar for D-Backed Game Engine
+# ==============================================================================
+
+Module          <- TopDecl* EOI
+
+# ------------------------------------------------------------------------------
+# 1. TOP-LEVEL DECLARATIONS (Disjoint FIRST tokens)
+# ------------------------------------------------------------------------------
+TopDecl         <- SceneDecl
+                 | RuleDecl
+                 | FactDecl
+                 | DollDecl
+
+SceneDecl       <- "scene" IDENT ParamList? "{" SceneSection* "}"
+RuleDecl        <- "rule" Predicate ":-" GoalList "."
+FactDecl        <- "fact" Predicate "."
+DollDecl        <- "doll" IDENT "{" DollBody* "}"
+
+ParamList       <- "(" Param ("," Param)* ")"
+Param           <- IDENT IDENT
+
+# ------------------------------------------------------------------------------
+# 2. SCENE SECTIONS & DOLL BODIES
+# ------------------------------------------------------------------------------
+SceneSection    <- WhenBlock
+                 | PriorityDecl
+                 | StageBlock
+                 | ScriptBlock
+
+WhenBlock       <- "when" "{" GoalList "}"
+PriorityDecl    <- "priority" ":" Expr
+StageBlock      <- "stage" "{" StageStmt* "}"
+ScriptBlock     <- "script" "{" ScriptStmt* "}"
+
+DollBody        <- DefaultSlotDecl
+                 | HideSlotDecl
+                 | CueDecl
+                 | ExtendDollDecl
+
+DefaultSlotDecl <- "default" "slot" IDENT "{" SlotRule* "}"
+SlotRule        <- STRING "when" GoalList
+                 | STRING "otherwise"
+
+HideSlotDecl    <- "hide" "slot" IDENT "when" GoalList
+CueDecl         <- "cue" IDENT "{" PropBinding* "}"
+ExtendDollDecl  <- "extend" "slot" IDENT "{" SlotRule* "}"
+
+# ------------------------------------------------------------------------------
+# 3. LOGIC & UNIFICATION GOALS
+# ------------------------------------------------------------------------------
+GoalList        <- Goal (";" | NL)* GoalList?
+Goal            <- "!" Goal
+                 | Expr RelOp Expr
+                 | Predicate
+
+Predicate       <- IDENT "(" ArgList? ")"
+ArgList         <- Expr ("," Expr)*
+
+# ------------------------------------------------------------------------------
+# 4. REACTIVE STAGE GRAPH
+# ------------------------------------------------------------------------------
+StageStmt       <- "bg" ":" STRING CueMod?
+                 | "doll" IDENT ":" CueList ("{" PropBinding* "}")?
+
+PropBinding     <- IDENT ":" Expr
+CueList         <- Cue ("," Cue)*
+Cue             <- IDENT ("(" ArgList? ")")?
+CueMod          <- "[" IDENT ":" Expr ("," IDENT ":" Expr)* "]"
+
+# ------------------------------------------------------------------------------
+# 5. SCRIPT STATEMENTS (Strict Disjoint FIRST Sets for Zero Ambiguity)
+#    FIRST(NarrationStmt) -> "*"
+#    FIRST(MutateStmt)    -> "~"
+#    FIRST(StagePatch)    -> "@"
+#    FIRST(ChoiceBlock)   -> "choice"
+#    FIRST(IfBlock)       -> "if"
+#    FIRST(DialogueStmt)  -> IDENT | STRING
+# ------------------------------------------------------------------------------
+ScriptStmt      <- NarrationStmt NL
+                 | MutateStmt NL
+                 | StagePatch NL
+                 | ChoiceBlock
+                 | IfBlock
+                 | DialogueStmt NL
+
+NarrationStmt   <- "*" InterpolatedLine
+MutateStmt      <- "~" LValue AssignOp Expr
+StagePatch      <- "@" IDENT LValue "=" Expr CueMod?
+DialogueStmt    <- (IDENT ("(" CueList ")")? ":")? STRING CueMod?
+
+ChoiceBlock     <- "choice" "{" ChoiceOption* "}"
+ChoiceOption    <- STRING CueMod? "->" "{" ScriptStmt* "}"
+
+IfBlock         <- "if" "(" GoalList ")" "{" ScriptStmt* "}"
+                 ("else" "{" scriptStmt* "}")?
+
+InterpolatedLine<- (STRING | Interpolation)*
+Interpolation   <- "{" Expr "}"
+
+# ------------------------------------------------------------------------------
+# 6. EXPRESSIONS & OPERATOR PRECEDENCE (Pratt Parsed)
+# ------------------------------------------------------------------------------
+LValue          <- IDENT ("." IDENT | "[" Expr "]")*
+AssignOp        <- "=" | "+=" | "-=" | "*=" | "/="
+RelOp           <- "==" | "!=" | "<=" | ">=" | "<" | ">"
+
+Expr            <- TernaryExpr
+TernaryExpr     <- OrExpr ("?" Expr ":" Expr)?
+OrExpr          <- AndExpr ("||" AndExpr)*
+AndExpr         <- AddExpr ("&&" AddExpr)*
+AddExpr         <- MulExpr (("+" | "-") MulExpr)*
+MulExpr         <- UnaryExpr (("*" | "/" | "%") UnaryExpr)*
+UnaryExpr       <- ("!" | "-") UnaryExpr | PrimaryExpr
+PrimaryExpr     <- NUMBER
+                 | STRING
+                 | "true" | "false"
+                 | "(" Expr ")"
+                 | IDENT ("(" ArgList? ")" | ("." IDENT | "[" Expr "]")*)
+
+# Lexical Helpers
+IDENT           <- [a-zA-Z_] [a-zA-Z0-9_]*
+NUMBER          <- [0-9]+ ("." [0-9]+)?
+STRING          <- '"' (!'"' [^\r\n])* '"'
+NL              <- [\r\n]+
+EOI             <- !.
+
+```

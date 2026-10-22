@@ -6,6 +6,21 @@ identical records. JSON and ambiguous-choice cases also include vendored Pegged,
 whose existing projection implements the same contract. The differing example
 parse-tree shapes are not compared as if they were equal outputs.
 
+Benchmark builds enable DMD/LDC's `-lowmem` mode to collect temporary compiler
+allocations during grammar generation. Without it, the compiler retains CTFE
+garbage until exit and can exhaust RAM before any benchmarks execute.
+LDC also uses `--DRT-gcopt=heapSizeFactor:1.1` to collect compiler temporaries
+earlier than the default 2x heap growth target. All sources are compiled together
+in one invocation with the usual `-O3` optimization. These collector settings
+affect the compiler process only, not the benchmark's runtime GC policy.
+`make bench` and `make bench-memory` cap the complete build/run process tree at
+2 GiB using a separate systemd scope with swap disabled. Override this with
+`BENCH_MEMORY_LIMIT=3G`. Direct `scripts/benchmark.sh` invocations use
+`MEMORY_LIMIT` (default `2G`). Without a working user systemd manager, a child
+address-space limit is used instead; this caps each process rather than aggregate
+RSS and can reject large virtual mappings earlier. The invoking shell's limits
+are unchanged.
+
 Numeric trees retain the complete numeric token and its scientific/hex/binary
 kind. PEG syntax trees retain grammar, definitions, expressions, sequences,
 prefixes and primaries, including nested grouped expressions. Header text,
