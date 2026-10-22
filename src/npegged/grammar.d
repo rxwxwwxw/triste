@@ -1220,6 +1220,7 @@ package struct Frontend {
         if (node.kind == ExpressionKind.terminal && startsWith(text, "literal!")) {
             node.byteTerminal = true;
             const bytes = decodedLiteral(text);
+            node.literalBytes = bytes;
             node.byteWidth = bytes.length;
             node.first = CharSetMask.init;
             if (bytes.length)
@@ -1657,6 +1658,48 @@ package struct Frontend {
                 }
                 return repeated;
             }
+            string[] munch;
+            if (regular.maximalMunch(index, munch)) {
+                // X2: a maximal-munch token is a trie whose nodes may stop only when no extension follows.
+                size_t trie(string prefix) {
+                    size_t[] alternatives;
+                    CharSetMask extensions;
+                    bool[256] seen;
+                    bool terminal;
+                    foreach (literal; munch) {
+                        if (literal == prefix)
+                            terminal = true;
+                        if (literal.length > prefix.length && literal[0 .. prefix.length] == prefix
+                                && !seen[cast(ubyte)literal[prefix.length]]) {
+                            const next = cast(ubyte)literal[prefix.length];
+                            seen[next] = true;
+                            extensions.addChar(next);
+                            CharSetMask byteMask;
+                            byteMask.addChar(next);
+                            const byteNode = nodes.length;
+                            nodes ~= RegularExpression(RegularKind.bytes, byteMask);
+                            const rest = trie(prefix ~ cast(char)next);
+                            nodes ~= RegularExpression(RegularKind.sequence, CharSetMask.init, [
+                                byteNode, rest
+                            ]);
+                            alternatives ~= nodes.length - 1;
+                        }
+                    }
+                    if (terminal) {
+                        if (extensions.empty)
+                            nodes ~= RegularExpression(RegularKind.sequence, CharSetMask.init, null);
+                        else
+                            nodes ~= RegularExpression(RegularKind.guard, extensions);
+                        alternatives ~= nodes.length - 1;
+                    }
+                    if (alternatives.length == 1)
+                        return alternatives[0];
+                    nodes ~= RegularExpression(RegularKind.choice, CharSetMask.init, alternatives);
+                    return nodes.length - 1;
+                }
+
+                return trie("");
+            }
             RegularExpression node;
             if (expression.kind == ExpressionKind.terminal) {
                 if (startsWith(expression.source, "literal!")) {
@@ -1714,7 +1757,12 @@ package struct Frontend {
                 source ~= ")";
             } else if (node.kind == RegularKind.mark)
                 source ~= "regularMark(" ~ number(cast(size_t)node.bytes.bits[0]) ~ ")";
-            else {
+            else if (node.kind == RegularKind.guard) {
+                source ~= "regularGuard(";
+                foreach (j, bits; node.bytes.bits)
+                    source ~= (j ? ", " : "") ~ ulongHex(bits);
+                source ~= ")";
+            } else {
                 const kind = ["bytes", "sequence", "choice", "optional", "repetition", "endOfInput"][node
                         .kind];
                 source ~= "regularNode(RegularKind." ~ kind ~ ", [";
@@ -3606,7 +3654,7 @@ unittest {
 
 /// Returns D source for mixin() or cold runtime generation. Grammar errors become static diagnostics.
 string grammar(Memoization memo = Memoization.yes, alias Selector = void,
-        ParserBackend backend = ParserBackend.combinators, bool TaggedRegions = true)(string definition) nothrow {
+        ParserBackend backend = ParserBackend.direct, bool TaggedRegions = true)(string definition) nothrow {
     Frontend frontend;
     frontend.input = definition;
     frontend.walkRecordRegions = !TaggedRegions;
@@ -3870,7 +3918,7 @@ nothrow unittest {
         auto other = generate!(Memoization.selective, void, ParserBackend.direct)(definition);
         assert(other.status == Status.ok && Frontend.countOf(other.source, "_acursor_Expr(ref State!(false, 1)") == 0);
     }
-    auto combinators = generate!(Memoization.selective)(
+    auto combinators = generate!(Memoization.selective, void, ParserBackend.combinators)(
             "L: Root <- Expr eoi Expr <- Expr '+' Term / Term Term <- [0-9]+");
     assert(Frontend.countOf(combinators.source, "_acursor_") == 0);
 }
@@ -4230,7 +4278,7 @@ private bool containsText(string input, string needle) @nogc nothrow pure {
 /// Cold, opt-in diagnostics. Runs the same emitter and captures its decisions;
 /// neither the returned report nor its evidence changes generated parser policy.
 EligibilityResult eligibilityReport(Memoization memo = Memoization.yes, alias Selector = void,
-        ParserBackend backend = ParserBackend.combinators)(string definition,
+        ParserBackend backend = ParserBackend.direct)(string definition,
         EligibilityFormat format = EligibilityFormat.json) nothrow {
     EligibilityResult result;
     if (format != EligibilityFormat.json && format != EligibilityFormat.text) {
@@ -4296,7 +4344,7 @@ nothrow unittest {
             assert(!row.dfaScanner && !row.predictiveDispatch && row.strategy == "combinator");
     }
     assert(containsText(strategies.report, "\"strategy\":\"dfa-scanner\""));
-    auto plain = eligibilityReport("Plain: Root <- 'a'");
+    auto plain = eligibilityReport!(Memoization.yes, void, ParserBackend.combinators)("Plain: Root <- 'a'");
     assert(plain.status == Status.ok && plain.rules[0].memoized);
     assert(plain.rules[0].directFallback == "backend-combinators");
     auto recursion = eligibilityReport!(Memoization.selective, void, ParserBackend.direct)(
@@ -5263,7 +5311,7 @@ nothrow unittest {
 }
 
 GenerationResult generate(Memoization memo = Memoization.yes, alias Selector = void,
-        ParserBackend backend = ParserBackend.combinators)(string definition, string moduleName = "") nothrow {
+        ParserBackend backend = ParserBackend.direct)(string definition, string moduleName = "") nothrow {
     Frontend frontend;
     frontend.input = definition;
     frontend.memoize = memo != Memoization.no;
@@ -5287,9 +5335,8 @@ unittest {
     assert(invalid.status == Status.invalidInput);
 }
 
-Status asModule(Memoization memo = Memoization.yes, alias Selector = void,
-        ParserBackend backend = ParserBackend.combinators)(string moduleName, string fileName,
-        string definition, string header = "") nothrow {
+Status asModule(Memoization memo = Memoization.yes, alias Selector = void, ParserBackend backend = ParserBackend
+        .direct)(string moduleName, string fileName, string definition, string header = "") nothrow {
     import npegged.io : File;
 
     auto result = generate!(memo, Selector, backend)(definition);
@@ -5313,8 +5360,8 @@ unittest {
 }
 
 /// Generate from a successful grammar parse while its owning result remains alive.
-string grammar(Memoization memo = Memoization.yes, alias Selector = void,
-        ParserBackend backend = ParserBackend.combinators)(scope const ref ParseTree definition) nothrow {
+string grammar(Memoization memo = Memoization.yes, alias Selector = void, ParserBackend backend = ParserBackend
+        .direct)(scope const ref ParseTree definition) nothrow {
     if (!definition.successful)
         return "static assert(false, `Cannot generate from a failed grammar parse`);";
     return grammar!(memo, Selector, backend)(definition.input);
@@ -5333,9 +5380,8 @@ nothrow unittest {
 }
 
 /// Borrow a scoped file and generate a parser module, preserving I/O error status.
-Status asModule(Memoization memo = Memoization.yes, alias Selector = void,
-        ParserBackend backend = ParserBackend.combinators)(string moduleName, string destination,
-        ref npegged.io.File input, string header = "") nothrow {
+Status asModule(Memoization memo = Memoization.yes, alias Selector = void, ParserBackend backend = ParserBackend
+        .direct)(string moduleName, string destination, ref npegged.io.File input, string header = "") nothrow {
     import npegged.storage : Buffer;
 
     Buffer!char text;

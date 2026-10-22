@@ -17,7 +17,10 @@ enum RegularKind {
     repetition,
     endOfInput,
     /// O4: an output event on the path (`bytes.bits[0]`: 0 opens a leaf record, kind + 1 finishes it). Transparent to `compileDFA`.
-    mark
+    mark,
+    /// X2: zero-width; the next byte must not be in `bytes` (the end of input passes). Marks where a maximal-munch token
+    /// may stop: its extensions take precedence.
+    guard
 }
 
 /// Children precede their parents; references and actions are deliberately absent.
@@ -39,6 +42,10 @@ RegularExpression regularByte(ulong b0, ulong b1, ulong b2, ulong b3) @nogc pure
 
 RegularExpression regularMark(ulong event) @nogc pure nothrow @safe {
     return RegularExpression(RegularKind.mark, CharSetMask([event, 0, 0, 0]));
+}
+
+RegularExpression regularGuard(ulong b0, ulong b1, ulong b2, ulong b3) @nogc pure nothrow @safe {
+    return RegularExpression(RegularKind.guard, CharSetMask([b0, b1, b2, b3]));
 }
 
 RegularExpression regularNode(RegularKind kind, size_t[] children) @nogc pure nothrow @safe {
@@ -73,6 +80,9 @@ Automaton compileDFA(const(RegularExpression)[] expressions, size_t root, bool r
     Automaton result;
     if (root >= expressions.length || !stateLimit || stateLimit > ubyte.max || nfaLimit < 2)
         return result;
+    foreach (expression; expressions)
+        if (expression.kind == RegularKind.guard)
+            return compileGuardedDFA(expressions, root, requireEnd, stateLimit, nfaLimit);
     const maxStates = expressions.length * 4 + 4 < nfaLimit + 2 ? expressions.length * 4 + 4 : nfaLimit + 2;
     auto stateBuf = new NfaState[maxStates];
     size_t stateCount;
@@ -273,6 +283,240 @@ unittest {
     assert(anchored.valid && !anchored.accepting[afterDigit] && anchored.eofAccepting[afterDigit]);
 }
 
+/// X2: `compileDFA` for expressions with `guard` nodes. A thread that crossed a guard may only consume bytes outside the
+/// union of the masks it crossed; a state reached along several paths keeps the intersection of their masks. The
+/// automaton accepts as the plain one would (the end of a scan never needs the next byte), so only transitions differ.
+private Automaton compileGuardedDFA(const(RegularExpression)[] expressions, size_t root,
+        bool requireEnd, size_t stateLimit, size_t nfaLimit) pure {
+    Automaton result;
+    static struct GuardedState {
+        size_t[] epsilon, eofEpsilon;
+        CharSetMask bytes, guard;
+        size_t target = size_t.max;
+        size_t guardTarget = size_t.max;
+    }
+
+    const maxStates = expressions.length * 4 + 4 < nfaLimit + 2 ? expressions.length * 4 + 4 : nfaLimit + 2;
+    auto states = new GuardedState[maxStates];
+    size_t stateCount;
+    struct Fragment {
+        size_t begin, end;
+    }
+
+    bool malformed, hasEnd;
+    Fragment build(size_t index, size_t depth = 0) {
+        if (stateCount > nfaLimit - 2 || stateCount + 2 > states.length || depth >= 128) {
+            malformed = true;
+            return Fragment.init;
+        }
+        auto node = expressions[index];
+        const begin = stateCount++;
+        const end = stateCount++;
+        if (node.kind == RegularKind.bytes) {
+            states[begin].bytes = node.bytes;
+            states[begin].target = end;
+        } else if (node.kind == RegularKind.guard || node.kind == RegularKind.mark) {
+            if (node.kind == RegularKind.guard) {
+                states[begin].guard = node.bytes;
+                states[begin].guardTarget = end;
+            } else
+                states[begin].epsilon ~= end;
+            malformed = node.children.length != 0;
+        } else if (node.kind == RegularKind.endOfInput) {
+            hasEnd = true;
+            malformed = node.children.length != 0;
+            states[begin].eofEpsilon ~= end;
+        } else {
+            size_t previous = begin;
+            foreach (child; node.children) {
+                if (child >= index) {
+                    malformed = true;
+                    return Fragment(begin, end);
+                }
+                const part = build(child, depth + 1);
+                if (malformed)
+                    return Fragment(begin, end);
+                if (node.kind == RegularKind.sequence) {
+                    states[previous].epsilon ~= part.begin;
+                    previous = part.end;
+                } else {
+                    states[begin].epsilon ~= part.begin;
+                    states[part.end].epsilon ~= end;
+                    if (node.kind == RegularKind.repetition)
+                        states[part.end].epsilon ~= part.begin;
+                }
+            }
+            if (node.kind == RegularKind.sequence)
+                states[previous].epsilon ~= end;
+            else if (node.kind == RegularKind.optional || node.kind == RegularKind.repetition) {
+                if (node.children.length != 1)
+                    malformed = true;
+                states[begin].epsilon ~= end;
+            }
+        }
+        return Fragment(begin, end);
+    }
+
+    const fragment = build(root);
+    if (malformed)
+        return result;
+    const count = stateCount;
+    // A configuration holds, per NFA state, whether it is reached and the bytes it must not consume next.
+    static struct Configuration {
+        bool[] present;
+        CharSetMask[] forbidden;
+    }
+
+    Configuration fresh() {
+        return Configuration(new bool[count], new CharSetMask[count]);
+    }
+
+    Configuration closure(Configuration configuration, bool atEnd) {
+        auto pending = new size_t[count * 4 + 4];
+        size_t tail;
+        foreach (i, present; configuration.present)
+            if (present)
+                pending[tail++] = i;
+        void reach(size_t next, CharSetMask forbidden) {
+            if (!configuration.present[next]) {
+                configuration.present[next] = true;
+                configuration.forbidden[next] = forbidden;
+            } else {
+                const merged = configuration.forbidden[next] & forbidden;
+                if (merged == configuration.forbidden[next])
+                    return;
+                configuration.forbidden[next] = merged;
+            }
+            if (tail == pending.length)
+                pending.length = pending.length * 2;
+            pending[tail++] = next;
+        }
+
+        while (tail) {
+            const current = pending[--tail];
+            const forbidden = configuration.forbidden[current];
+            foreach (next; states[current].epsilon)
+                reach(next, forbidden);
+            if (atEnd)
+                foreach (next; states[current].eofEpsilon)
+                    reach(next, forbidden);
+            if (states[current].guardTarget != size_t.max)
+                reach(states[current].guardTarget, forbidden | states[current].guard);
+        }
+        return configuration;
+    }
+
+    bool same(const Configuration a, const Configuration b) {
+        foreach (i; 0 .. count)
+            if (a.present[i] != b.present[i] || a.present[i] && a.forbidden[i] != b.forbidden[i])
+                return false;
+        return true;
+    }
+
+    auto initial = fresh();
+    initial.present[fragment.begin] = true;
+    Configuration[] subsets = [closure(initial, false)];
+    for (size_t current; current < subsets.length; ++current) {
+        ubyte[256] row = ubyte.max;
+        bool[][] seenTargets;
+        ubyte[] seenIds;
+        foreach (byteValue; 0 .. 256) {
+            auto reached = new bool[count];
+            bool any;
+            foreach (i; 0 .. count)
+                if (subsets[current].present[i] && states[i].target != size_t.max
+                        && states[i].bytes.contains(cast(ubyte)byteValue)
+                        && !subsets[current].forbidden[i].contains(cast(ubyte)byteValue)) {
+                    reached[states[i].target] = true;
+                    any = true;
+                }
+            if (!any)
+                continue;
+            size_t known;
+            while (known < seenTargets.length && seenTargets[known] != reached)
+                ++known;
+            if (known == seenTargets.length) {
+                auto next = fresh();
+                foreach (i; 0 .. count)
+                    next.present[i] = reached[i];
+                next = closure(next, false);
+                size_t target;
+                while (target < subsets.length && !same(subsets[target], next))
+                    ++target;
+                if (target == subsets.length) {
+                    if (target == stateLimit)
+                        return Automaton.init;
+                    subsets ~= next;
+                }
+                seenTargets ~= reached;
+                seenIds ~= cast(ubyte)target;
+            }
+            row[byteValue] = seenIds[known];
+        }
+        result.transitions ~= row;
+        result.accepting ~= subsets[current].present[fragment.end];
+        if (hasEnd)
+            result.eofAccepting ~= closure(Configuration(subsets[current].present.dup,
+                    subsets[current].forbidden.dup), true).present[fragment.end];
+    }
+    if (result.eofAccepting == result.accepting)
+        result.eofAccepting = null;
+    result.valid = true;
+    result.requireEnd = requireEnd;
+    return minimizeDFA(result);
+}
+
+@nogc nothrow unittest {
+    // Guard semantics in a tiny maximal-munch token: `a` stops unless `b` follows, `ab` always stops.
+    CharSetMask a, b;
+    a.addChar('a');
+    b.addChar('b');
+    enum nodes = () {
+        CharSetMask a,
+        b;
+        a.addChar('a');
+        b.addChar('b');
+        return [
+            RegularExpression(RegularKind.bytes, a), // 0
+            RegularExpression(RegularKind.bytes, b), // 1
+            RegularExpression(RegularKind.guard, b), // 2: stop after `a` only if no `b` follows
+            regularNode(RegularKind.sequence, [0, 1]), // 3: `ab`
+            regularNode(RegularKind.sequence, [0, 2]), // 4: `a` guarded
+            regularNode(RegularKind.choice, [3, 4]), // 5
+            regularNode(RegularKind.repetition, [5]), // 6: (ab / a)*
+        ];
+    }();
+    enum table = compileDFA(nodes, 6);
+    static assert(table.valid);
+    // `aab` is a, ab; `abab` is ab, ab. A guard never rejects what the plain automaton accepts at the end of input.
+    assert(scanDFA!table("aab", 0) == 3 && scanDFA!table("abab", 0) == 4 && scanDFA!table("a", 0) == 1);
+    assert(scanDFA!table("ac", 0) == 1 && scanDFA!table("", 0) == 0);
+}
+
+unittest {
+    // X2(c): a guard inside a tagged region keeps the events of the path it takes. `a` stops unless `b` follows, so
+    // `ab` fires its event after `b` and a lone `a` fires it after `a`.
+    CharSetMask a, b;
+    a.addChar('a');
+    b.addChar('b');
+    const nodes = [
+        RegularExpression(RegularKind.bytes, a), // 0
+        RegularExpression(RegularKind.bytes, b), // 1
+        RegularExpression(RegularKind.guard, b), // 2
+        regularMark(0), // 3 open
+        regularMark(2), // 4 close, kind 1
+        regularNode(RegularKind.sequence, [0, 1]), // 5 ab
+        regularNode(RegularKind.sequence, [0, 2]), // 6 a guarded
+        regularNode(RegularKind.choice, [5, 6]), // 7
+        regularNode(RegularKind.sequence, [3, 7, 4]), // 8 token with its record
+        regularNode(RegularKind.repetition, [8]), // 9
+    ];
+    const tagged = compileTaggedDFA(nodes, 9);
+    assert(tagged.valid && tagged.base.valid && compileDFA(nodes, 9).valid);
+    // A guard node with children is malformed for both constructions.
+    assert(!compileTaggedDFA([RegularExpression(RegularKind.guard, b, [0])], 0).valid);
+}
+
 /// Refine equivalence classes until every byte transition agrees within a class.
 Automaton minimizeDFA(Automaton input) pure {
     if (!input.valid)
@@ -375,14 +619,17 @@ TaggedAutomaton compileTaggedDFA(const(RegularExpression)[] expressions, size_t 
         return result;
     static struct TaggedState {
         size_t[] epsilon, eofEpsilon;
-        CharSetMask bytes;
+        CharSetMask bytes, guard;
         size_t target = size_t.max;
         size_t markTarget = size_t.max;
+        size_t guardTarget = size_t.max;
         uint mark;
     }
 
+    // X2: `forbidden` holds the bytes a thread that crossed a guard may not consume next.
     static struct Thread {
         size_t state, sequence;
+        CharSetMask forbidden;
     }
 
     const maxStates = expressions.length * 4 + 4 < nfaLimit + 2 ? expressions.length * 4 + 4 : nfaLimit + 2;
@@ -409,6 +656,10 @@ TaggedAutomaton compileTaggedDFA(const(RegularExpression)[] expressions, size_t 
             states[begin].markTarget = end;
             states[begin].mark = cast(uint)node.bytes.bits[0];
             malformed = node.children.length != 0 || node.bytes.bits[0] > uint.max;
+        } else if (node.kind == RegularKind.guard) {
+            states[begin].guardTarget = end;
+            states[begin].guard = node.bytes;
+            malformed = node.children.length != 0;
         } else if (node.kind == RegularKind.endOfInput) {
             hasEnd = true;
             states[begin].eofEpsilon ~= end;
@@ -467,13 +718,16 @@ TaggedAutomaton compileTaggedDFA(const(RegularExpression)[] expressions, size_t 
             seen[current.state] = true;
             ordered ~= current;
             const node = states[current.state];
+            if (node.guardTarget != size_t.max)
+                stack ~= Thread(node.guardTarget, current.sequence, current.forbidden | node.guard);
             if (node.markTarget != size_t.max)
-                stack ~= Thread(node.markTarget, intern(sequences[current.sequence] ~ node.mark));
+                stack ~= Thread(node.markTarget, intern(sequences[current.sequence] ~ node.mark), current
+                        .forbidden);
             if (atEnd)
                 foreach_reverse (next; node.eofEpsilon)
-                    stack ~= Thread(next, current.sequence);
+                    stack ~= Thread(next, current.sequence, current.forbidden);
             foreach_reverse (next; node.epsilon)
-                stack ~= Thread(next, current.sequence);
+                stack ~= Thread(next, current.sequence, current.forbidden);
         }
         return ordered;
     }
@@ -500,7 +754,8 @@ TaggedAutomaton compileTaggedDFA(const(RegularExpression)[] expressions, size_t 
             size_t winnerSequence = size_t.max;
             foreach (k, thread; subsets[current])
                 if (states[thread.state].target != size_t.max
-                        && states[thread.state].bytes.contains(cast(ubyte)byteValue)) {
+                        && states[thread.state].bytes.contains(cast(ubyte)byteValue)
+                        && !thread.forbidden.contains(cast(ubyte)byteValue)) {
                     if (winnerSequence == size_t.max)
                         winnerSequence = thread.sequence;
                     if (thread.sequence == winnerSequence)

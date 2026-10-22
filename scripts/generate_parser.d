@@ -5,7 +5,7 @@ import npegged.io : File;
 
 int main(string[] args) nothrow {
     string destination = args.length > 1 ? args[1] : "src/npegged/parser";
-    enum generated = generate(PEGGEDgrammar, "npegged.parser");
+    enum generated = generate!(Memoization.yes, void, ParserBackend.combinators)(PEGGEDgrammar, "npegged.parser");
     static assert(generated.status == Status.ok);
     enum tests = q"TESTS
 @nogc nothrow unittest {

@@ -35,6 +35,8 @@ struct Expression {
     CharSetMask alphabet;
     bool byteTerminal;
     size_t byteWidth;
+    /// The decoded bytes of a `literal!` terminal.
+    string literalBytes;
     size_t rule = size_t.max;
 }
 
@@ -1205,6 +1207,86 @@ nothrow:
     /// Nullable prefixes must not steal bytes from a following expression, and
     /// ordinary alternatives require disjoint FIRST sets with only a final nullable
     /// alternative; recognized escape loops preserve their earlier pair priority.
+    /// X2(a): an ordered choice of literals that behaves as maximal munch. The set must be prefix-closed (every proper
+    /// prefix of a literal is itself an alternative, so a walk never has to back up) and each literal must precede its
+    /// proper prefixes (so the first alternative that matches is the longest). The walk can then be a deterministic trie
+    /// with no lookahead, whatever follows the choice. `literals` receives the alternatives in order.
+    bool maximalMunch(size_t index, ref string[] literals) {
+        auto node = expressions[index];
+        if (node.kind != ExpressionKind.choice || node.children.length < 2 || node.combinator != "or"
+                && node.combinator != "predictiveChoice")
+            return false;
+        literals = null;
+        foreach (child; node.children) {
+            auto alternative = expressions[child];
+            if (alternative.kind != ExpressionKind.terminal || alternative.source.length < 9
+                    || alternative.source[0 .. 9] != "literal!(" || !alternative.literalBytes.length)
+                return false;
+            literals ~= alternative.literalBytes;
+        }
+        foreach (i, a; literals) {
+            foreach (j, b; literals) {
+                if (i == j)
+                    continue;
+                if (a == b)
+                    return false;
+                if (a.length < b.length && b[0 .. a.length] == a && j > i)
+                    return false; // a prefix before its extension would win
+            }
+            // Prefix-closed: every proper prefix of `a` is an alternative.
+            foreach (length; 1 .. a.length) {
+                bool present;
+                foreach (b; literals)
+                    present = present || b == a[0 .. length];
+                if (!present)
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    unittest {
+        static GrammarAnalysis make(string[] alternatives, string combinator = "or") {
+            GrammarAnalysis graph;
+            size_t[] children;
+            foreach (i, literal; alternatives) {
+                auto node = Expression(ExpressionKind.terminal, null, null, CharSetMask.init,
+                        Nullable.no, true, "literal!(\"" ~ literal ~ "\")");
+                node.byteTerminal = true;
+                node.byteWidth = literal.length;
+                node.literalBytes = literal;
+                graph.expressions ~= node;
+                children ~= i;
+            }
+            graph.expressions ~= Expression(ExpressionKind.choice, children, null, CharSetMask.init,
+                    Nullable.unknown, false, null, combinator);
+            return graph;
+        }
+
+        string[] literals;
+        auto ok = make(["<<=", "<<", "<=", "<"]);
+        assert(ok.maximalMunch(4, literals) && literals == ["<<=", "<<", "<=", "<"]);
+        // Prefix-closed: `<<=` needs `<<`, which needs `<`.
+        auto closed = make(["<<=", "<<", "<"]);
+        assert(closed.maximalMunch(3, literals) && literals == ["<<=", "<<", "<"]);
+        // A prefix listed before its extension would win: not maximal munch.
+        assert(!make(["<", "<<", "<<="]).maximalMunch(3, literals));
+        // Missing proper prefix (`<` for `<<`): a walk would have to back up.
+        assert(!make(["<<", "="]).maximalMunch(2, literals));
+        // Duplicate alternatives, a single alternative and other combinators are rejected.
+        assert(!make(["<", "<"]).maximalMunch(2, literals));
+        assert(!make(["<"]).maximalMunch(1, literals));
+        assert(!make(["<<", "<"], "sequence").maximalMunch(2, literals));
+        // A non-choice and a choice with a non-literal child are rejected.
+        assert(!closed.maximalMunch(0, literals));
+        auto mixed = make(["a", "b"]);
+        mixed.expressions[1].literalBytes = null;
+        assert(!mixed.maximalMunch(2, literals));
+        mixed.expressions[1].source = "digit";
+        mixed.expressions[1].literalBytes = "b";
+        assert(!mixed.maximalMunch(2, literals));
+    }
+
     bool regularLeaf(size_t index, bool anchored = false) {
         bool[] visiting = new bool[names.length];
         return regularLeaf(index, visiting, CharSetMask.init, anchored);
@@ -1318,6 +1400,9 @@ nothrow:
                     return false;
             }
         }
+        string[] munch;
+        if ((node.combinator == "or" || node.combinator == "predictiveChoice") && maximalMunch(index, munch))
+            return true;
         if (node.combinator == "or" || node.combinator == "predictiveChoice") {
             foreach (i, child; node.children) {
                 if (!facts[child].known || facts[child].nullable == Nullable.unknown

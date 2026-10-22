@@ -180,7 +180,7 @@ S = one narrow change; M = a few narrowly staged PRs if necessary; L = **must be
 - **Complete:** A1–A5, F1–F4, B1–B8, P1, P2, P6, L1–L3, G1–G7, S1, S2b, Q1, S3, S4, O2, O3. **Closed NO-GO:** S8, O1.
 - F4 and P1 remain opt-in; B1–B8 and L1/L2 are report-only; L3 is experimental. Completion does not imply default enablement or a measured gain.
 - G7 generated and validated its corpora; wiring them into timing remains Q2.
-- **Closed NO-GO at phase exit:** X1 (Q3 shows scanning is not the gap), X2 (a satisfied by B/L analyses and O4(a); b/c not built). **O4 complete for leaf records** (a: 119 of 260 regions composed, 25 of 105 grammars; b: tagged recognizer; c: records parity), CSV records -37..-54%, now at handwritten parity. **X3:** offline tool delivered (`performance/scripts/autotune.py`), no profile adopted. P4=O2, P5=S5 (S7 NO-GO). Phase-exit gate (`milestones/PhaseExit3`, final tree): **261/346 within 1.5x (75.4%)**, p50 1.26, p90 1.87, p95 2.32, geomean 1.21, worst 6.4x (`LeftExpr` check). Of the 85 workloads over target 68 have inputs of at most 16 bytes (the entry floor measured by Q1/S3: a call costs more than the handwritten twin's whole parse), 11 are over 1 KB (`LeftExpr` 2.7x, `Ops` 2.6x, JSON/Arithmetic about 1.5x); details in `performance/progress.md`.
+- **Closed NO-GO at phase exit:** X1 (Q3 shows scanning is not the gap), X2 (a satisfied by B/L analyses and O4(a); b/c not built). **O4 complete for leaf records** (a: 119 of 260 regions composed, 25 of 105 grammars; b: tagged recognizer; c: records parity), CSV records -37..-54%, now at handwritten parity. **X3:** offline tool delivered (`performance/scripts/autotune.py`); profile adopted 2026-10-22: `direct` becomes the default backend (`performance/milestones/X3/notes-adopt.md`). P4=O2, P5=S5 (S7 NO-GO). Phase-exit gate (`milestones/PhaseExit3`, final tree): **261/346 within 1.5x (75.4%)**, p50 1.26, p90 1.87, p95 2.32, geomean 1.21, worst 6.4x (`LeftExpr` check). Of the 85 workloads over target 68 have inputs of at most 16 bytes (the entry floor measured by Q1/S3: a call costs more than the handwritten twin's whole parse), 11 are over 1 KB (`LeftExpr` 2.7x, `Ops` 2.6x, JSON/Arithmetic about 1.5x); details in `performance/progress.md`.
 - **S3:** exact whole-DFA entry is experimental behind `NPeggedLeanEntry`; generic context borrowing and the explicit finish return were rejected. Default performance binary is unchanged. Evidence: `performance/milestones/S3/notes-s3.md`.
 - **Rejected experiment:** S2's threshold heuristic; S2b is the retained exact implementation.
 - Historical validation limitations: DMD crashes on this host; the Phase 1 ledger records coverage and sanitizer checks as not run. These are not passing checks.
@@ -553,7 +553,7 @@ The paper's critical conditions include:
 
 Only start if P6 profiling shows scanning, not capture or dispatch, dominates. Add scalar reference tests for lengths around vector width, alignment, EOF and malformed UTF-8. Compile with documented CPU feature requirements; runtime fallback must remain safe on other CPUs. Record throughput, build size, and portability costs under `performance/milestones/X1/`.
 
-### X2 — Joint lexer/predictive-parser specialization
+### X2 — Joint lexer/predictive-parser specialization — (b) recognizer and (c) records built for maximal-munch literal choices (2026-10-22; `performance/milestones/X2/notes-x2bc.md`); timing not run
 
 Combine certified token patterns and deterministic region dispatch while preserving PEG lexical boundaries, choice semantics, actions, and output modes. Divide into at least: (a) analysis-only token-boundary certification, (b) generated recognizer, (c) compact-record/tree support. Benchmark against both current DFA fusion and handwritten lexer+parser.
 
@@ -619,7 +619,7 @@ What the generated `direct` code shows (output of `grammar!(Memoization.selectiv
 | C3 (NO-GO; same notes) | P2 | C1, B6 | Proposition 6 cuts in the accept clone (promotes B6) | M | backtracking-heavy |
 | C4 (NO-GO; same notes) | P2 | C1, B7 | Redundant-predicate elimination in the accept clone | S | PEGGrammar |
 | O4 | P3 | O1, O3 | Tagged-DFA lowering of regular regions that emit records (research) | L | CSV, JSON lexemes |
-| D1 (decided: keep `combinators`) | P1 | A4, A5 | **Decision:** make `direct` the default backend | S | all |
+| D1 (reversed 2026-10-22: `direct` default) | P1 | A4, A5 | **Decision:** make `direct` the default backend | S | all |
 | D2 (decided: coarser model, implemented; `performance/milestones/D2/`) | P1 | — | **Decision:** work-unit contract (exact today, or coarser) | S | all |
 | D3 (decided: yes) | P1 | — | **Decision:** whether to add a public `accept` output mode | S | valid inputs |
 
@@ -847,9 +847,9 @@ Some regions are regular and emit only leaf records; CSV `Root <- Field (Sep Fie
 - **(b)** A generated recognizer with tag replay checked against the cursor path.
 - **(c)** Records parity, including rollback on late failure.
 
-#### D1 — Decision: make `direct` the default backend — DECIDED (keep `combinators`)
+#### D1 — Decision: make `direct` the default backend — DECIDED (keep `combinators` on 2026-10-20; REVERSED 2026-10-22: `direct` is now the `grammar!` default)
 
-**Decision (maintainer, 2026-10-20):** keep `combinators` as the `grammar!` default; the numbers above stay as the decision record. Refreshed final-tree data set for revisiting it: `performance/milestones/D1/notes.md` (direct 261/346 within 1.5x versus combinators 150/346; combinators faster by >3% on 15 of 346 workloads, 14 of them by under 9%).
+**Reversal (maintainer, 2026-10-22):** after the X3 autotune profile chose `direct` for both families, the `grammar!`/`generate`/`eligibilityReport`/`asModule` default became `ParserBackend.direct`; `combinators` stays selectable explicitly and `scripts/generate_parser.d` pins it so the checked-in parser is unchanged. Earlier decision (maintainer, 2026-10-20): keep `combinators` as the `grammar!` default; the numbers above stay as the decision record. Refreshed final-tree data set for revisiting it: `performance/milestones/D1/notes.md` (direct 261/346 within 1.5x versus combinators 150/346; combinators faster by >3% on 15 of 346 workloads, 14 of them by under 9%).
 
 Present the maintainer with the following:
 - The L3 and S2b numbers.
