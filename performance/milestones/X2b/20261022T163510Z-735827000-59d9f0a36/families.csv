@@ -1,0 +1,16 @@
+family,label,workloads,paired,no_twin,within_target,geomean,worst
+choices,fixture,7,7,0,6,0.8586,1.8800
+corpus_arithmetic,adversarial,3,3,0,2,1.1763,1.5073
+corpus_arithmetic,synthetic,12,12,0,12,1.1178,1.3168
+corpus_csv,adversarial,3,3,0,3,1.4498,1.4804
+corpus_csv,synthetic,12,12,0,11,0.9124,1.7784
+corpus_json,adversarial,3,3,0,3,1.3106,1.3722
+corpus_json,learned,12,12,0,10,1.2046,1.6510
+corpus_json,real,18,18,0,18,0.9308,1.0425
+corpus_json,synthetic,12,12,0,12,1.0875,1.2806
+failure,fixture,78,78,0,47,1.3469,2.4589
+lex_ascii,fixture,54,54,0,53,1.0407,1.5368
+lex_utf8,fixture,9,9,0,7,1.3293,1.6843
+nested_expr,fixture,28,28,0,18,1.5022,6.2848
+pathological,fixture,12,12,0,12,0.9896,1.2976
+structured,fixture,15,15,0,15,1.0139,1.3229

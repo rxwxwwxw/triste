@@ -20,3 +20,9 @@ next byte is not one of its extensions (the end of input passes).
 **Not run / limits.** DMD segfaults compiling the library on this host (known), so DMD is *not run*. Coverage, ASan/LSan, Valgrind and
 the `performance/` timing runs were not run for this change: no speedup is claimed. Guards and the Ops family benefit is unmeasured;
 the walked trie from L4 remains the runtime path for grammars the certificate rejects.
+
+**Benchmark (added 2026-10-22).** `milestones/X2b/20261022T163510Z-735827000-59d9f0a36`: full `--q2` gate, LDC 1.43, Apple M1, direct backend, outputs verified before timing
+(`correctness.json` ok). Versus `PhaseExit3` (pre-X2, same host/gate): Ops.Long 43.2 us -> 6.0 us, Short 55 -> 18 ns, Pairs 33 -> 15, Invalid 24 -> 15, Truncated 36 -> 16, Empty 15 -> 14 ns;
+ratios to handwritten 0.35x (Long) to 1.88x (Empty). Geomean over 278 shared npegged workloads 0.975; one workload >5% slower with baseline >100 ns
+(JSON synthetic large valid validation, +7%, a single run, not repeated). The run also includes the `direct` default, so the delta is not attributable to X2 alone
+for non-Ops workloads. A5 size/compile-time deltas not measured.

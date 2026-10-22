@@ -2,14 +2,14 @@
 
 Generated from `performance/trends.csv`; do not edit by hand.
 
-Latest run: `20261021T064457Z-046349000-3435a052d` (milestone:D1-combinators-final, ldc2, commit 3435a052d)
+Latest run: `20261022T163510Z-735827000-59d9f0a36` (milestone:X2b[direct], ldc2, commit 59d9f0a36)
 
-- Workloads within 1.5x: 150/346 (43.4%)
-- Slowdown p50/p90/p95: 1.64 / 2.83 / 3.55
-- Geometric mean: 1.64x
-- Worst: 12.81x (handwritten-workloads/Ops.Long/validation)
+- Workloads within 1.5x: 229/278 (82.4%)
+- Slowdown p50/p90/p95: 1.20 / 1.74 / 2.00
+- Geometric mean: 1.17x
+- Worst: 6.28x (handwritten-workloads/LeftExpr.Deep/validation)
 
-Delta vs comparable run `20261021T060542Z-107474000-1ce38a6c6`: within-target +3, p90 -0.26, geomean -0.11
+No comparable prior run: host, compiler, backend, flags or corpus provenance differs or is missing.
 
 ## Families and corpus labels (newest run)
 
@@ -17,21 +17,21 @@ Labels: `fixture` = in-repo case, `real`/`synthetic`/`learned`/`adversarial` = G
 
 | family | label | workloads | paired | no_twin | within target | geomean | worst |
 |---|---|---|---|---|---|---|---|
-| choices | fixture | 14 | 14 | 0 | 0/14 | 9.7769 | 12.8127 |
-| corpus_arithmetic | adversarial | 4 | 4 | 0 | 1/4 | 2.1562 | 3.0095 |
-| corpus_arithmetic | synthetic | 16 | 16 | 0 | 5/16 | 1.7891 | 2.3778 |
-| corpus_csv | adversarial | 4 | 4 | 0 | 2/4 | 1.4500 | 1.5059 |
-| corpus_csv | synthetic | 16 | 16 | 0 | 14/16 | 0.8817 | 1.7826 |
-| corpus_json | adversarial | 3 | 3 | 0 | 0/3 | 2.7166 | 3.2187 |
-| corpus_json | learned | 12 | 12 | 0 | 1/12 | 1.9317 | 2.7490 |
-| corpus_json | real | 18 | 18 | 0 | 16/18 | 1.2578 | 1.5706 |
-| corpus_json | synthetic | 12 | 12 | 0 | 0/12 | 2.0522 | 2.5319 |
-| failure | fixture | 98 | 98 | 0 | 28/98 | 1.6310 | 3.3813 |
-| lex_ascii | fixture | 72 | 72 | 0 | 57/72 | 1.1504 | 2.8435 |
-| lex_utf8 | fixture | 9 | 9 | 0 | 2/9 | 1.7810 | 2.2065 |
-| nested_expr | fixture | 41 | 41 | 0 | 3/41 | 2.4669 | 3.9321 |
-| pathological | fixture | 12 | 12 | 0 | 12/12 | 0.9784 | 1.2834 |
-| structured | fixture | 15 | 15 | 0 | 9/15 | 1.2410 | 1.9558 |
+| choices | fixture | 7 | 7 | 0 | 6/7 | 0.8586 | 1.8800 |
+| corpus_arithmetic | adversarial | 3 | 3 | 0 | 2/3 | 1.1763 | 1.5073 |
+| corpus_arithmetic | synthetic | 12 | 12 | 0 | 12/12 | 1.1178 | 1.3168 |
+| corpus_csv | adversarial | 3 | 3 | 0 | 3/3 | 1.4498 | 1.4804 |
+| corpus_csv | synthetic | 12 | 12 | 0 | 11/12 | 0.9124 | 1.7784 |
+| corpus_json | adversarial | 3 | 3 | 0 | 3/3 | 1.3106 | 1.3722 |
+| corpus_json | learned | 12 | 12 | 0 | 10/12 | 1.2046 | 1.6510 |
+| corpus_json | real | 18 | 18 | 0 | 18/18 | 0.9308 | 1.0425 |
+| corpus_json | synthetic | 12 | 12 | 0 | 12/12 | 1.0875 | 1.2806 |
+| failure | fixture | 78 | 78 | 0 | 47/78 | 1.3469 | 2.4589 |
+| lex_ascii | fixture | 54 | 54 | 0 | 53/54 | 1.0407 | 1.5368 |
+| lex_utf8 | fixture | 9 | 9 | 0 | 7/9 | 1.3293 | 1.6843 |
+| nested_expr | fixture | 28 | 28 | 0 | 18/28 | 1.5022 | 6.2848 |
+| pathological | fixture | 12 | 12 | 0 | 12/12 | 0.9896 | 1.2976 |
+| structured | fixture | 15 | 15 | 0 | 15/15 | 1.0139 | 1.3229 |
 
 ## History
 
@@ -69,6 +69,7 @@ Labels: `fixture` = in-repo case, `real`/`synthetic`/`learned`/`adversarial` = G
 | 20261021T060542Z-107474000-1ce38a6c6 | milestone:D1-combinators | ldc2 | 147/346 | 3.09 | 1.74 | 27.45 |
 | 20261021T064108Z-774271000-3435a052d | milestone:PhaseExit3[direct] | ldc2 | 261/346 | 1.87 | 1.21 | 6.38 |
 | 20261021T064457Z-046349000-3435a052d | milestone:D1-combinators-final | ldc2 | 150/346 | 2.83 | 1.64 | 12.81 |
+| 20261022T163510Z-735827000-59d9f0a36 | milestone:X2b[direct] | ldc2 | 229/278 | 1.74 | 1.17 | 6.28 |
 
 ## Progress
 
@@ -140,17 +141,24 @@ Largest outstanding gaps are listed in the latest summary.csv (PEGGrammar.Permis
 
 ## Phase 2 exit (2026-10-21)
 
-Full gate (`--q2`, validation/spans/tree/accept, 500 iter x 7 samples x 3 runs, direct backend, LDC 1.43, Apple M1; run
-`20261021T060113Z-124016000-5be5e5027`, `milestones/PhaseExit2/`, commit `5be5e5027`): **264/346 workloads within 1.5x (76.3%)**, p50 1.25,
-p90 1.88, p95 2.41, geomean 1.26, worst 24.5x (`LeftExpr.Deep/validation`). Phase 1 baseline for comparison: 99/171 within, p90 2.04,
-geomean 1.32; the corpus grew from 171 to 346 workloads, so counts are not directly comparable.
-An earlier exit run (`milestones/PhaseExit`, commit `e10f8b6dc`) had found 246/346, p90 1.87, worst 232,390x. Two things changed since:
-* `LeftExpr` in `check` mode: seed growth retired every memo entry at later positions on each growth, which made nested parentheses
-  exponential; only same-position entries are retired now (`milestones/P8/notes.md`, follow-up). 8 nested levels 20 ms -> 2.2 us. The
-  family is still 10-25x its handwritten twin in `check` mode (generic seed growth); `accept` mode is at 2.0x.
-* O4 (tagged-DFA leaf records): CSV span/tree workloads -37..-54%, from 1.7-2.1x to 0.9-1.0x handwritten (`milestones/O4/notes.md`).
-Remaining over-target workloads: `LeftExpr` check mode, `Ops` (3.9x), tiny inputs limited by the entry floor, adversarial inputs.
-Other Phase 2 closures: X1 NO-GO, X2 regular-region subset done as O4 (the general lexer/parser fusion is not built), S7 NO-GO,
-X3 tool delivered without an adopted profile. D1: keep `combinators` as the default.
-Not run on this host: DMD (segfaults), the coverage collector (needs dmd + gdc + gcov), LeakSanitizer and Valgrind (unavailable on
-arm64 macOS; ASan was run on the unit tests and on `tests/tagged_regions.d`).
+Final gate (`--q2`, validation/spans/tree/accept, 500 iter x 7 samples x 3 runs, direct backend, LDC 1.43, Apple M1; run
+`20261021T064108Z-774271000-3435a052d`, `milestones/PhaseExit3/`): **261/346 workloads within 1.5x (75.4%)**, p50 1.26, p90 1.87, p95 2.32,
+geomean 1.21, worst 6.4x. Phase 1 baseline: 99/171 within, p90 2.04, geomean 1.32 (the corpus grew from 171 to 346 workloads, so counts are not
+directly comparable). Earlier exit runs: `PhaseExit` 246/346 (worst 232,390x), `PhaseExit2` 264/346 (worst 24.5x); the 3-workload difference to
+PhaseExit2 is within the run-to-run spread of workloads sitting at 1.5x.
+What closed the gap since the first exit run: the exponential memo invalidation of nested left recursion (P8 follow-up), `check` mode running
+left-recursive expression rules as loops (P8 follow-up 2: LeftExpr check 25x -> 6.4x at worst), O4 tagged-DFA records (CSV span/tree workloads
+-37..-54%, now 0.9-1.0x handwritten) and the literal-trie walk (L4).
+The 85 remaining over-target workloads: 68 have inputs of at most 16 bytes (entry floor, `milestones/Q1`, `S3`: the harness' call into the parser
+costs more than the handwritten twin's whole parse; the exact-entry variants were measured and rejected), 4 are 17-64 bytes, 2 up to 1 KB and 11 above:
+LeftExpr 2.7x (validation) and 1.7x (accept), Ops 2.6x (rule call, repetition and work-unit overhead per operator: 9 ns against 4 ns), JSON small invalid
+1.65x, Arithmetic 1.5x. They were not made faster because no further change was found that keeps verdicts, frontiers, statuses and records exact
+("accept slow when you can't make it faster correctly").
+Checks on this tree: unit tests (26 modules), A4 differential on LDC, `tests/tagged_regions.d` (977,413 strings), `tests/left_recursion.d`
+(2,015,539 strings), eligibility goldens, `scripts/coverage_ldc.sh`: every module above 90% line coverage (`performance/coverage/`; runtime lines only,
+branch coverage needs GDC/gcov), AddressSanitizer on the unit tests and the two integration checks.
+Not available on this host and therefore not run: DMD (the x86_64 `dmd` binary segfaults on `void main(){}`, with `-o-` and with `-c`), LeakSanitizer
+and Valgrind (not provided for arm64 macOS), GDC branch coverage.
+D1: `direct` is faster by a geomean 1.35x and faster on all but 15 workloads (`milestones/D1/notes.md`); the maintainer reversed D1 on 2026-10-22 and `direct` is now the default.
+X1 NO-GO, X2 regular-region subset done as O4, S7 NO-GO, X3 profile adopted (`direct` for every family).
+X2(b)/(c) run `milestones/X2b` (same gate, LDC, direct): 278 common npegged workloads, geomean new/PhaseExit3 0.975; Ops (maximal-munch DFA) Long 43.2 -> 6.0 us (0.36x handwritten), Short 55 -> 18 ns (0.97x), Pairs 33 -> 15 ns (0.94x), Invalid 24 -> 15 ns, Truncated 36 -> 16 ns (1.06x), Empty 15 -> 14 ns (1.88x, entry floor); only one workload >5% slower with base >100 ns (JSON synthetic large valid, +7%, not re-run). Outputs verified equal before timing; the gate's headline FAIL is the usual 1.5x target on other workloads.
