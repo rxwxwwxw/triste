@@ -553,11 +553,11 @@ The paper's critical conditions include:
 
 Only start if P6 profiling shows scanning, not capture or dispatch, dominates. Add scalar reference tests for lengths around vector width, alignment, EOF and malformed UTF-8. Compile with documented CPU feature requirements; runtime fallback must remain safe on other CPUs. Record throughput, build size, and portability costs under `performance/milestones/X1/`.
 
-### X2 — Joint lexer/predictive-parser specialization — (b) recognizer and (c) records built for maximal-munch literal choices (2026-10-22; `performance/milestones/X2/notes-x2bc.md`); timing not run
+### X2 — Joint lexer/predictive-parser specialization — COMPLETE for maximal-munch literal choices (a: B/L analyses + `maximalMunch`; b: guarded DFA; c: tagged records; `performance/milestones/X2/notes-x2bc.md`; timing not run)
 
 Combine certified token patterns and deterministic region dispatch while preserving PEG lexical boundaries, choice semantics, actions, and output modes. Divide into at least: (a) analysis-only token-boundary certification, (b) generated recognizer, (c) compact-record/tree support. Benchmark against both current DFA fusion and handwritten lexer+parser.
 
-### X3 — Offline cost-model/autotuning
+### X3 — Offline cost-model/autotuning — COMPLETE (tool delivered; backend profile adopted 2026-10-22, `performance/milestones/X3/notes-adopt.md`)
 
 Use results in `performance/` to choose between direct, DFA, predictive, memoized, LL, and specialized scanner implementations per rule. Never gather microbenchmarks during production parsing. Freeze decisions by profile/target architecture; fall back conservatively when the profile does not match. Guard against compilation time/code-size blowup and overfitting to synthetic inputs.
 
